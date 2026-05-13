@@ -73,3 +73,16 @@ tr:hover { background: #fafafa; }
 /* Section */
 .section-header { margin-bottom: 0.5rem; }
 .section-header h1 { font-size: 1.4rem; }
+
+/* Help page */
+.help-page { max-width: 720px; }
+.help-page h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+.help-page section { background: #fff; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.help-page h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+.help-page h3 { font-size: 0.95rem; margin: 0.75rem 0 0.35rem; }
+.help-page p, .help-page li { font-size: 0.9rem; color: #444; line-height: 1.6; }
+.help-page ol, .help-page ul { padding-left: 1.25rem; }
+.help-page li { margin-bottom: 0.3rem; }
+.help-page code { background: #f0f0f0; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85rem; }
+.help-page .note { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px; padding: 0.6rem 0.8rem; margin-top: 0.5rem; font-size: 0.85rem; }
+.help-page a { color: #25D366; }
