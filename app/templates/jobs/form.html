@@ -42,19 +42,22 @@
     </select>
 
     <div id="trigger_value_group">
-      <label for="trigger_value">Trigger Value</label>
-      <input type="text" id="trigger_value" name="trigger_value" placeholder='e.g. "2026-06-01 09:00" or "0 9 * * 1"'>
+      <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;">
+      <input type="text" id="trigger_value_cron" name="trigger_value" placeholder='e.g. "0 9 * * 1"' style="display:none;">
     </div>
-    <small id="trigger_hint" style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (your timezone: {{ user_tz }}) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
+    <small id="trigger_hint" style="color:#888;">{{ user_tz }} — Cron: <code>MIN HOUR DOM MON DOW</code></small>
 
     <button type="submit" class="btn btn-primary">Create Job</button>
   </form>
 </div>
 <script>
   function toggleTriggerValue() {
-    var show = document.getElementById('trigger_type').value !== 'now';
+    var type = document.getElementById('trigger_type').value;
+    var show = type !== 'now';
     document.getElementById('trigger_value_group').style.display = show ? 'block' : 'none';
     document.getElementById('trigger_hint').style.display = show ? 'block' : 'none';
+    document.getElementById('trigger_value_date').style.display = type === 'date' ? 'block' : 'none';
+    document.getElementById('trigger_value_cron').style.display = type === 'cron' ? 'block' : 'none';
   }
   document.getElementById('trigger_type').addEventListener('change', toggleTriggerValue);
   toggleTriggerValue();
