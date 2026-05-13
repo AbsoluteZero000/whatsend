@@ -29,15 +29,24 @@
 
     <label for="trigger_type">Trigger Type</label>
     <select id="trigger_type" name="trigger_type" required>
+      <option value="now">Send Now</option>
       <option value="date">One-time (date)</option>
       <option value="cron">Recurring (cron)</option>
     </select>
 
-    <label for="trigger_value">Trigger Value</label>
-    <input type="text" id="trigger_value" name="trigger_value" required placeholder='e.g. "2026-06-01 09:00" or "0 9 * * 1"'>
+    <div id="trigger_value_group">
+      <label for="trigger_value">Trigger Value</label>
+      <input type="text" id="trigger_value" name="trigger_value" placeholder='e.g. "2026-06-01 09:00" or "0 9 * * 1"'>
+    </div>
     <small style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (your timezone: {{ user_tz }}) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
 
     <button type="submit" class="btn btn-primary">Create Job</button>
   </form>
 </div>
+<script>
+  document.getElementById('trigger_type').addEventListener('change', function() {
+    var group = document.getElementById('trigger_value_group');
+    group.style.display = this.value === 'now' ? 'none' : 'block';
+  });
+</script>
 {% endblock %}

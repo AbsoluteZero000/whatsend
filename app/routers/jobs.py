@@ -85,7 +85,7 @@ async def create_job(
     message: str = Form(...),
     image: UploadFile | None = None,
     trigger_type: str = Form(...),
-    trigger_value: str = Form(...),
+    trigger_value: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -94,7 +94,9 @@ async def create_job(
 
     image_path = await save_upload(image) if image else None
 
-    if trigger_type == "date":
+    if trigger_type == "now":
+        trigger_value = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    elif trigger_type == "date":
         trigger_value = local_to_utc(trigger_value, user_tz)
 
     job = Job(

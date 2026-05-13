@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -52,7 +52,9 @@ async def register_job(job: Job):
         return
 
     trigger = None
-    if job.trigger_type == "date":
+    if job.trigger_type == "now":
+        trigger = DateTrigger(run_date=datetime.now(timezone.utc) + timedelta(seconds=2))
+    elif job.trigger_type == "date":
         try:
             run_date = datetime.strptime(job.trigger_value, "%Y-%m-%d %H:%M")
         except ValueError:
