@@ -1,4 +1,4 @@
-app = "whatsend"
+app = "whatsend-app"
 primary_region = "iad"
 
 [build]
