@@ -1,16 +1,17 @@
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import TIMEZONE_CHOICES
+from app.database import get_db
+from app.models.user import User
+from app.services.auth import create_jwt, decode_jwt, hash_password, verify_password
 
 
 class RedirectRequired(Exception):
     def __init__(self, url: str):
         self.url = url
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.database import get_db
-from app.models.user import User
-from app.services.auth import create_jwt, decode_jwt, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,7 +37,7 @@ def require_user(request: Request) -> dict:
 async def signup_page(request: Request):
     if get_current_user(request):
         return RedirectResponse(url="/dashboard", status_code=303)
-    return request.app.state.render(request, "auth/signup.html")
+    return request.app.state.render(request, "auth/signup.html", timezones=TIMEZONE_CHOICES)
 
 
 @router.post("/signup")
@@ -44,18 +45,21 @@ async def signup(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    timezone: str = Form("UTC"),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.username == username))
     if result.scalar_one_or_none():
-        return request.app.state.render(request, "auth/signup.html", error="Username already taken")
+        return request.app.state.render(request, "auth/signup.html", error="Username already taken", timezones=TIMEZONE_CHOICES)
 
-    user = User(username=username, password_hash=hash_password(password))
+    if timezone not in TIMEZONE_CHOICES:
+        timezone = "UTC"
+    user = User(username=username, password_hash=hash_password(password), timezone=timezone)
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt({"sub": str(user.id), "username": user.username})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     return redirect
@@ -80,7 +84,7 @@ async def signin(
     if not user or not verify_password(password, user.password_hash):
         return request.app.state.render(request, "auth/signin.html", error="Invalid credentials")
 
-    token = create_jwt({"sub": str(user.id), "username": user.username})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     return redirect

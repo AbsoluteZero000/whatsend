@@ -18,6 +18,7 @@
         <a href="/logs">Logs</a>
         <a href="/about">Help</a>
         <a href="/auth/signout">Sign out</a>
+        {% if user_tz %}<span class="tz-badge">{{ user_tz }}</span>{% endif %}
       </div>
     </div>
   </nav>

@@ -23,8 +23,8 @@
         <td>{{ token.name or "—" }}</td>
         <td><code>••••••••{{ token.api_token[-8:] }}</code></td>
         <td>{{ "✅" if token.is_active else "❌" }}</td>
-        <td>{{ token.created_at.strftime("%Y-%m-%d %H:%M") if token.created_at else "—" }}</td>
-        <td>{{ token.last_used_at.strftime("%Y-%m-%d %H:%M") if token.last_used_at else "—" }}</td>
+        <td>{{ tz(token.created_at, user_tz) }}</td>
+        <td>{{ tz(token.last_used_at, user_tz) }}</td>
         <td>
           <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
             <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-danger' }}">

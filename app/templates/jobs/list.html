@@ -24,13 +24,13 @@
         <td><code>{{ job.group_id[:25] }}…</code>{% if job.image_path %} 🖼{% endif %}</td>
         <td>
           {% if job.trigger_type == "date" %}
-            {{ job.trigger_value }}
+            {{ tz(parse_dt(job.trigger_value), user_tz) }}
           {% else %}
             <code>{{ job.trigger_value }}</code>
           {% endif %}
         </td>
         <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
-        <td>{{ job.created_at.strftime("%Y-%m-%d %H:%M") if job.created_at else "—" }}</td>
+        <td>{{ tz(job.created_at, user_tz) }}</td>
         <td>
           {% if job.status in ("pending", "active") %}
           <form method="POST" action="/jobs/{{ job.id }}/cancel" style="display:inline">

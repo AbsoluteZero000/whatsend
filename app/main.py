@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -8,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.database import create_tables
 from app.routers import about, auth, dashboard, jobs, logs, tokens
-from app.routers.auth import RedirectRequired
+from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 
 template_dir = Path(__file__).resolve().parent / "templates"
@@ -19,7 +20,37 @@ _jinja_env = Environment(
 )
 
 
+def tz(dt: datetime | None, tz_name: str = "UTC") -> str:
+    if dt is None:
+        return "—"
+    import zoneinfo
+    try:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+        tz_obj = zoneinfo.ZoneInfo(tz_name)
+        local = dt.astimezone(tz_obj)
+        return local.strftime("%Y-%m-%d %H:%M")
+    except (zoneinfo.ZoneInfoNotFoundError, OSError, ValueError):
+        return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def parse_dt(value: str, fmt: str = "%Y-%m-%d %H:%M") -> datetime | None:
+    try:
+        return datetime.strptime(value, fmt)
+    except (ValueError, TypeError):
+        return None
+
+
+_jinja_env.globals["tz"] = tz
+_jinja_env.globals["parse_dt"] = parse_dt
+
+
 def render(request: Request, template_name: str, **context) -> HTMLResponse:
+    user = get_current_user(request)
+    if user:
+        context.setdefault("user_tz", user.get("tz", "UTC"))
+    else:
+        context.setdefault("user_tz", "UTC")
     template = _jinja_env.get_template(template_name)
     html = template.render(request=request, **context)
     return HTMLResponse(html)

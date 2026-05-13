@@ -35,7 +35,7 @@
 
     <label for="trigger_value">Trigger Value</label>
     <input type="text" id="trigger_value" name="trigger_value" required placeholder='e.g. "2026-06-01 09:00" or "0 9 * * 1"'>
-    <small style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (UTC) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
+    <small style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (your timezone: {{ user_tz }}) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
 
     <button type="submit" class="btn btn-primary">Create Job</button>
   </form>

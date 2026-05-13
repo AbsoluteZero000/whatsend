@@ -16,6 +16,11 @@
     <form method="POST" action="/auth/signup">
       <input type="text" name="username" placeholder="Username" required autocomplete="username">
       <input type="password" name="password" placeholder="Password" required autocomplete="new-password">
+      <select name="timezone">
+        {% for tz in timezones %}
+        <option value="{{ tz }}">{{ tz }}</option>
+        {% endfor %}
+      </select>
       <button type="submit">Sign up</button>
     </form>
     <p class="alt-link">Already have an account? <a href="/auth/signin">Sign in</a></p>

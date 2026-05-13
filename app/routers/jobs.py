@@ -1,4 +1,5 @@
 import os
+import zoneinfo
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +20,17 @@ UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+
+def local_to_utc(date_str: str, tz_name: str = "UTC") -> str:
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+        tz_obj = zoneinfo.ZoneInfo(tz_name)
+        aware = dt.replace(tzinfo=tz_obj)
+        utc = aware.astimezone(zoneinfo.ZoneInfo("UTC"))
+        return utc.strftime("%Y-%m-%d %H:%M")
+    except (ValueError, zoneinfo.ZoneInfoNotFoundError):
+        return date_str
 
 
 async def save_upload(file: UploadFile) -> str | None:
@@ -55,12 +67,13 @@ async def list_jobs(request: Request, db: AsyncSession = Depends(get_db)):
 async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
     user = require_user(request)
     user_id = int(user["sub"])
+    user_tz = user.get("tz", "UTC")
 
     result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return request.app.state.render(request, "jobs/form.html", tokens=tokens, now=now)
+    return request.app.state.render(request, "jobs/form.html", tokens=tokens, now=now, user_tz=user_tz)
 
 
 @router.post("/create")
@@ -77,8 +90,12 @@ async def create_job(
 ):
     user = require_user(request)
     user_id = int(user["sub"])
+    user_tz = user.get("tz", "UTC")
 
     image_path = await save_upload(image) if image else None
+
+    if trigger_type == "date":
+        trigger_value = local_to_utc(trigger_value, user_tz)
 
     job = Job(
         user_id=user_id,

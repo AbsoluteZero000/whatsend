@@ -17,3 +17,28 @@ settings = Settings()
 if not settings.secret_key:
     raise RuntimeError("SECRET_KEY must be set in .env file. See .env.example.")
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+TIMEZONE_CHOICES = [
+    "UTC",
+    "US/Eastern",
+    "US/Central",
+    "US/Mountain",
+    "US/Pacific",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Europe/Moscow",
+    "Europe/Istanbul",
+    "Asia/Dubai",
+    "Asia/Kolkata",
+    "Africa/Cairo",
+    "Asia/Riyadh",
+    "Asia/Bangkok",
+    "Asia/Shanghai",
+    "Asia/Tokyo",
+    "Asia/Seoul",
+    "Australia/Sydney",
+    "Pacific/Auckland",
+    "America/Sao_Paulo",
+    "America/Argentina/Buenos_Aires",
+]
