@@ -14,8 +14,8 @@
       <p class="error">{{ error }}</p>
     {% endif %}
     <form method="POST" action="/auth/signin">
-      <input type="text" name="username" placeholder="Username" required>
-      <input type="password" name="password" placeholder="Password" required>
+      <input type="text" name="username" placeholder="Username" required autocomplete="username">
+      <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
       <button type="submit">Sign in</button>
     </form>
     <p class="alt-link">Don't have an account? <a href="/auth/signup">Sign up</a></p>

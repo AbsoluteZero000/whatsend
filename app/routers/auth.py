@@ -43,15 +43,14 @@ async def signup_page(request: Request):
 async def signup(
     request: Request,
     username: str = Form(...),
-    email: str = Form(...),
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).where((User.username == username) | (User.email == email)))
+    result = await db.execute(select(User).where(User.username == username))
     if result.scalar_one_or_none():
-        return request.app.state.render(request, "auth/signup.html", error="Username or email already taken")
+        return request.app.state.render(request, "auth/signup.html", error="Username already taken")
 
-    user = User(username=username, email=email, password_hash=hash_password(password))
+    user = User(username=username, password_hash=hash_password(password))
     db.add(user)
     await db.commit()
     await db.refresh(user)
