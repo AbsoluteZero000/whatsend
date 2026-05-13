@@ -104,6 +104,7 @@ async def create_job(
     cron_time: str = Form(default="09:00"),
     cron_dow: str = Form(default="1"),
     cron_dom: int = Form(default=1),
+    cron_days: list[str] = Form(default=[]),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -128,6 +129,8 @@ async def create_job(
             trigger_value = f"{minute} {hour} * * 1-5"
         elif cron_freq == "weekly":
             trigger_value = f"{minute} {hour} * * {cron_dow}"
+        elif cron_freq == "custom":
+            trigger_value = f"{minute} {hour} * * {','.join(sorted(cron_days, key=int))}"
         elif cron_freq == "monthly":
             trigger_value = f"{minute} {hour} {cron_dom} * *"
 
