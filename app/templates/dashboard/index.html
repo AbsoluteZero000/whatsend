@@ -3,25 +3,112 @@
 {% block content %}
 <div class="dashboard">
   <div class="header-row">
-    <h1>Dashboard</h1>
+    <div>
+      <h1>{{ greeting }}</h1>
+      <p class="tz-note">Your timezone: {{ user_tz }} — <a href="/auth/timezone">Change</a></p>
+    </div>
     <a href="/jobs/create" class="btn btn-primary">+ Send Now</a>
   </div>
+
   <div class="stats">
-    <div class="stat-card">
+    <div class="stat-card stat-card-jobs">
+      <span class="stat-icon">📋</span>
       <span class="stat-number">{{ stats.total_jobs }}</span>
       <span class="stat-label">Total Jobs</span>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card-active">
+      <span class="stat-icon">⚡</span>
       <span class="stat-number">{{ stats.active_jobs }}</span>
       <span class="stat-label">Active</span>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card-sent">
+      <span class="stat-icon">✅</span>
       <span class="stat-number">{{ stats.sent_count }}</span>
       <span class="stat-label">Sent</span>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card-failed">
+      <span class="stat-icon">❌</span>
+      <span class="stat-number">{{ stats.failed_count }}</span>
+      <span class="stat-label">Failed</span>
+    </div>
+    <div class="stat-card stat-card-rate">
+      <span class="stat-icon">📊</span>
+      <span class="stat-number">{% if stats.success_rate > 0 %}{{ stats.success_rate }}%{% else %}—{% endif %}</span>
+      <span class="stat-label">Success Rate</span>
+    </div>
+    <div class="stat-card stat-card-tokens">
+      <span class="stat-icon">🔑</span>
       <span class="stat-number">{{ stats.tokens_count }}</span>
       <span class="stat-label">Tokens</span>
+    </div>
+  </div>
+
+  {% if stats.success_rate > 0 %}
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" style="width:{{ stats.success_rate }}%"></div>
+    <span class="progress-label">{{ stats.success_rate }}% success rate</span>
+  </div>
+  {% endif %}
+
+  <div class="dashboard-grid">
+    <div class="dash-section">
+      <div class="dash-section-header">
+        <h2>Recent Jobs</h2>
+        <a href="/jobs" class="btn btn-sm btn-primary">View All</a>
+      </div>
+      <div class="table-wrap mini-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Trigger</th>
+              <th>Status</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in recent_jobs %}
+            <tr>
+              <td>{{ job.label or "—" }}</td>
+              <td><code>{{ job.trigger_value[:25] }}{{ "…" if job.trigger_value|length > 25 }}</code></td>
+              <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+              <td>{{ tz(job.created_at, user_tz) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty-row">No jobs yet. <a href="/jobs/create">Create one</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="dash-section">
+      <div class="dash-section-header">
+        <h2>Recent Activity</h2>
+        <a href="/logs" class="btn btn-sm btn-primary">View All</a>
+      </div>
+      <div class="table-wrap mini-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in recent_logs %}
+            <tr>
+              <td>#{{ log.job_id }}</td>
+              <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ log.status }}</span></td>
+              <td>{{ tz(log.sent_at, user_tz) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="empty-row">No activity yet. Jobs will appear here after they run.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>

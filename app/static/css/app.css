@@ -90,3 +90,28 @@ tr:hover { background: #fafafa; }
 .help-page code { background: #f0f0f0; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85rem; }
 .help-page .note { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px; padding: 0.6rem 0.8rem; margin-top: 0.5rem; font-size: 0.85rem; }
 .help-page a { color: #25D366; }
+
+/* Dashboard */
+.tz-note { font-size: 0.8rem; color: #888; margin-top: 0.1rem; }
+.tz-note a { color: #25D366; text-decoration: none; }
+.stat-card { position: relative; padding-left: 3.5rem; }
+.stat-icon { position: absolute; left: 1rem; top: 1.25rem; font-size: 1.5rem; }
+.stat-card-jobs { border-left: 4px solid #74b9ff; }
+.stat-card-active { border-left: 4px solid #00cec9; }
+.stat-card-sent { border-left: 4px solid #00b894; }
+.stat-card-failed { border-left: 4px solid #e17055; }
+.stat-card-rate { border-left: 4px solid #fdcb6e; }
+.stat-card-tokens { border-left: 4px solid #6c5ce7; }
+
+.progress-bar-wrap { background: #eee; border-radius: 10px; height: 1.5rem; margin-top: 1rem; position: relative; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #00b894, #00cec9); border-radius: 10px; transition: width 0.5s; }
+.progress-label { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 600; color: #333; }
+
+.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+@media (max-width: 768px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+.dash-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.dash-section-header h2 { font-size: 1.05rem; }
+.mini-table { margin-top: 0; }
+.empty-row { text-align: center; color: #888; padding: 1.5rem !important; }
+.empty-row a { color: #25D366; text-decoration: none; }
