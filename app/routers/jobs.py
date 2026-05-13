@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.job import Job
 from app.models.token import Token
 from app.routers.auth import require_user
+from app.services.scheduler import register_job, remove_job
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -65,6 +66,9 @@ async def create_job(
     )
     db.add(job)
     await db.commit()
+    await db.refresh(job)
+    await register_job(job)
+    await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)
 
 
@@ -76,6 +80,7 @@ async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job and job.status in ("pending", "active"):
+        await remove_job(job_id)
         job.status = "cancelled"
         await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)
@@ -89,6 +94,7 @@ async def delete_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job:
+        await remove_job(job_id)
         await db.delete(job)
         await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)

@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
+
+
+class RedirectRequired(Exception):
+    def __init__(self, url: str):
+        self.url = url
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +28,7 @@ def get_current_user(request: Request) -> dict | None:
 def require_user(request: Request) -> dict:
     user = get_current_user(request)
     if user is None:
-        raise RedirectResponse(url="/auth/signin", status_code=303)
+        raise RedirectRequired("/auth/signin")
     return user
 
 
