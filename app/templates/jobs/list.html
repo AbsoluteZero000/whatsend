@@ -23,7 +23,9 @@
         <td>{{ job.label or "—" }}</td>
         <td><code>{{ job.group_id[:25] }}…</code>{% if job.image_path %} 🖼{% endif %}</td>
         <td>
-          {% if job.trigger_type == "date" %}
+          {% if job.trigger_type == "now" %}
+            Now ({{ tz(parse_dt(job.trigger_value), user_tz) }})
+          {% elif job.trigger_type == "date" %}
             {{ tz(parse_dt(job.trigger_value), user_tz) }}
           {% else %}
             <code>{{ job.trigger_value }}</code>
