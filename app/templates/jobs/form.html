@@ -21,7 +21,7 @@
     <select id="group_id" name="group_id" required>
       <option value="">— Select a group —</option>
       {% for g in groups %}
-      <option value="{{ g.id }}">{{ g.name or g.id }} — <code>{{ g.id[:30] }}…</code></option>
+      <option value="{{ g.id }}">{{ g.name or g.id }}</option>
       {% endfor %}
       <option value="__manual__">Manual entry…</option>
     </select>
