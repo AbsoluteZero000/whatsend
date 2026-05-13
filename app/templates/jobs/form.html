@@ -38,15 +38,18 @@
       <label for="trigger_value">Trigger Value</label>
       <input type="text" id="trigger_value" name="trigger_value" placeholder='e.g. "2026-06-01 09:00" or "0 9 * * 1"'>
     </div>
-    <small style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (your timezone: {{ user_tz }}) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
+    <small id="trigger_hint" style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (your timezone: {{ user_tz }}) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
 
     <button type="submit" class="btn btn-primary">Create Job</button>
   </form>
 </div>
 <script>
-  document.getElementById('trigger_type').addEventListener('change', function() {
-    var group = document.getElementById('trigger_value_group');
-    group.style.display = this.value === 'now' ? 'none' : 'block';
-  });
+  function toggleTriggerValue() {
+    var show = document.getElementById('trigger_type').value !== 'now';
+    document.getElementById('trigger_value_group').style.display = show ? 'block' : 'none';
+    document.getElementById('trigger_hint').style.display = show ? 'block' : 'none';
+  }
+  document.getElementById('trigger_type').addEventListener('change', toggleTriggerValue);
+  toggleTriggerValue();
 </script>
 {% endblock %}

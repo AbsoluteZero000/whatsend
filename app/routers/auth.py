@@ -95,3 +95,33 @@ async def signout():
     redirect = RedirectResponse(url="/auth/signin", status_code=303)
     redirect.delete_cookie(key="session")
     return redirect
+
+
+@router.get("/timezone")
+async def timezone_page(request: Request):
+    user = require_user(request)
+    return request.app.state.render(request, "auth/timezone.html", timezones=TIMEZONE_CHOICES, current_tz=user.get("tz", "UTC"))
+
+
+@router.post("/timezone")
+async def timezone_update(
+    request: Request,
+    timezone: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    user_payload = require_user(request)
+    user_id = int(user_payload["sub"])
+
+    if timezone not in TIMEZONE_CHOICES:
+        timezone = "UTC"
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        user.timezone = timezone
+        await db.commit()
+
+    token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone})
+    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    return redirect
