@@ -6,7 +6,7 @@
 
   <section>
     <h2>What is WhatSend?</h2>
-    <p>WhatSend lets you schedule WhatsApp messages to be sent at a specific time or on a recurring schedule. You create a <strong>job</strong> with a message, a group ID, and a trigger — and the app handles the rest.</p>
+    <p>WhatSend lets you schedule WhatsApp messages to be sent immediately or at a specific time — one-time or recurring. You create a <strong>job</strong> with a message, pick a group, and choose a trigger — the app handles the rest.</p>
   </section>
 
   <section>
@@ -27,50 +27,48 @@
     <h3>1. Add an API token</h3>
     <p>Go to <strong>Tokens</strong> → <strong>+ Add Token</strong>, give it a name (e.g. "work"), and paste your Whapi.Cloud API token.</p>
 
-    <h3>2. Find a group ID</h3>
-    <p>Group IDs look like <code>120363xxxxxxxxxxxxxxxxxx@g.us</code>. To find yours:</p>
-    <ul>
-      <li>Open WhatsApp Web, go to the group chat</li>
-      <li>Or use the Whapi.Cloud API to list your chats</li>
-    </ul>
-
-    <h3>3. Create a job</h3>
+    <h3>2. Create a job</h3>
     <p>Go to <strong>Jobs</strong> → <strong>+ New Job</strong>. Fill in:</p>
     <ul>
       <li><strong>API Token</strong> — which token to send with</li>
       <li><strong>Label</strong> — a friendly name for your own reference</li>
-      <li><strong>Group ID</strong> — the WhatsApp group to send to</li>
+      <li><strong>Group</strong> — select from your fetched WhatsApp groups, or enter a group ID manually</li>
       <li><strong>Message</strong> — the text to send (emoji supported ✅)</li>
-      <li><strong>Image path</strong> — optional path to an image file on the server</li>
-      <li><strong>Trigger type</strong> — one-time (<code>date</code>) or recurring (<code>cron</code>)</li>
-      <li><strong>Trigger value</strong> — <code>YYYY-MM-DD HH:MM</code> for dates, or a cron expression like <code>0 9 * * 1</code> for recurring (minute hour day month weekday)</li>
+      <li><strong>Image</strong> — optional image attachment (JPEG/PNG/GIF/WebP, max 5MB)</li>
+      <li><strong>Trigger</strong> — <strong>Send Now</strong> (fires immediately), <strong>One-time</strong> (pick date & time), or <strong>Recurring</strong> (Daily / Weekdays / Weekly / Monthly)</li>
     </ul>
     <div class="note">
-      <strong>Tip:</strong> All times are in <strong>UTC</strong>. Adjust accordingly if you're in a different timezone.
+      <strong>Tip:</strong> Times are converted from your timezone (shown in the nav bar) to UTC automatically. Click the timezone badge to change it.
     </div>
 
-    <h3>4. Monitor</h3>
-    <p>Check the <strong>Logs</strong> page to see if your messages were sent successfully.</p>
+    <h3>3. Monitor</h3>
+    <p>Check the <strong>Logs</strong> page to see if your messages were sent successfully. Click <strong>Show response</strong> to view the full API response.</p>
   </section>
 
   <section>
-    <h2>Cron examples</h2>
+    <h2>Recurring schedules</h2>
     <table>
       <thead>
-        <tr><th>Cron</th><th>Meaning</th></tr>
+        <tr><th>Option</th><th>Meaning</th></tr>
       </thead>
       <tbody>
-        <tr><td><code>0 9 * * 1</code></td><td>Every Monday at 09:00 UTC</td></tr>
-        <tr><td><code>0 10 1 * *</code></td><td>1st of every month at 10:00 UTC</td></tr>
-        <tr><td><code>30 8 * * 1-5</code></td><td>Weekdays at 08:30 UTC</td></tr>
-        <tr><td><code>0 12 * * 0</code></td><td>Every Sunday at noon UTC</td></tr>
+        <tr><td>Daily</td><td>Every day at the chosen time</td></tr>
+        <tr><td>Weekdays (Mon–Fri)</td><td>Monday through Friday at the chosen time</td></tr>
+        <tr><td>Weekly (single day)</td><td>Once a week on the selected day</td></tr>
+        <tr><td>Weekly (custom days)</td><td>Select specific days (e.g. Mon, Wed, Fri)</td></tr>
+        <tr><td>Monthly</td><td>On the selected day of the month</td></tr>
       </tbody>
     </table>
   </section>
 
   <section>
-    <h2>Original script (CLI)</h2>
-    <p>This project started as a simple Python script that reads a <code>config.yaml</code> file. If you prefer the terminal, the original <code>scheduler.py</code> and <code>sender.py</code> are still included and work independently.</p>
+    <h2>Your WhatsApp number must be in the group</h2>
+    <p>Whapi.Cloud sends messages through your linked WhatsApp number. That number <strong>must be a member</strong> of any group you want to send to. If you get a <code>403</code> error, make sure your WhatsApp account has been added to the group.</p>
+  </section>
+
+  <section>
+    <h2>Timezone</h2>
+    <p>You set your timezone during signup. It's stored in your account and used to convert dates between your local time and UTC. Click the timezone badge in the nav bar to change it at any time.</p>
   </section>
 </div>
 {% endblock %}
