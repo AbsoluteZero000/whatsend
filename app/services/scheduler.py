@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -34,7 +35,7 @@ async def send_job(job_id: int):
         try:
             resp = await sender.send(job.group_id, job.message, job.image_path)
             status = "sent"
-            response = str(resp)
+            response = json.dumps(resp, indent=2, default=str)
         except Exception as e:
             status = "failed"
             response = str(e)
