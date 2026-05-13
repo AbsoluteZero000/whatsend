@@ -21,7 +21,7 @@
       {% for token in tokens %}
       <tr>
         <td>{{ token.name or "—" }}</td>
-        <td><code>{{ token.api_token[:20] }}…</code></td>
+        <td><code>••••••••{{ token.api_token[-8:] }}</code></td>
         <td>{{ "✅" if token.is_active else "❌" }}</td>
         <td>{{ token.created_at.strftime("%Y-%m-%d %H:%M") if token.created_at else "—" }}</td>
         <td>{{ token.last_used_at.strftime("%Y-%m-%d %H:%M") if token.last_used_at else "—" }}</td>

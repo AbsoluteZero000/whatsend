@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.token import Token
 from app.routers.auth import require_user
+from app.services.crypto import encrypt_token
 
 router = APIRouter(prefix="/tokens", tags=["tokens"])
 
@@ -36,7 +37,7 @@ async def create_token(
     user = require_user(request)
     user_id = int(user["sub"])
 
-    token = Token(user_id=user_id, name=name or None, api_token=api_token)
+    token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token))
     db.add(token)
     await db.commit()
     return RedirectResponse(url="/tokens", status_code=303)

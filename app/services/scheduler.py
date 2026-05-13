@@ -9,6 +9,7 @@ from app.database import async_session
 from app.models.job import Job
 from app.models.log import Log
 from app.models.token import Token
+from app.services.crypto import decrypt_token
 from app.services.sender import WhatsAppSender
 
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -29,7 +30,7 @@ async def send_job(job_id: int):
             await db.commit()
             return
 
-        sender = WhatsAppSender(api_token=token.api_token)
+        sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
         try:
             resp = await sender.send(job.group_id, job.message, job.image_path)
             status = "sent"
