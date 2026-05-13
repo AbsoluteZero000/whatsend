@@ -1,0 +1,12 @@
+services:
+  whatsend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    volumes:
+      - whatsend_data:/data
+
+volumes:
+  whatsend_data:
