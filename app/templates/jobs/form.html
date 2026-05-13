@@ -17,8 +17,15 @@
     <label for="label">Label (optional)</label>
     <input type="text" id="label" name="label" placeholder="e.g. Monday morning report">
 
-    <label for="group_id">Group ID</label>
-    <input type="text" id="group_id" name="group_id" required placeholder="120363xxxxxxxxxxxxxxxxxx@g.us">
+    <label for="group_id">Group</label>
+    <select id="group_id" name="group_id" required>
+      <option value="">— Select a group —</option>
+      {% for g in groups %}
+      <option value="{{ g.id }}">{{ g.name or g.id }} — <code>{{ g.id[:30] }}…</code></option>
+      {% endfor %}
+      <option value="__manual__">Manual entry…</option>
+    </select>
+    <input type="text" id="group_id_manual" name="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
 
     <label for="message">Message</label>
     <textarea id="message" name="message" required placeholder="Type your WhatsApp message here…"></textarea>
@@ -51,5 +58,12 @@
   }
   document.getElementById('trigger_type').addEventListener('change', toggleTriggerValue);
   toggleTriggerValue();
+
+  document.getElementById('group_id').addEventListener('change', function() {
+    var manual = document.getElementById('group_id_manual');
+    manual.style.display = this.value === '__manual__' ? 'block' : 'none';
+    if (this.value === '__manual__') manual.required = true;
+    else manual.required = false;
+  });
 </script>
 {% endblock %}

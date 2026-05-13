@@ -32,6 +32,17 @@ class WhatsAppSender:
         response.raise_for_status()
         return response.json()
 
+    async def get_groups(self) -> list[dict]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(
+                f"{self.base_url}/groups",
+                headers=self.headers,
+                params={"count": 100},
+            )
+        response.raise_for_status()
+        data = response.json()
+        return data.get("groups", [])
+
     async def send(self, chat_id: str, message: str, image_path: str | None = None) -> dict:
         if image_path:
             return await self.send_image(chat_id, image_path, caption=message)

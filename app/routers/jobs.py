@@ -12,7 +12,9 @@ from app.database import get_db
 from app.models.job import Job
 from app.models.token import Token
 from app.routers.auth import require_user
+from app.services.crypto import decrypt_token
 from app.services.scheduler import register_job, remove_job
+from app.services.sender import WhatsAppSender
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -72,8 +74,18 @@ async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
+    groups: list[dict] = []
+    for t in tokens:
+        try:
+            sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
+            groups = await sender.get_groups()
+            if groups:
+                break
+        except Exception:
+            continue
+
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return request.app.state.render(request, "jobs/form.html", tokens=tokens, now=now, user_tz=user_tz)
+    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz)
 
 
 @router.post("/create")
@@ -82,6 +94,7 @@ async def create_job(
     token_id: int = Form(...),
     label: str = Form(default=""),
     group_id: str = Form(...),
+    group_id_manual: str = Form(default=""),
     message: str = Form(...),
     image: UploadFile | None = None,
     trigger_type: str = Form(...),
@@ -91,6 +104,9 @@ async def create_job(
     user = require_user(request)
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
+
+    if group_id == "__manual__":
+        group_id = group_id_manual
 
     image_path = await save_upload(image) if image else None
 
