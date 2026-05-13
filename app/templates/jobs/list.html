@@ -21,7 +21,7 @@
       {% for job in jobs %}
       <tr>
         <td>{{ job.label or "—" }}</td>
-        <td><code>{{ job.group_id[:25] }}…</code></td>
+        <td><code>{{ job.group_id[:25] }}…</code>{% if job.image_path %} 🖼{% endif %}</td>
         <td>
           {% if job.trigger_type == "date" %}
             {{ job.trigger_value }}

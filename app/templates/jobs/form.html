@@ -5,7 +5,7 @@
   <h1>New Scheduled Job</h1>
 </div>
 <div class="form-card">
-  <form method="POST" action="/jobs/create">
+  <form method="POST" action="/jobs/create" enctype="multipart/form-data">
     <label for="token_id">API Token</label>
     <select id="token_id" name="token_id" required>
       <option value="">— Select —</option>
@@ -23,8 +23,9 @@
     <label for="message">Message</label>
     <textarea id="message" name="message" required placeholder="Type your WhatsApp message here…"></textarea>
 
-    <label for="image_path">Image path (optional)</label>
-    <input type="text" id="image_path" name="image_path" placeholder="assets/banner.jpg">
+    <label for="image">Image (optional, max 5MB)</label>
+    <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/gif,image/webp">
+    <small style="color:#888;">Supported: JPEG, PNG, GIF, WebP — up to 5MB</small>
 
     <label for="trigger_type">Trigger Type</label>
     <select id="trigger_type" name="trigger_type" required>

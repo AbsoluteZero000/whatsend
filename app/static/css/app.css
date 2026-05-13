@@ -51,6 +51,7 @@ tr:hover { background: #fafafa; }
 .form-card form { display: flex; flex-direction: column; gap: 0.75rem; }
 .form-card label { font-weight: 500; font-size: 0.9rem; }
 .form-card input, .form-card select, .form-card textarea { padding: 0.5rem 0.7rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+.form-card input[type="file"] { padding: 0.3rem; font-size: 0.85rem; }
 .form-card textarea { min-height: 80px; resize: vertical; }
 .form-card button { align-self: flex-start; }
 
