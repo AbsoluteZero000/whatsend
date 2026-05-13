@@ -1,7 +1,0 @@
-2026-05-12 18:58:01  INFO      Loaded config from config.yaml
-2026-05-12 18:58:01  INFO      Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-05-12 18:58:01  INFO      [product-launch] Scheduled (one-time) → 2026-06-01 09:00:00  group=120363396803367047@g.us
-2026-05-12 18:58:01  INFO      Starting scheduler with 1 job(s). Press Ctrl+C to stop.
-2026-05-12 18:58:01  INFO      Added job "product-launch" to job store "default"
-2026-05-12 18:58:01  INFO      Scheduler started
-2026-05-12 19:04:49  INFO      Scheduler stopped by user.
