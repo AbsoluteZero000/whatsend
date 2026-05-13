@@ -1,0 +1,69 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# WhatsApp Scheduler — Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# HOW TO GET YOUR CREDENTIALS (Green API):
+#   1. Sign up at https://green-api.com
+#   2. Create an instance and scan the QR code with your WhatsApp account
+#   3. Copy your Instance ID and API Token below
+#
+# HOW TO FIND A GROUP ID:
+#   1. Open WhatsApp Web → open the group
+#   2. The URL will look like: https://web.whatsapp.com/accept?code=...
+#   3. Or use the Green API method: GET /getChats to list all chats with IDs
+#   Group IDs look like:  120363xxxxxxxxxxxxxxxxxx@g.us
+#   Contact IDs look like: 201xxxxxxxxxx@c.us  (country code + number)
+# ─────────────────────────────────────────────────────────────────────────────
+
+api:
+  instance_id: "YOUR_INSTANCE_ID"   # e.g. 7105123456
+  api_token:   "YOUR_API_TOKEN"     # e.g. a1b2c3d4e5f6...
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# schedule: list of messages to send
+#
+# Each entry MUST have:
+#   group_id  — WhatsApp chat or group ID
+#   message   — text to send (supports emoji ✅)
+#
+# Each entry MUST have ONE of:
+#   date      — one-time send  →  "YYYY-MM-DD HH:MM"  (UTC)
+#   cron      — recurring send →  "MIN HOUR DOM MON DOW"  (standard cron)
+#
+# Optional:
+#   image     — relative or absolute path to an image file
+#   label     — friendly name shown in logs
+# ─────────────────────────────────────────────────────────────────────────────
+
+schedule:
+
+  # ── Example 1: one-time message with an image ─────────────────────────────
+  - label:    "product-launch"
+    group_id: "120363111111111111@g.us"
+    date:     "2026-06-01 09:00"
+    image:    "assets/launch_banner.jpg"
+    message: |
+      🚀 Big announcement coming your way!
+      Our new product is officially live — check it out now.
+
+  # ── Example 2: one-time plain-text message ────────────────────────────────
+  - label:    "team-reminder"
+    group_id: "120363222222222222@g.us"
+    date:     "2026-05-20 08:30"
+    message:  "📌 Reminder: team meeting today at 10:00 AM. Don't be late!"
+
+  # ── Example 3: recurring — every Monday at 9 AM (cron) ───────────────────
+  - label:    "weekly-update"
+    group_id: "120363333333333333@g.us"
+    cron:     "0 9 * * 1"          # MIN HOUR DOM MON DOW
+    image:    "assets/weekly.png"
+    message: |
+      📅 Good morning team! Here's your weekly update.
+      Have a productive week 💪
+
+  # ── Example 4: recurring — 1st of every month at 10:00 ───────────────────
+  - label:    "monthly-report"
+    group_id: "120363444444444444@g.us"
+    cron:     "0 10 1 * *"
+    message:  "📊 Monthly report is ready. Check your email for details."
