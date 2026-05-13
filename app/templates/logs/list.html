@@ -24,7 +24,7 @@
         <td>{{ log.id }}</td>
         <td>{{ log.job_id }}</td>
         <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ log.status }}</span></td>
-        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><code>{{ log.response or "—" }}</code></td>
+        <td style="max-width:400px;"><details><summary style="cursor:pointer;color:var(--primary);">Show response</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:0.85rem;margin:0.25rem 0;max-height:200px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>
       {% else %}
