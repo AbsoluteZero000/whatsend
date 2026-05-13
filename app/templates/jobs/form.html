@@ -43,9 +43,35 @@
 
     <div id="trigger_value_group">
       <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;">
-      <input type="text" id="trigger_value_cron" name="trigger_value" placeholder='e.g. "0 9 * * 1"' style="display:none;">
+      <div id="trigger_value_cron" style="display:none;">
+        <label for="cron_freq">Frequency</label>
+        <select id="cron_freq" name="cron_freq">
+          <option value="daily">Daily</option>
+          <option value="weekdays">Weekdays (Mon–Fri)</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+        <label for="cron_time">Time</label>
+        <input type="time" id="cron_time" name="cron_time" value="09:00">
+        <div id="cron_dow_group" style="display:none;">
+          <label for="cron_dow">Day of week</label>
+          <select id="cron_dow" name="cron_dow">
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+        </div>
+        <div id="cron_dom_group" style="display:none;">
+          <label for="cron_dom">Day of month</label>
+          <input type="number" id="cron_dom" name="cron_dom" min="1" max="31" value="1">
+        </div>
+      </div>
     </div>
-    <small id="trigger_hint" style="color:#888;">{{ user_tz }} — Cron: <code>MIN HOUR DOM MON DOW</code></small>
+    <small id="trigger_hint" style="color:#888;">Timezone: {{ user_tz }}</small>
 
     <button type="submit" class="btn btn-primary">Create Job</button>
   </form>
@@ -61,6 +87,14 @@
   }
   document.getElementById('trigger_type').addEventListener('change', toggleTriggerValue);
   toggleTriggerValue();
+
+  function toggleCronFields() {
+    var freq = document.getElementById('cron_freq').value;
+    document.getElementById('cron_dow_group').style.display = freq === 'weekly' ? 'block' : 'none';
+    document.getElementById('cron_dom_group').style.display = freq === 'monthly' ? 'block' : 'none';
+  }
+  document.getElementById('cron_freq').addEventListener('change', toggleCronFields);
+  toggleCronFields();
 
   document.getElementById('group_id').addEventListener('change', function() {
     var manual = document.getElementById('group_id_manual');

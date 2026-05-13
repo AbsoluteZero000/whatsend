@@ -100,6 +100,10 @@ async def create_job(
     trigger_type: str = Form(...),
     trigger_value: str = Form(default=""),
     trigger_value_date: str = Form(default=""),
+    cron_freq: str = Form(default="daily"),
+    cron_time: str = Form(default="09:00"),
+    cron_dow: str = Form(default="1"),
+    cron_dom: int = Form(default=1),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -116,6 +120,16 @@ async def create_job(
     elif trigger_type == "date":
         trigger_value = trigger_value_date.replace("T", " ")
         trigger_value = local_to_utc(trigger_value, user_tz)
+    elif trigger_type == "cron":
+        hour, minute = cron_time.split(":")
+        if cron_freq == "daily":
+            trigger_value = f"{minute} {hour} * * *"
+        elif cron_freq == "weekdays":
+            trigger_value = f"{minute} {hour} * * 1-5"
+        elif cron_freq == "weekly":
+            trigger_value = f"{minute} {hour} * * {cron_dow}"
+        elif cron_freq == "monthly":
+            trigger_value = f"{minute} {hour} {cron_dom} * *"
 
     job = Job(
         user_id=user_id,
