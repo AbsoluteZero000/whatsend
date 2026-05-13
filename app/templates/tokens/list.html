@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Tokens — WhatSend{% endblock %}
+{% block content %}
+<div class="section-header header-row">
+  <h1>API Tokens</h1>
+  <a href="/tokens/create" class="btn btn-primary">+ Add Token</a>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Token</th>
+        <th>Active</th>
+        <th>Created</th>
+        <th>Last Used</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for token in tokens %}
+      <tr>
+        <td>{{ token.name or "—" }}</td>
+        <td><code>{{ token.api_token[:20] }}…</code></td>
+        <td>{{ "✅" if token.is_active else "❌" }}</td>
+        <td>{{ token.created_at.strftime("%Y-%m-%d %H:%M") if token.created_at else "—" }}</td>
+        <td>{{ token.last_used_at.strftime("%Y-%m-%d %H:%M") if token.last_used_at else "—" }}</td>
+        <td>
+          <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
+            <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-danger' }}">
+              {{ "Activate" if not token.is_active else "Deactivate" }}
+            </button>
+          </form>
+          <form method="POST" action="/tokens/{{ token.id }}/delete" style="display:inline">
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:#888;padding:2rem;">No tokens yet. Add one to get started.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

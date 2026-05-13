@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Add Token — WhatSend{% endblock %}
+{% block content %}
+<div class="section-header">
+  <h1>Add API Token</h1>
+</div>
+<div class="form-card">
+  <form method="POST" action="/tokens/create">
+    <label for="name">Name (optional)</label>
+    <input type="text" id="name" name="name" placeholder="e.g. Work token">
+
+    <label for="api_token">Whapi.Cloud API Token</label>
+    <input type="text" id="api_token" name="api_token" required placeholder="Paste your token here">
+
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+</div>
+{% endblock %}

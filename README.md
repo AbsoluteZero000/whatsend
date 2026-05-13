@@ -1,112 +1,59 @@
-# WhatsApp Scheduler
+# WhatSend — WhatsApp Scheduler
 
-A Python script that sends WhatsApp messages (text + images) to groups at scheduled times, configured entirely from a YAML file.
+## The journey
 
----
+I started with a simple Python script (`scheduler.py`) that reads a YAML file and fires off WhatsApp messages via the Whapi.Cloud API at scheduled times. It worked, but editing YAML by hand got old fast.
 
-## Project structure
+So I thought: "I'll wrap this in a REST API so people can hit endpoints to manage their messages." That's better, but still not friendly — who wants to curl endpoints to schedule a message?
+
+So I built a **dashboard**. Now anyone can sign up, add their Whapi.Cloud tokens, create scheduled messages, and watch the logs — all from a browser.
+
+## Stack
+
+| Piece | What |
+|---|---|
+| Backend | **FastAPI** (async Python) |
+| Database | **SQLite** via **SQLAlchemy 2.0** (async) |
+| Frontend | **Jinja2** templates + **HTMX** (no JS build step) |
+| Auth | JWT in httpOnly cookies, bcrypt hashing |
+| Scheduler | **APScheduler** (kept from the original script) |
+
+## Schema
 
 ```
-whatsapp_scheduler/
-├── scheduler.py       ← entry point; reads config and starts the scheduler
-├── sender.py          ← Green API wrapper (text + image sending)
-├── config.yaml        ← all your groups, messages, and schedules live here
-├── requirements.txt
-└── assets/            ← put your image files here
+users ──1:N── tokens ──1:N── jobs ──1:N── logs
 ```
 
----
+- A **user** has many API tokens and many jobs
+- A **token** belongs to a user and is used by many jobs
+- A **job** belongs to a user and a token; can be one-time (`date`) or recurring (`cron`)
+- A **log** records every send attempt (success or failure) for a job
 
-## Setup
-
-### 1. Get a Green API account
-
-1. Go to [https://green-api.com](https://green-api.com) and sign up (free tier available).
-2. Create a new **instance**.
-3. Scan the QR code with the WhatsApp account that will send the messages.
-4. Copy your **Instance ID** and **API Token** from the dashboard.
-
-### 2. Install dependencies
+## Quick start
 
 ```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+python run.py
 ```
 
-### 3. Fill in config.yaml
+Open http://localhost:8000, sign up, add a Whapi.Cloud token, and create your first scheduled message.
 
-```yaml
-api:
-  instance_id: "7105xxxxxx"
-  api_token:   "your_token_here"
+## Directory layout
+
 ```
-
-Add your scheduled messages under `schedule:` — see the examples already in the file.
-
-### 4. Find your group IDs
-
-Group IDs look like `120363xxxxxxxxxxxxxxxxxx@g.us`.
-
-**Easiest way — use the Green API console:**
+whatsend/
+├── app/
+│   ├── main.py              # FastAPI app
+│   ├── config.py            # Settings
+│   ├── database.py          # SQLAlchemy async engine + session
+│   ├── models/              # User, Token, Job, Log
+│   ├── schemas/             # Pydantic models
+│   ├── routers/             # auth, dashboard, tokens, jobs, logs
+│   ├── services/            # auth (JWT/bcrypt), sender (Whapi.Cloud)
+│   ├── templates/           # Jinja2
+│   └── static/              # CSS
+├── run.py                   # uvicorn entry point
+├── scheduler.py             # Original CLI script (still works)
+└── sender.py                # Original sender (still works)
 ```
-GET https://api.green-api.com/waInstance{id}/getChats/{token}
-```
-This returns all chats with their IDs. Look for the group name.
-
-### 5. Run the scheduler
-
-```bash
-python scheduler.py
-```
-
-The script stays running and fires messages at the scheduled times.  
-All activity is logged to `scheduler.log` and to stdout.
-
----
-
-## Scheduling syntax
-
-### One-time message (`date`)
-
-```yaml
-date: "2026-06-15 09:00"   # UTC — YYYY-MM-DD HH:MM
-```
-
-### Recurring message (`cron`)
-
-```yaml
-cron: "MIN HOUR DOM MON DOW"
-```
-
-| Example              | Meaning                     |
-|----------------------|-----------------------------|
-| `0 9 * * 1`          | Every Monday at 09:00       |
-| `0 10 1 * *`         | 1st of every month at 10:00 |
-| `30 8 * * 1-5`       | Weekdays at 08:30           |
-| `0 12 * * 0`         | Every Sunday at noon        |
-
-All times are **UTC** by default. Change `timezone="UTC"` in `scheduler.py` if needed.
-
----
-
-## Adding images
-
-Put image files in the `assets/` folder and reference them in the config:
-
-```yaml
-image: "assets/my_banner.jpg"   # JPEG, PNG, GIF, WebP supported
-```
-
-If `image` is omitted or the file is missing, only the text message is sent.
-
----
-
-## Running as a background service (optional)
-
-**Linux/macOS — using `screen`:**
-```bash
-screen -S whatsapp
-python scheduler.py
-# Ctrl+A then D to detach
-```
-
-**Or create a systemd service** for auto-start on boot.

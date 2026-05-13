@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — WhatSend</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <h1>📬 WhatSend</h1>
+    <h2>Sign in</h2>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    <form method="POST" action="/auth/signin">
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Sign in</button>
+    </form>
+    <p class="alt-link">Don't have an account? <a href="/auth/signup">Sign up</a></p>
+  </div>
+</body>
+</html>

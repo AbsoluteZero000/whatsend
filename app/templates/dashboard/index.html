@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — WhatSend{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <h1>Dashboard</h1>
+  <div class="stats">
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.total_jobs }}</span>
+      <span class="stat-label">Total Jobs</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.active_jobs }}</span>
+      <span class="stat-label">Active</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.sent_count }}</span>
+      <span class="stat-label">Sent</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-number">{{ stats.tokens_count }}</span>
+      <span class="stat-label">Tokens</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

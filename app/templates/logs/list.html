@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Logs — WhatSend{% endblock %}
+{% block content %}
+<div class="section-header">
+  <h1>Execution Logs</h1>
+  {% if job_id %}
+  <p style="color:#888;margin-top:0.25rem;">Filtered by job #{{ job_id }} — <a href="/logs">Show all</a></p>
+  {% endif %}
+</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Job ID</th>
+        <th>Status</th>
+        <th>Response</th>
+        <th>Sent At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.id }}</td>
+        <td>{{ log.job_id }}</td>
+        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ log.status }}</span></td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><code>{{ log.response or "—" }}</code></td>
+        <td>{{ log.sent_at.strftime("%Y-%m-%d %H:%M:%S") if log.sent_at else "—" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;color:#888;padding:2rem;">No logs yet. Jobs will appear here after they execute.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

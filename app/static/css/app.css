@@ -1,0 +1,75 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; line-height: 1.5; }
+
+/* Auth */
+.auth-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.auth-card { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 100%; max-width: 380px; }
+.auth-card h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.auth-card h2 { font-size: 1rem; color: #666; margin-bottom: 1.5rem; }
+.auth-card form { display: flex; flex-direction: column; gap: 0.75rem; }
+.auth-card input { padding: 0.6rem 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; }
+.auth-card button { padding: 0.6rem; background: #25D366; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: 600; }
+.auth-card button:hover { background: #1da851; }
+.error { color: #e74c3c; font-size: 0.9rem; margin-bottom: 0.5rem; }
+.alt-link { margin-top: 1rem; font-size: 0.9rem; text-align: center; color: #666; }
+.alt-link a { color: #25D366; text-decoration: none; }
+
+/* Nav */
+nav { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 0 1rem; }
+.nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+.brand { font-weight: 700; font-size: 1.1rem; text-decoration: none; color: #1a1a1a; }
+.nav-links { display: flex; gap: 1.25rem; }
+.nav-links a { text-decoration: none; color: #555; font-size: 0.9rem; }
+.nav-links a:hover { color: #25D366; }
+
+/* Main */
+main { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.stat-card { background: #fff; border-radius: 8px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; flex-direction: column; }
+.stat-number { font-size: 2rem; font-weight: 700; }
+.stat-label { font-size: 0.85rem; color: #888; }
+
+/* Tables */
+.table-wrap { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow-x: auto; margin-top: 1rem; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.6rem 0.75rem; font-size: 0.9rem; border-bottom: 1px solid #eee; }
+th { background: #fafafa; font-weight: 600; color: #555; }
+tr:hover { background: #fafafa; }
+
+/* Buttons */
+.btn { display: inline-block; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.85rem; text-decoration: none; cursor: pointer; border: none; font-weight: 500; }
+.btn-primary { background: #25D366; color: #fff; }
+.btn-primary:hover { background: #1da851; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+
+/* Forms */
+.form-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); padding: 1.5rem; max-width: 520px; margin-top: 1rem; }
+.form-card form { display: flex; flex-direction: column; gap: 0.75rem; }
+.form-card label { font-weight: 500; font-size: 0.9rem; }
+.form-card input, .form-card select, .form-card textarea { padding: 0.5rem 0.7rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+.form-card textarea { min-height: 80px; resize: vertical; }
+.form-card button { align-self: flex-start; }
+
+/* Header row */
+.header-row { display: flex; justify-content: space-between; align-items: center; }
+.header-row a { text-decoration: none; }
+
+/* Status badges */
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-pending { background: #ffeaa7; color: #6c5b00; }
+.badge-active { background: #81ecec; color: #005a5a; }
+.badge-completed { background: #55efc4; color: #004d33; }
+.badge-failed { background: #fab1a0; color: #6b1a00; }
+
+/* Flash messages */
+.flash { padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+.flash-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.flash-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+/* Section */
+.section-header { margin-bottom: 0.5rem; }
+.section-header h1 { font-size: 1.4rem; }

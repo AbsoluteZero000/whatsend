@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Jobs — WhatSend{% endblock %}
+{% block content %}
+<div class="section-header header-row">
+  <h1>Scheduled Jobs</h1>
+  <a href="/jobs/create" class="btn btn-primary">+ New Job</a>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Label</th>
+        <th>Group ID</th>
+        <th>Trigger</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td>{{ job.label or "—" }}</td>
+        <td><code>{{ job.group_id[:25] }}…</code></td>
+        <td>
+          {% if job.trigger_type == "date" %}
+            {{ job.trigger_value }}
+          {% else %}
+            <code>{{ job.trigger_value }}</code>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+        <td>{{ job.created_at.strftime("%Y-%m-%d %H:%M") if job.created_at else "—" }}</td>
+        <td>
+          {% if job.status in ("pending", "active") %}
+          <form method="POST" action="/jobs/{{ job.id }}/cancel" style="display:inline">
+            <button class="btn btn-sm btn-danger">Cancel</button>
+          </form>
+          {% endif %}
+          <form method="POST" action="/jobs/{{ job.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this job?')">
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </form>
+          <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:#888;padding:2rem;">No jobs scheduled yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

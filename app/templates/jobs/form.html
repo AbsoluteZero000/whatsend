@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}New Job — WhatSend{% endblock %}
+{% block content %}
+<div class="section-header">
+  <h1>New Scheduled Job</h1>
+</div>
+<div class="form-card">
+  <form method="POST" action="/jobs/create">
+    <label for="token_id">API Token</label>
+    <select id="token_id" name="token_id" required>
+      <option value="">— Select —</option>
+      {% for token in tokens %}
+      <option value="{{ token.id }}">{{ token.name or token.api_token[:20] }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="label">Label (optional)</label>
+    <input type="text" id="label" name="label" placeholder="e.g. Monday morning report">
+
+    <label for="group_id">Group ID</label>
+    <input type="text" id="group_id" name="group_id" required placeholder="120363xxxxxxxxxxxxxxxxxx@g.us">
+
+    <label for="message">Message</label>
+    <textarea id="message" name="message" required placeholder="Type your WhatsApp message here…"></textarea>
+
+    <label for="image_path">Image path (optional)</label>
+    <input type="text" id="image_path" name="image_path" placeholder="assets/banner.jpg">
+
+    <label for="trigger_type">Trigger Type</label>
+    <select id="trigger_type" name="trigger_type" required>
+      <option value="date">One-time (date)</option>
+      <option value="cron">Recurring (cron)</option>
+    </select>
+
+    <label for="trigger_value">Trigger Value</label>
+    <input type="text" id="trigger_value" name="trigger_value" required placeholder='e.g. "2026-06-01 09:00" or "0 9 * * 1"'>
+    <small style="color:#888;">Date: <code>YYYY-MM-DD HH:MM</code> (UTC) — Cron: <code>MIN HOUR DOM MON DOW</code></small>
+
+    <button type="submit" class="btn btn-primary">Create Job</button>
+  </form>
+</div>
+{% endblock %}
