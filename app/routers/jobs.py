@@ -92,6 +92,12 @@ async def list_jobs(request: Request, status: str = "active", db: AsyncSession =
                 j.group_name = name
         await db.commit()
 
+    pending_triggers = [j for j in jobs if j.trigger_type == "trigger" and j.status == "pending"]
+    if pending_triggers:
+        for j in pending_triggers:
+            j.status = "trigger"
+        await db.commit()
+
     return request.app.state.render(request, "jobs/list.html", jobs=jobs, current_status=status)
 
 
