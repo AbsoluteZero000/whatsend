@@ -44,6 +44,12 @@ tr:hover { background: #fafafa; }
 /* Buttons */
 .btn { display: inline-block; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.85rem; text-decoration: none; cursor: pointer; border: none; font-weight: 500; }
 .actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+/* Filter bar */
+.filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.filter-btn { padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; text-decoration: none; color: #555; background: #eee; font-weight: 500; transition: 0.15s; }
+.filter-btn:hover { background: #ddd; }
+.filter-btn.active { background: #25D366; color: #fff; }
 .btn-primary { background: #25D366; color: #fff; }
 .btn-primary:hover { background: #1da851; }
 .btn-danger { background: #e74c3c; color: #fff; }
