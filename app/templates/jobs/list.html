@@ -36,6 +36,7 @@
           {% else %}
             {{ cron_to_text(job.trigger_value) }}
           {% endif %}
+          {% if job.skip_count > 0 %}<span class="skip-badge">⏭ skip ×{{ job.skip_count }}</span>{% endif %}
         </td>
         <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
         <td>{{ tz(job.created_at, user_tz) }}</td>
@@ -51,7 +52,7 @@
               <button class="btn btn-sm btn-warning">Pause</button>
             </form>
             <form method="POST" action="/jobs/{{ job.id }}/skip">
-              <button class="btn btn-sm btn-skip">Skip</button>
+              <button class="btn btn-sm btn-skip">Skip{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
             </form>
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
