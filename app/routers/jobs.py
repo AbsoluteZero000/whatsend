@@ -220,6 +220,19 @@ async def skip_job(job_id: int, request: Request, db: AsyncSession = Depends(get
     return RedirectResponse(url="/jobs", status_code=303)
 
 
+@router.post("/{job_id}/skip-clear")
+async def skip_clear_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if job and job.skip_count > 0:
+        job.skip_count = 0
+        await db.commit()
+    return RedirectResponse(url="/jobs", status_code=303)
+
+
 @router.post("/{job_id}/cancel")
 async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     user = require_user(request)

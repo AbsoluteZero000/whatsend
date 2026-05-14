@@ -54,6 +54,11 @@
             <form method="POST" action="/jobs/{{ job.id }}/skip">
               <button class="btn btn-sm btn-skip">Skip{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
             </form>
+            {% if job.skip_count > 0 %}
+            <form method="POST" action="/jobs/{{ job.id }}/skip-clear">
+              <button class="btn btn-sm btn-clear" title="Clear skips">✕</button>
+            </form>
+            {% endif %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
               <button class="btn btn-sm btn-danger">Cancel</button>
