@@ -40,5 +40,7 @@ def _migrate(conn):
         jcols = [c["name"] for c in inspector.get_columns("jobs")]
         if "group_name" not in jcols:
             conn.execute(text("ALTER TABLE jobs ADD COLUMN group_name VARCHAR(255)"))
+        if "skip_count" not in jcols:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN skip_count INTEGER DEFAULT 0"))
     except Exception:
         pass

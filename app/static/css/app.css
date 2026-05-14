@@ -56,7 +56,13 @@ tr:hover { background: #fafafa; }
 .btn-primary:hover { background: #1da851; }
 .btn-danger { background: #e74c3c; color: #fff; }
 .btn-danger:hover { background: #c0392b; }
+.btn-warning { background: #f39c12; color: #fff; }
+.btn-warning:hover { background: #d68910; }
+.btn-skip { background: #e67e22; color: #fff; }
+.btn-skip:hover { background: #cf6d17; }
 .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+.skip-form { display: inline-flex !important; align-items: center; gap: 0.15rem; }
+.skip-form input[type="number"] { width: 2.2rem; padding: 0.2rem 0.3rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; text-align: center; }
 
 /* Forms */
 .form-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); padding: 1.5rem; max-width: 520px; margin-top: 1rem; }
@@ -77,6 +83,8 @@ tr:hover { background: #fafafa; }
 .badge-active { background: #81ecec; color: #005a5a; }
 .badge-completed { background: #55efc4; color: #004d33; }
 .badge-failed { background: #fab1a0; color: #6b1a00; }
+.badge-paused { background: #dfe6e9; color: #2d3436; }
+.badge-skipped { background: #ffeaa7; color: #6c5b00; }
 
 /* Flash messages */
 .flash { padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }

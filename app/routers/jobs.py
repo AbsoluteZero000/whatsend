@@ -178,6 +178,48 @@ async def create_job(
     return RedirectResponse(url="/jobs", status_code=303)
 
 
+@router.post("/{job_id}/pause")
+async def pause_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if job and job.status == "active":
+        await remove_job(job_id)
+        job.status = "paused"
+        await db.commit()
+    return RedirectResponse(url="/jobs", status_code=303)
+
+
+@router.post("/{job_id}/resume")
+async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if job and job.status == "paused":
+        job.status = "pending"
+        await db.commit()
+        await register_job(job)
+        await db.commit()
+    return RedirectResponse(url="/jobs", status_code=303)
+
+
+@router.post("/{job_id}/skip")
+async def skip_job(job_id: int, request: Request, times: int = Form(default=1), db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if job and job.status in ("pending", "active"):
+        job.skip_count += max(1, times)
+        await db.commit()
+    return RedirectResponse(url="/jobs", status_code=303)
+
+
 @router.post("/{job_id}/cancel")
 async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     user = require_user(request)
@@ -331,6 +373,7 @@ async def edit_job(
     job.image_path = image_path
     job.trigger_type = trigger_type
     job.trigger_value = trigger_value
+    job.skip_count = 0
     await db.commit()
 
     await remove_job(job_id)

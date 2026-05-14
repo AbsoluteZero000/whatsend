@@ -20,6 +20,7 @@ class Job(Base):
     trigger_type: Mapped[str] = mapped_column(String(10), nullable=False)
     trigger_value: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending")
+    skip_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

@@ -23,6 +23,15 @@ async def send_job(job_id: int):
         if not job:
             return
 
+        if job.skip_count > 0:
+            job.skip_count -= 1
+            log = Log(job_id=job.id, status="skipped", response=f"Skipped ({job.skip_count} remaining)")
+            db.add(log)
+            if job.trigger_type in ("now", "date") and job.skip_count == 0:
+                job.status = "completed"
+            await db.commit()
+            return
+
         result = await db.execute(select(Token).where(Token.id == job.token_id))
         token = result.scalar_one_or_none()
         if not token or not token.is_active:

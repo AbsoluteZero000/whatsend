@@ -45,10 +45,23 @@
             <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
             {% endif %}
             <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
-            {% if job.status in ("pending", "active") %}<div class="actions-divider"></div>{% endif %}
             {% if job.status in ("pending", "active") %}
+            <div class="actions-divider"></div>
+            <form method="POST" action="/jobs/{{ job.id }}/pause">
+              <button class="btn btn-sm btn-warning">Pause</button>
+            </form>
+            <form method="POST" action="/jobs/{{ job.id }}/skip" class="skip-form">
+              <input type="number" name="times" value="1" min="1" max="99">
+              <button class="btn btn-sm btn-skip">Skip</button>
+            </form>
+            <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
               <button class="btn btn-sm btn-danger">Cancel</button>
+            </form>
+            {% elif job.status == "paused" %}
+            <div class="actions-divider"></div>
+            <form method="POST" action="/jobs/{{ job.id }}/resume">
+              <button class="btn btn-sm btn-primary">Resume</button>
             </form>
             {% endif %}
             <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="return confirm('Delete this job?')">
