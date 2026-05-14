@@ -71,6 +71,27 @@ async def list_jobs(request: Request, status: str = "active", db: AsyncSession =
 
     result = await db.execute(query)
     jobs = result.scalars().all()
+
+    missing = [j for j in jobs if not j.group_name]
+    if missing:
+        result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
+        tokens = result.scalars().all()
+        group_map: dict[str, str] = {}
+        for t in tokens:
+            try:
+                sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
+                groups = await sender.get_groups()
+                group_map = {g["id"]: g.get("name") or g["id"] for g in groups}
+                if group_map:
+                    break
+            except Exception:
+                continue
+        for j in missing:
+            name = group_map.get(j.group_id)
+            if name:
+                j.group_name = name
+        await db.commit()
+
     return request.app.state.render(request, "jobs/list.html", jobs=jobs, current_status=status)
 
 
