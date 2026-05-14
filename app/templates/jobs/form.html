@@ -50,6 +50,7 @@
       <option value="now" {% if edit_mode and job.trigger_type == 'now' %}selected{% endif %}>Send Now</option>
       <option value="date" {% if edit_mode and job.trigger_type == 'date' %}selected{% endif %}>One-time (date)</option>
       <option value="cron" {% if edit_mode and job.trigger_type == 'cron' %}selected{% endif %}>Recurring (cron)</option>
+      <option value="trigger" {% if edit_mode and job.trigger_type == 'trigger' %}selected{% endif %}>On Trigger</option>
     </select>
     {% if edit_mode and job.trigger_type == 'now' %}
     <input type="hidden" name="trigger_type" value="now">
@@ -106,7 +107,7 @@
 <script>
   function toggleTriggerValue() {
     var type = document.getElementById('trigger_type').value;
-    var show = type !== 'now';
+    var show = type !== 'now' && type !== 'trigger';
     document.getElementById('trigger_value_group').style.display = show ? 'block' : 'none';
     document.getElementById('trigger_hint').style.display = show ? 'block' : 'none';
     document.getElementById('trigger_value_date').style.display = type === 'date' ? 'block' : 'none';

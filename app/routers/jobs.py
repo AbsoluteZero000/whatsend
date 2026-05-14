@@ -13,7 +13,7 @@ from app.models.job import Job
 from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
-from app.services.scheduler import register_job, remove_job
+from app.services.scheduler import register_job, remove_job, send_job
 from app.services.sender import WhatsAppSender
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -121,6 +121,8 @@ async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
     if trigger_type == "now":
         return datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    elif trigger_type == "trigger":
+        return ""
     elif trigger_type == "date":
         tv = kw.get("trigger_value_date", "").replace("T", " ")
         return local_to_utc(tv, user_tz)
@@ -252,6 +254,23 @@ async def skip_clear_job(job_id: int, request: Request, db: AsyncSession = Depen
     job = result.scalar_one_or_none()
     if job and job.skip_count > 0:
         job.skip_count = 0
+        await db.commit()
+    return RedirectResponse(url="/jobs", status_code=303)
+
+
+@router.post("/{job_id}/send-now")
+async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if job and job.status in ("pending",):
+        job.status = "active"
+        await db.commit()
+        await send_job(job_id)
+        if job.trigger_type != "cron":
+            job.status = "completed"
         await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)
 

@@ -60,6 +60,8 @@ async def send_job(job_id: int):
 async def register_job(job: Job):
     if job.status not in ("pending", "active"):
         return
+    if job.trigger_type == "trigger":
+        return
 
     trigger = None
     if job.trigger_type == "now":
