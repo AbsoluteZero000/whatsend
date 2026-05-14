@@ -1,7 +1,7 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
-        "WhatSend": "WhatSend",
+        "Zamzam": "Zamzam",
         "WhatsApp Scheduler": "مدير WhatsApp",
         "Dashboard": "لوحة التحكم",
         "Tokens": "الرموز",

@@ -128,7 +128,7 @@ async def lifespan(app: FastAPI):
     apscheduler.shutdown()
 
 
-app = FastAPI(title="WhatSend", lifespan=lifespan)
+app = FastAPI(title="Zamzam", lifespan=lifespan)
 
 app.state.render = render
 
