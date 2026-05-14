@@ -7,6 +7,7 @@
 </div>
 <div class="filter-bar">
   <a href="/jobs?status=active" class="filter-btn {% if current_status == 'active' %}active{% endif %}">Active</a>
+  <a href="/jobs?status=paused" class="filter-btn {% if current_status == 'paused' %}active{% endif %}">Paused</a>
   <a href="/jobs?status=completed" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">Completed</a>
   <a href="/jobs?status=failed" class="filter-btn {% if current_status == 'failed' %}active{% endif %}">Failed</a>
   <a href="/jobs?status=all" class="filter-btn {% if current_status == 'all' %}active{% endif %}">All</a>

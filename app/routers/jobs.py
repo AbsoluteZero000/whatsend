@@ -63,6 +63,8 @@ async def list_jobs(request: Request, status: str = "active", db: AsyncSession =
         query = query.where(Job.status.in_(["pending", "active"]))
     elif status == "completed":
         query = query.where(Job.status.in_(["completed", "cancelled"]))
+    elif status == "paused":
+        query = query.where(Job.status == "paused")
     elif status == "failed":
         query = query.where(Job.status == "failed")
     query = query.order_by(Job.created_at.desc())
