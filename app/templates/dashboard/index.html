@@ -31,11 +31,6 @@
       <span class="stat-number">{{ stats.failed_count }}</span>
       <span class="stat-label">{{ _('Failed') }}</span>
     </div>
-    <div class="stat-card stat-card-rate">
-      <span class="stat-icon">📊</span>
-      <span class="stat-number">{% if stats.success_rate > 0 %}{{ stats.success_rate }}%{% else %}—{% endif %}</span>
-      <span class="stat-label">{{ _('Success Rate') }}</span>
-    </div>
     <div class="stat-card stat-card-tokens">
       <span class="stat-icon">🔑</span>
       <span class="stat-number">{{ stats.tokens_count }}</span>
