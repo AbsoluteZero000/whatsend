@@ -1,22 +1,28 @@
 {% extends "base.html" %}
-{% block title %}New Job — WhatSend{% endblock %}
+{% block title %}{% if edit_mode %}Edit Job — WhatSend{% else %}New Job — WhatSend{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
-  <h1>New Scheduled Job</h1>
+  <h1>{% if edit_mode %}Edit Job{% if job.label %}: {{ job.label }}{% endif %}{% else %}New Scheduled Job{% endif %}</h1>
 </div>
 <div class="form-card">
-  <form method="POST" action="/jobs/create" enctype="multipart/form-data">
+  <form method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
     <label for="token_id">API Token</label>
     <select id="token_id" name="token_id" required>
       <option value="">— Select —</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}">{{ token.name or token.api_token[:20] }}</option>
+      <option value="{{ token.id }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or token.api_token[:20] }}</option>
       {% endfor %}
     </select>
 
     <label for="label">Label (optional)</label>
-    <input type="text" id="label" name="label" placeholder="e.g. Monday morning report">
+    <input type="text" id="label" name="label" placeholder="e.g. Monday morning report" {% if edit_mode and job.label %}value="{{ job.label }}"{% endif %}>
 
+    {% if edit_mode %}
+    <label>Group</label>
+    <input type="hidden" name="group_id" value="{{ job.group_id }}">
+    <input type="hidden" name="group_name" value="{{ job.group_name or '' }}">
+    <input type="text" value="{{ job.group_name or job.group_id }}" disabled style="opacity:0.7;">
+    {% else %}
     <label for="group_id">Group</label>
     <select id="group_id" name="group_id" required>
       <option value="">— Select a group —</option>
@@ -26,67 +32,81 @@
       <option value="__manual__">Manual entry…</option>
     </select>
     <input type="text" id="group_id_manual" name="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
+    <input type="hidden" id="group_name" name="group_name" value="">
+    {% endif %}
 
     <label for="message">Message</label>
-    <textarea id="message" name="message" required placeholder="Type your WhatsApp message here…"></textarea>
+    <textarea id="message" name="message" required placeholder="Type your WhatsApp message here…">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
 
     <label for="image">Image (optional, max 5MB)</label>
     <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/gif,image/webp">
+    {% if edit_mode and job.image_path %}
+    <small style="color:#888;">Current image: {{ job.image_path.split('/')[-1] }}</small>
+    {% endif %}
     <small style="color:#888;">Supported: JPEG, PNG, GIF, WebP — up to 5MB</small>
 
     <label for="trigger_type">Trigger Type</label>
-    <select id="trigger_type" name="trigger_type" required>
-      <option value="now">Send Now</option>
-      <option value="date">One-time (date)</option>
-      <option value="cron">Recurring (cron)</option>
+    <select id="trigger_type" name="trigger_type" required {% if edit_mode and job.trigger_type == 'now' %}disabled{% endif %}>
+      <option value="now" {% if edit_mode and job.trigger_type == 'now' %}selected{% endif %}>Send Now</option>
+      <option value="date" {% if edit_mode and job.trigger_type == 'date' %}selected{% endif %}>One-time (date)</option>
+      <option value="cron" {% if edit_mode and job.trigger_type == 'cron' %}selected{% endif %}>Recurring (cron)</option>
     </select>
+    {% if edit_mode and job.trigger_type == 'now' %}
+    <input type="hidden" name="trigger_type" value="now">
+    <small style="color:#888;">Trigger type cannot be changed for "now" jobs.</small>
+    {% endif %}
 
+    {% set cf = cron_freq|default('daily') %}
+    {% set ct = cron_time|default('09:00') %}
+    {% set cdow = cron_dow|default('1') %}
+    {% set cdom = cron_dom|default(1) %}
+    {% set cdays = cron_days|default([]) %}
     <div id="trigger_value_group">
-      <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;">
+      <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;" {% if trigger_value_date %}value="{{ trigger_value_date }}"{% endif %}>
       <div id="trigger_value_cron" style="display:none;">
         <label for="cron_freq">Frequency</label>
         <select id="cron_freq" name="cron_freq">
-          <option value="daily">Daily</option>
-          <option value="weekdays">Weekdays (Mon–Fri)</option>
-          <option value="weekly">Weekly (single day)</option>
-          <option value="custom">Weekly (custom days)</option>
-          <option value="monthly">Monthly</option>
+          <option value="daily" {% if cf == 'daily' %}selected{% endif %}>Daily</option>
+          <option value="weekdays" {% if cf == 'weekdays' %}selected{% endif %}>Weekdays (Mon–Fri)</option>
+          <option value="weekly" {% if cf == 'weekly' %}selected{% endif %}>Weekly (single day)</option>
+          <option value="custom" {% if cf == 'custom' %}selected{% endif %}>Weekly (custom days)</option>
+          <option value="monthly" {% if cf == 'monthly' %}selected{% endif %}>Monthly</option>
         </select>
         <label for="cron_time">Time</label>
-        <input type="time" id="cron_time" name="cron_time" value="09:00">
+        <input type="time" id="cron_time" name="cron_time" value="{{ ct }}">
         <div id="cron_dow_group" style="display:none;">
           <label for="cron_dow">Day of week</label>
           <select id="cron_dow" name="cron_dow">
-            <option value="0">Sunday</option>
-            <option value="1">Monday</option>
-            <option value="2">Tuesday</option>
-            <option value="3">Wednesday</option>
-            <option value="4">Thursday</option>
-            <option value="5">Friday</option>
-            <option value="6">Saturday</option>
+            <option value="0" {% if cdow == '0' %}selected{% endif %}>Sunday</option>
+            <option value="1" {% if cdow == '1' %}selected{% endif %}>Monday</option>
+            <option value="2" {% if cdow == '2' %}selected{% endif %}>Tuesday</option>
+            <option value="3" {% if cdow == '3' %}selected{% endif %}>Wednesday</option>
+            <option value="4" {% if cdow == '4' %}selected{% endif %}>Thursday</option>
+            <option value="5" {% if cdow == '5' %}selected{% endif %}>Friday</option>
+            <option value="6" {% if cdow == '6' %}selected{% endif %}>Saturday</option>
           </select>
         </div>
         <div id="cron_dom_group" style="display:none;">
           <label for="cron_dom">Day of month</label>
-          <input type="number" id="cron_dom" name="cron_dom" min="1" max="31" value="1">
+          <input type="number" id="cron_dom" name="cron_dom" min="1" max="31" value="{{ cdom }}">
         </div>
         <div id="cron_custom_group" style="display:none;">
           <label>Days of week</label>
           <div class="checkbox-group">
-            <label><input type="checkbox" name="cron_days" value="0"> Sun</label>
-            <label><input type="checkbox" name="cron_days" value="1"> Mon</label>
-            <label><input type="checkbox" name="cron_days" value="2"> Tue</label>
-            <label><input type="checkbox" name="cron_days" value="3"> Wed</label>
-            <label><input type="checkbox" name="cron_days" value="4"> Thu</label>
-            <label><input type="checkbox" name="cron_days" value="5"> Fri</label>
-            <label><input type="checkbox" name="cron_days" value="6"> Sat</label>
+            <label><input type="checkbox" name="cron_days" value="0" {% if '0' in cdays %}checked{% endif %}> Sun</label>
+            <label><input type="checkbox" name="cron_days" value="1" {% if '1' in cdays %}checked{% endif %}> Mon</label>
+            <label><input type="checkbox" name="cron_days" value="2" {% if '2' in cdays %}checked{% endif %}> Tue</label>
+            <label><input type="checkbox" name="cron_days" value="3" {% if '3' in cdays %}checked{% endif %}> Wed</label>
+            <label><input type="checkbox" name="cron_days" value="4" {% if '4' in cdays %}checked{% endif %}> Thu</label>
+            <label><input type="checkbox" name="cron_days" value="5" {% if '5' in cdays %}checked{% endif %}> Fri</label>
+            <label><input type="checkbox" name="cron_days" value="6" {% if '6' in cdays %}checked{% endif %}> Sat</label>
           </div>
         </div>
       </div>
     </div>
     <small id="trigger_hint" style="color:#888;">Timezone: {{ user_tz }}</small>
 
-    <button type="submit" class="btn btn-primary">Create Job</button>
+    <button type="submit" class="btn btn-primary">{% if edit_mode %}Update Job{% else %}Create Job{% endif %}</button>
   </form>
 </div>
 <script>
@@ -110,11 +130,20 @@
   document.getElementById('cron_freq').addEventListener('change', toggleCronFields);
   toggleCronFields();
 
+  {% if not edit_mode %}
   document.getElementById('group_id').addEventListener('change', function() {
     var manual = document.getElementById('group_id_manual');
+    var hidden = document.getElementById('group_name');
+    var selected = this.options[this.selectedIndex];
     manual.style.display = this.value === '__manual__' ? 'block' : 'none';
-    if (this.value === '__manual__') manual.required = true;
-    else manual.required = false;
+    if (this.value === '__manual__') {
+      manual.required = true;
+      hidden.value = '';
+    } else {
+      manual.required = false;
+      hidden.value = selected.text;
+    }
   });
+  {% endif %}
 </script>
 {% endblock %}

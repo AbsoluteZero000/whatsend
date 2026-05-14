@@ -14,6 +14,7 @@ class Job(Base):
     token_id: Mapped[int] = mapped_column(Integer, ForeignKey("tokens.id"), nullable=False)
     label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     group_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    group_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     image_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     trigger_type: Mapped[str] = mapped_column(String(10), nullable=False)

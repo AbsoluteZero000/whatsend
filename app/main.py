@@ -45,6 +45,38 @@ _jinja_env.globals["tz"] = tz
 _jinja_env.globals["parse_dt"] = parse_dt
 
 
+WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+
+def cron_to_text(expr: str) -> str:
+    try:
+        parts = expr.split()
+        if len(parts) != 5:
+            return expr
+        minute, hour, dom, month, dow = parts
+        time = f"{hour.zfill(2)}:{minute.zfill(2)}"
+
+        if dow == "*" and dom == "*":
+            return f"Daily at {time}"
+        if dow == "1-5" and dom == "*":
+            return f"Weekdays at {time}"
+        if dow == "0,6" and dom == "*":
+            return f"Weekends at {time}"
+        if dom == "*" and "," in dow:
+            names = [WEEKDAYS[int(d)] for d in dow.split(",")]
+            return f"{', '.join(names)} at {time}"
+        if dom == "*" and "-" not in dow:
+            return f"Weekly on {WEEKDAYS[int(dow)]} at {time}"
+        if dom != "*" and dow == "*":
+            return f"Monthly on day {dom} at {time}"
+        return expr
+    except (ValueError, IndexError, AttributeError):
+        return expr
+
+
+_jinja_env.globals["cron_to_text"] = cron_to_text
+
+
 def render(request: Request, template_name: str, **context) -> HTMLResponse:
     user = get_current_user(request)
     if user:

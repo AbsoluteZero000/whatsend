@@ -10,7 +10,7 @@
     <thead>
       <tr>
         <th>Label</th>
-        <th>Group ID</th>
+        <th>Group</th>
         <th>Trigger</th>
         <th>Status</th>
         <th>Created</th>
@@ -21,19 +21,22 @@
       {% for job in jobs %}
       <tr>
         <td>{{ job.label or "—" }}</td>
-        <td><code>{{ job.group_id[:25] }}…</code>{% if job.image_path %} 🖼{% endif %}</td>
+        <td><code>{{ job.group_name or job.group_id }}{% if job.image_path %} 🖼{% endif %}</code></td>
         <td>
           {% if job.trigger_type == "now" %}
             Now ({{ tz(parse_dt(job.trigger_value), user_tz) }})
           {% elif job.trigger_type == "date" %}
             {{ tz(parse_dt(job.trigger_value), user_tz) }}
           {% else %}
-            <code>{{ job.trigger_value }}</code>
+            {{ cron_to_text(job.trigger_value) }}
           {% endif %}
         </td>
         <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
         <td>{{ tz(job.created_at, user_tz) }}</td>
         <td>
+          {% if job.status in ("pending", "active") and job.trigger_type != "now" %}
+          <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+          {% endif %}
           {% if job.status in ("pending", "active") %}
           <form method="POST" action="/jobs/{{ job.id }}/cancel" style="display:inline">
             <button class="btn btn-sm btn-danger">Cancel</button>

@@ -35,3 +35,10 @@ def _migrate(conn):
     if "timezone" not in cols:
         conn.execute(text("ALTER TABLE users ADD COLUMN timezone VARCHAR(64) DEFAULT 'UTC'"))
         conn.execute(text("UPDATE users SET timezone = 'UTC' WHERE timezone IS NULL"))
+
+    try:
+        jcols = [c["name"] for c in inspector.get_columns("jobs")]
+        if "group_name" not in jcols:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN group_name VARCHAR(255)"))
+    except Exception:
+        pass
