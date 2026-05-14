@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Profile') }} — WhatSend{% endblock %}
+{% block content %}
+<div class="section-header">
+  <h1>{{ _('Profile Settings') }}</h1>
+</div>
+{% if error %}
+<p class="flash flash-error">{{ error }}</p>
+{% endif %}
+<div class="form-card">
+  <form method="POST" action="/auth/profile">
+    <label for="username">{{ _('Change Username') }}</label>
+    <input type="text" id="username" name="username" value="{{ username }}" placeholder="{{ _('New Username') }}">
+
+    <hr style="border:none;border-top:1px solid #eee;margin:0.5rem 0;">
+
+    <label for="current_password">{{ _('Current Password') }}</label>
+    <input type="password" id="current_password" name="current_password" placeholder="{{ _('Current Password') }}">
+
+    <label for="new_password">{{ _('New Password') }}</label>
+    <input type="password" id="new_password" name="new_password" placeholder="{{ _('New Password') }}">
+
+    <label for="confirm_password">{{ _('Confirm Password') }}</label>
+    <input type="password" id="confirm_password" name="confirm_password" placeholder="{{ _('Confirm Password') }}">
+
+    <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
+    <a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>
+  </form>
+</div>
+{% endblock %}

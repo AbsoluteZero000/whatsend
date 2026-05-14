@@ -143,6 +143,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Good morning": "صباح الخير",
         "Good afternoon": "مساء الخير",
         "Good evening": "مساء الخير",
+        "Profile": "الملف الشخصي",
+        "Profile Settings": "إعدادات الملف الشخصي",
+        "Change Username": "تغيير اسم المستخدم",
+        "New Username": "اسم المستخدم الجديد",
+        "Change Password": "تغيير كلمة المرور",
+        "Current Password": "كلمة المرور الحالية",
+        "New Password": "كلمة المرور الجديدة",
+        "Confirm Password": "تأكيد كلمة المرور",
+        "Passwords do not match": "كلمتا المرور غير متطابقتين",
+        "Username already taken": "اسم المستخدم مستخدم بالفعل",
+        "Current password is incorrect": "كلمة المرور الحالية غير صحيحة",
+        "Profile updated": "تم تحديث الملف الشخصي",
     },
 }
 

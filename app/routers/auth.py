@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import TIMEZONE_CHOICES
 from app.database import get_db
+from app.i18n import _
 from app.models.user import User
 from app.services.auth import create_jwt, decode_jwt, hash_password, verify_password
 
@@ -128,6 +129,54 @@ async def timezone_update(
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
+    return redirect
+
+
+@router.get("/profile")
+async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
+    user_payload = require_user(request)
+    user_id = int(user_payload["sub"])
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    return request.app.state.render(request, "auth/profile.html", username=user.username if user else "")
+
+
+@router.post("/profile")
+async def profile_update(
+    request: Request,
+    username: str = Form(None),
+    current_password: str = Form(None),
+    new_password: str = Form(None),
+    confirm_password: str = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    user_payload = require_user(request)
+    user_id = int(user_payload["sub"])
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        return RedirectResponse(url="/auth/signin", status_code=303)
+
+    if username and username != user.username:
+        existing = await db.execute(select(User).where(User.username == username))
+        if existing.scalar_one_or_none():
+            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Username already taken", user.lang))
+        user.username = username
+
+    if current_password and new_password:
+        if not verify_password(current_password, user.password_hash):
+            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Current password is incorrect", user.lang))
+        if new_password != confirm_password:
+            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Passwords do not match", user.lang))
+        user.password_hash = hash_password(new_password)
+
+    await db.commit()
+    await db.refresh(user)
+
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang})
+    redirect = RedirectResponse(url="/auth/profile", status_code=303)
+    redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     return redirect
 
 

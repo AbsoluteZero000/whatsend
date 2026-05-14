@@ -272,11 +272,7 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job and job.status in ("trigger",):
-        job.status = "active"
-        await db.commit()
         await send_job(job_id)
-        job.status = "completed"
-        await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)
 
 
