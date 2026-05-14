@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
   <title>{% block title %}{{ _('WhatsApp Scheduler') }}{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=3">
+  <link rel="stylesheet" href="/static/css/app.css?v=4">
 </head>
 <body>
   <nav>
@@ -19,6 +20,7 @@
         <a href="/logs">{{ _('Logs') }}</a>
         <a href="/about">{{ _('Help') }}</a>
         <a href="/auth/profile">{{ _('Profile') }}</a>
+        <button id="themeToggle" class="theme-toggle"></button>
         <form method="POST" action="/auth/lang" class="lang-form">
           <input type="hidden" name="lang" value="{{ 'ar' if lang == 'en' else 'en' }}">
           <button type="submit" class="lang-toggle" title="{{ _('Toggle language') }}">
@@ -50,6 +52,20 @@ function updateClock() {
 }
 updateClock();
 setInterval(updateClock, 1000);
+
+const themeToggle = document.getElementById('themeToggle');
+function updateThemeIcon() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  themeToggle.textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
+}
+themeToggle.addEventListener('click', function() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  updateThemeIcon();
+});
+updateThemeIcon();
 </script>
 </body>
 </html>

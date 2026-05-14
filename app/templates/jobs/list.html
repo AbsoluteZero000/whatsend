@@ -88,7 +88,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;color:#888;padding:2rem;">{{ _('No jobs scheduled yet.') }}</td></tr>
+      <tr><td colspan="6" class="empty-row" style="padding:2rem;">{{ _('No jobs scheduled yet.') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
