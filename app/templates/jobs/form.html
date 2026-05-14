@@ -61,6 +61,7 @@
     {% set cdow = cron_dow|default('1') %}
     {% set cdom = cron_dom|default(1) %}
     {% set cdays = cron_days|default([]) %}
+    {% set craw = cron_raw|default('') %}
     <div id="trigger_value_group">
       <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;" {% if trigger_value_date %}value="{{ trigger_value_date }}"{% endif %}>
       <div id="trigger_value_cron" style="display:none;">
@@ -71,9 +72,15 @@
           <option value="weekly" {% if cf == 'weekly' %}selected{% endif %}>Weekly (single day)</option>
           <option value="custom" {% if cf == 'custom' %}selected{% endif %}>Weekly (custom days)</option>
           <option value="monthly" {% if cf == 'monthly' %}selected{% endif %}>Monthly</option>
+          <option value="raw" {% if cf == 'raw' %}selected{% endif %}>Custom cron…</option>
         </select>
         <label for="cron_time">Time</label>
         <input type="time" id="cron_time" name="cron_time" value="{{ ct }}">
+        <div id="cron_raw_group" style="display:none;">
+          <label for="cron_raw">Cron expression</label>
+          <input type="text" id="cron_raw" name="cron_raw" placeholder="e.g. 0 9 * * 1" value="{{ craw }}">
+          <small style="color:#888;">Format: minute hour day month day_of_week</small>
+        </div>
         <div id="cron_dow_group" style="display:none;">
           <label for="cron_dow">Day of week</label>
           <select id="cron_dow" name="cron_dow">
@@ -123,9 +130,12 @@
 
   function toggleCronFields() {
     var freq = document.getElementById('cron_freq').value;
+    var isRaw = freq === 'raw';
+    document.getElementById('cron_time').style.display = isRaw ? 'none' : 'block';
     document.getElementById('cron_dow_group').style.display = freq === 'weekly' ? 'block' : 'none';
     document.getElementById('cron_custom_group').style.display = freq === 'custom' ? 'block' : 'none';
     document.getElementById('cron_dom_group').style.display = freq === 'monthly' ? 'block' : 'none';
+    document.getElementById('cron_raw_group').style.display = isRaw ? 'block' : 'none';
   }
   document.getElementById('cron_freq').addEventListener('change', toggleCronFields);
   toggleCronFields();

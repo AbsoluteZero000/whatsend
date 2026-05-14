@@ -116,6 +116,8 @@ def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
             return f"{minute} {hour} * * {','.join(sorted(days, key=int))}"
         elif cron_freq == "monthly":
             return f"{minute} {hour} {kw.get('cron_dom', 1)} * *"
+        elif cron_freq == "raw":
+            return kw.get("cron_raw", "")
     return ""
 
 
@@ -137,6 +139,7 @@ async def create_job(
     cron_dow: str = Form(default="1"),
     cron_dom: int = Form(default=1),
     cron_days: list[str] = Form(default=[]),
+    cron_raw: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -156,6 +159,7 @@ async def create_job(
         cron_dow=cron_dow,
         cron_dom=cron_dom,
         cron_days=cron_days,
+        cron_raw=cron_raw,
     )
 
     job = Job(
@@ -281,7 +285,7 @@ def parse_cron_for_form(expr: str) -> dict:
         return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": dow.split(",")}
     if dom != "*" and dow == "*":
         return {"cron_freq": "monthly", "cron_time": cron_time, "cron_dom": int(dom)}
-    return {"cron_freq": "daily", "cron_time": cron_time}
+    return {"cron_freq": "raw", "cron_raw": expr}
 
 
 @router.get("/{job_id}/edit")
@@ -344,6 +348,7 @@ async def edit_job(
     cron_dow: str = Form(default="1"),
     cron_dom: int = Form(default=1),
     cron_days: list[str] = Form(default=[]),
+    cron_raw: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -376,6 +381,7 @@ async def edit_job(
         cron_dow=cron_dow,
         cron_dom=cron_dom,
         cron_days=cron_days,
+        cron_raw=cron_raw,
     )
 
     job.token_id = token_id
