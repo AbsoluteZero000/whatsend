@@ -42,8 +42,9 @@ th { background: #fafafa; font-weight: 600; color: #555; }
 tr:hover { background: #fafafa; }
 
 /* Buttons */
-.btn { display: inline-block; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.85rem; text-decoration: none; cursor: pointer; border: none; font-weight: 500; }
-.actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.85rem; text-decoration: none; cursor: pointer; border: none; font-weight: 500; }
+.actions { display: flex; gap: 0.3rem; align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+.actions form { display: inline-flex; margin: 0; padding: 0; }
 
 /* Filter bar */
 .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
