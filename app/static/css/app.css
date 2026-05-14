@@ -61,8 +61,6 @@ tr:hover { background: #fafafa; }
 .btn-skip { background: #e67e22; color: #fff; }
 .btn-skip:hover { background: #cf6d17; }
 .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
-.skip-form { display: inline-flex !important; align-items: center; gap: 0.15rem; }
-.skip-form input[type="number"] { width: 2.2rem; padding: 0.2rem 0.3rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; text-align: center; }
 
 /* Forms */
 .form-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); padding: 1.5rem; max-width: 520px; margin-top: 1rem; }

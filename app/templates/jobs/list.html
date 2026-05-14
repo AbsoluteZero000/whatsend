@@ -50,8 +50,7 @@
             <form method="POST" action="/jobs/{{ job.id }}/pause">
               <button class="btn btn-sm btn-warning">Pause</button>
             </form>
-            <form method="POST" action="/jobs/{{ job.id }}/skip" class="skip-form">
-              <input type="number" name="times" value="1" min="1" max="99">
+            <form method="POST" action="/jobs/{{ job.id }}/skip">
               <button class="btn btn-sm btn-skip">Skip</button>
             </form>
             <div class="actions-divider"></div>

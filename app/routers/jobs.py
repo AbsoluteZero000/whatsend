@@ -208,14 +208,14 @@ async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(g
 
 
 @router.post("/{job_id}/skip")
-async def skip_job(job_id: int, request: Request, times: int = Form(default=1), db: AsyncSession = Depends(get_db)):
+async def skip_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     user = require_user(request)
     user_id = int(user["sub"])
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job and job.status in ("pending", "active"):
-        job.skip_count += max(1, times)
+        job.skip_count += 1
         await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)
 
