@@ -17,6 +17,7 @@ primary_region = "iad"
 
 [env]
   DATABASE_URL = "sqlite+aiosqlite:////data/whatsend.db"
+  UPLOAD_DIR = "/data/uploads"
 
 [deploy]
   release_command = "python -c 'from app.database import create_tables; import asyncio; asyncio.run(create_tables())'"
