@@ -1,24 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang|default('en') }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In — WhatSend</title>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <title>{{ _('Sign In') }} — WhatSend</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=3">
 </head>
 <body class="auth-page">
   <div class="auth-card">
     <h1>📬 WhatSend</h1>
-    <h2>Sign in</h2>
+    <h2>{{ _('Sign in') }}</h2>
     {% if error %}
       <p class="error">{{ error }}</p>
     {% endif %}
     <form method="POST" action="/auth/signin">
-      <input type="text" name="username" placeholder="Username" required autocomplete="username">
-      <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-      <button type="submit">Sign in</button>
+      <input type="text" name="username" placeholder="{{ _('Username') }}" required autocomplete="username">
+      <input type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="current-password">
+      <button type="submit">{{ _('Sign in') }}</button>
     </form>
-    <p class="alt-link">Don't have an account? <a href="/auth/signup">Sign up</a></p>
+    <p class="alt-link">{{ _("Don't have an account?") }} <a href="/auth/signup">{{ _('Sign up') }}</a></p>
   </div>
 </body>
 </html>

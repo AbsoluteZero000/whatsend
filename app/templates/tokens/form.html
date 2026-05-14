@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Add Token — WhatSend{% endblock %}
+{% block title %}{{ _('Add API Token') }} — WhatSend{% endblock %}
 {% block content %}
 <div class="section-header">
-  <h1>Add API Token</h1>
+  <h1>{{ _('Add API Token') }}</h1>
 </div>
 <div class="form-card">
   <form method="POST" action="/tokens/create">
-    <label for="name">Name (optional)</label>
-    <input type="text" id="name" name="name" placeholder="e.g. Work token">
+    <label for="name">{{ _('Name (optional)') }}</label>
+    <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}">
 
-    <label for="api_token">Whapi.Cloud API Token</label>
-    <input type="text" id="api_token" name="api_token" required placeholder="Paste your token here">
+    <label for="api_token">{{ _('Whapi.Cloud API Token') }}</label>
+    <input type="text" id="api_token" name="api_token" required placeholder="{{ _('Paste your token here') }}">
 
-    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
   </form>
 </div>
 {% endblock %}

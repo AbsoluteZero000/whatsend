@@ -44,3 +44,8 @@ def _migrate(conn):
             conn.execute(text("ALTER TABLE jobs ADD COLUMN skip_count INTEGER DEFAULT 0"))
     except Exception:
         pass
+
+    cols = [c["name"] for c in inspector.get_columns("users")]
+    if "lang" not in cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN lang VARCHAR(2) DEFAULT 'en'"))
+        conn.execute(text("UPDATE users SET lang = 'en' WHERE lang IS NULL"))

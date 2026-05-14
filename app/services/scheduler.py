@@ -52,7 +52,12 @@ async def send_job(job_id: int):
         log = Log(job_id=job.id, status=status, response=response)
         db.add(log)
 
-        job.status = "active" if job.trigger_type == "cron" else ("completed" if status == "sent" else "pending")
+        if job.trigger_type == "trigger":
+            job.status = "trigger"
+        elif job.trigger_type == "cron":
+            job.status = "active"
+        else:
+            job.status = "completed" if status == "sent" else "pending"
         token.last_used_at = datetime.now()
         await db.commit()
 

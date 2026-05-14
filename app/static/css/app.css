@@ -74,7 +74,8 @@ tr:hover { background: #fafafa; }
 .form-card button { align-self: flex-start; }
 
 /* Header row */
-.header-row { display: flex; justify-content: space-between; align-items: center; }
+.header-row { display: flex; align-items: center; gap: 1rem; }
+.header-row h1 { flex: 1; }
 .header-row a { text-decoration: none; }
 
 /* Status badges */
@@ -140,3 +141,25 @@ footer { max-width: 1100px; margin: 3rem auto 1.5rem; padding: 0 1rem; display: 
 .footer-links { display: flex; gap: 1rem; }
 .footer-links a { color: #888; text-decoration: none; }
 .footer-links a:hover { color: #25D366; }
+
+/* Lang toggle */
+.lang-form { display: inline-flex; }
+.lang-toggle { background: #e8f5e9; color: #2e7d32; border: none; border-radius: 10px; padding: 0.15rem 0.5rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; line-height: 1.5; }
+.lang-toggle:hover { background: #c8e6c9; }
+
+/* RTL */
+[dir="rtl"] th, [dir="rtl"] td { text-align: right; }
+[dir="rtl"] .stats { direction: rtl; }
+[dir="rtl"] .stat-card { padding-left: 1.25rem; padding-right: 3.5rem; }
+[dir="rtl"] .stat-icon { left: auto; right: 1rem; }
+[dir="rtl"] .nav-inner { flex-direction: row-reverse; }
+[dir="rtl"] .filter-bar { justify-content: flex-end; }
+[dir="rtl"] .header-row h1 { text-align: right; }
+[dir="rtl"] .progress-label { right: auto; left: 0.5rem; }
+[dir="rtl"] .actions { flex-direction: row-reverse; }
+[dir="rtl"] .dash-section-header { flex-direction: row-reverse; }
+[dir="rtl"] .auth-card { text-align: right; }
+[dir="rtl"] .footer-links { flex-direction: row-reverse; }
+[dir="rtl"] .checkbox-group { direction: rtl; }
+[dir="rtl"] .tz-note { direction: rtl; }
+[dir="rtl"] .alt-link { direction: rtl; }

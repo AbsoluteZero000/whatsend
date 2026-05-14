@@ -1,24 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}WhatsApp Scheduler{% endblock %}</title>
+  <title>{% block title %}{{ _('WhatsApp Scheduler') }}{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=2">
+  <link rel="stylesheet" href="/static/css/app.css?v=3">
 </head>
 <body>
   <nav>
     <div class="nav-inner">
-      <a href="/dashboard" class="brand">📬 WhatSend</a>
+      <a href="/dashboard" class="brand">📬 {{ _('WhatSend') }}</a>
       <div class="nav-links">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/tokens">Tokens</a>
-        <a href="/jobs">Jobs</a>
-        <a href="/logs">Logs</a>
-        <a href="/about">Help</a>
-        <a href="/auth/signout">Sign out</a>
+        <a href="/dashboard">{{ _('Dashboard') }}</a>
+        <a href="/tokens">{{ _('Tokens') }}</a>
+        <a href="/jobs">{{ _('Jobs') }}</a>
+        <a href="/logs">{{ _('Logs') }}</a>
+        <a href="/about">{{ _('Help') }}</a>
+        <form method="POST" action="/auth/lang" class="lang-form">
+          <input type="hidden" name="lang" value="{{ 'ar' if lang == 'en' else 'en' }}">
+          <button type="submit" class="lang-toggle" title="{{ _('Toggle language') }}">
+            {{ 'AR' if lang == 'en' else 'EN' }}
+          </button>
+        </form>
+        <a href="/auth/signout">{{ _('Sign out') }}</a>
         {% if user_tz %}<a href="/auth/timezone" class="tz-badge">{{ user_tz }}</a>{% endif %}
       </div>
     </div>
@@ -27,9 +33,9 @@
     {% block content %}{% endblock %}
   </main>
   <footer>
-    <span>📬 WhatSend</span>
+    <span>📬 {{ _('WhatSend') }}</span>
     <span class="footer-links">
-      <a href="/about">Help</a>
+      <a href="/about">{{ _('Help') }}</a>
       <a href="https://github.com/absolutezero000/whatsend" target="_blank">GitHub</a>
     </span>
   </footer>

@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.database import create_tables
+from app.i18n import _ as _translate
 from app.routers import about, auth, dashboard, jobs, logs, tokens
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
@@ -81,10 +82,18 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
     user = get_current_user(request)
     if user:
         context.setdefault("user_tz", user.get("tz", "UTC"))
+        lang = user.get("lang", "en")
     else:
         context.setdefault("user_tz", "UTC")
+        lang = "en"
+    lang = request.cookies.get("lang", lang)
+    context.setdefault("lang", lang)
+
+    def _(key: str) -> str:
+        return _translate(key, lang)
+
     template = _jinja_env.get_template(template_name)
-    html = template.render(request=request, **context)
+    html = template.render(request=request, _=_, **context)
     return HTMLResponse(html)
 
 

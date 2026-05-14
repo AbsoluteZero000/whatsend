@@ -1,27 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Jobs — WhatSend{% endblock %}
+{% block title %}{{ _('Jobs') }} — WhatSend{% endblock %}
 {% block content %}
 <div class="section-header header-row">
-  <h1>Scheduled Jobs</h1>
-  <a href="/jobs/create" class="btn btn-primary">+ New Job</a>
+  <h1>{{ _('Scheduled Jobs') }}</h1>
+  <a href="/jobs/create" class="btn btn-primary">{{ _('+ New Job') }}</a>
 </div>
 <div class="filter-bar">
-  <a href="/jobs?status=active" class="filter-btn {% if current_status == 'active' %}active{% endif %}">Active</a>
-  <a href="/jobs?status=paused" class="filter-btn {% if current_status == 'paused' %}active{% endif %}">Paused</a>
-  <a href="/jobs?status=completed" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">Completed</a>
-  <a href="/jobs?status=failed" class="filter-btn {% if current_status == 'failed' %}active{% endif %}">Failed</a>
-  <a href="/jobs?status=all" class="filter-btn {% if current_status == 'all' %}active{% endif %}">All</a>
+  <a href="/jobs?status=active" class="filter-btn {% if current_status == 'active' %}active{% endif %}">{{ _('Active') }}</a>
+  <a href="/jobs?status=paused" class="filter-btn {% if current_status == 'paused' %}active{% endif %}">{{ _('Paused') }}</a>
+  <a href="/jobs?status=completed" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">{{ _('Completed') }}</a>
+  <a href="/jobs?status=failed" class="filter-btn {% if current_status == 'failed' %}active{% endif %}">{{ _('Failed') }}</a>
+  <a href="/jobs?status=all" class="filter-btn {% if current_status == 'all' %}active{% endif %}">{{ _('All') }}</a>
 </div>
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
-        <th>Label</th>
-        <th>Group</th>
-        <th>Trigger</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Actions</th>
+        <th>{{ _('Label') }}</th>
+        <th>{{ _('Group') }}</th>
+        <th>{{ _('Trigger') }}</th>
+        <th>{{ _('Status') }}</th>
+        <th>{{ _('Created') }}</th>
+        <th>{{ _('Actions') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -31,64 +31,64 @@
         <td><code>{{ job.group_name or job.group_id }}{% if job.image_path %} 🖼{% endif %}</code></td>
         <td>
           {% if job.trigger_type == "now" %}
-            Now ({{ tz(parse_dt(job.trigger_value), user_tz) }})
+            {{ _('Now') }} ({{ tz(parse_dt(job.trigger_value), user_tz) }})
           {% elif job.trigger_type == "date" %}
             {{ tz(parse_dt(job.trigger_value), user_tz) }}
           {% elif job.trigger_type == "trigger" %}
-            On Trigger
+            {{ _('On Trigger') }}
           {% else %}
             {{ cron_to_text(job.trigger_value) }}
           {% endif %}
-          {% if job.skip_count > 0 %}<span class="skip-badge">⏭ skip ×{{ job.skip_count }}</span>{% endif %}
+          {% if job.skip_count > 0 %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
         </td>
-        <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
+        <td><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></td>
         <td>{{ tz(job.created_at, user_tz) }}</td>
         <td>
           <div class="actions">
             {% if job.status in ("pending", "active", "trigger") and job.trigger_type != "now" %}
-            <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+            <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
             {% endif %}
-            <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
+            <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">{{ _('Logs') }}</a>
             {% if job.status in ("pending", "active") and job.trigger_type != "trigger" %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/pause">
-              <button class="btn btn-sm btn-warning">Pause</button>
+              <button class="btn btn-sm btn-warning">{{ _('Pause') }}</button>
             </form>
             <form method="POST" action="/jobs/{{ job.id }}/skip">
-              <button class="btn btn-sm btn-skip">Skip{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
+              <button class="btn btn-sm btn-skip">{{ _('Skip') }}{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
             </form>
             {% if job.skip_count > 0 %}
             <form method="POST" action="/jobs/{{ job.id }}/skip-clear">
-              <button class="btn btn-sm btn-clear" title="Clear skips">✕</button>
+              <button class="btn btn-sm btn-clear" title="{{ _('Clear skips') }}">✕</button>
             </form>
             {% endif %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
-              <button class="btn btn-sm btn-danger">Cancel</button>
+              <button class="btn btn-sm btn-danger">{{ _('Cancel') }}</button>
             </form>
             {% elif job.trigger_type == "trigger" and job.status in ("pending", "trigger") %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/send-now">
-              <button class="btn btn-sm btn-primary">Send Now</button>
+              <button class="btn btn-sm btn-primary">{{ _('Send Now') }}</button>
             </form>
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
-              <button class="btn btn-sm btn-danger">Cancel</button>
+              <button class="btn btn-sm btn-danger">{{ _('Cancel') }}</button>
             </form>
             {% elif job.status == "paused" %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/resume">
-              <button class="btn btn-sm btn-primary">Resume</button>
+              <button class="btn btn-sm btn-primary">{{ _('Resume') }}</button>
             </form>
             {% endif %}
-            <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="return confirm('Delete this job?')">
-              <button class="btn btn-sm btn-danger">Delete</button>
+            <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="return confirm('{{ _('Delete this job?') }}')">
+              <button class="btn btn-sm btn-danger">{{ _('Delete') }}</button>
             </form>
           </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;color:#888;padding:2rem;">No jobs scheduled yet.</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:#888;padding:2rem;">{{ _('No jobs scheduled yet.') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

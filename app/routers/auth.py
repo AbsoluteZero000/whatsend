@@ -59,9 +59,10 @@ async def signup(
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
 
@@ -84,9 +85,10 @@ async def signin(
     if not user or not verify_password(password, user.password_hash):
         return request.app.state.render(request, "auth/signin.html", error="Invalid credentials")
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
 
@@ -121,7 +123,45 @@ async def timezone_update(
         user.timezone = timezone
         await db.commit()
 
-    token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone})
+    lang = user_payload.get("lang", "en")
+    token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone, "lang": lang})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
+    return redirect
+
+
+@router.post("/lang")
+async def lang_toggle(
+    request: Request,
+    lang: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    if lang not in ("en", "ar"):
+        lang = "en"
+
+    user_payload = get_current_user(request)
+    referer = request.headers.get("Referer", "/dashboard")
+
+    if user_payload:
+        user_id = int(user_payload["sub"])
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user:
+            user.lang = lang
+            await db.commit()
+
+        token = create_jwt({
+            "sub": str(user_id),
+            "username": user_payload["username"],
+            "tz": user_payload.get("tz", "UTC"),
+            "lang": lang,
+        })
+        redirect = RedirectResponse(url=referer, status_code=303)
+        redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+        redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
+    else:
+        redirect = RedirectResponse(url=referer, status_code=303)
+        redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
+
     return redirect

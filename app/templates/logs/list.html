@@ -1,21 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Logs — WhatSend{% endblock %}
+{% block title %}{{ _('Logs') }} — WhatSend{% endblock %}
 {% block content %}
 <div class="section-header">
-  <h1>Execution Logs</h1>
+  <h1>{{ _('Execution Logs') }}</h1>
   {% if job_id %}
-  <p style="color:#888;margin-top:0.25rem;">Filtered by job #{{ job_id }} — <a href="/logs">Show all</a></p>
+  <p style="color:#888;margin-top:0.25rem;">{{ _('Filtered by job') }} #{{ job_id }} — <a href="/logs">{{ _('Show all') }}</a></p>
   {% endif %}
 </div>
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
-        <th>ID</th>
-        <th>Job ID</th>
-        <th>Status</th>
-        <th>Response</th>
-        <th>Sent At</th>
+        <th>{{ _('ID') }}</th>
+        <th>{{ _('Job ID') }}</th>
+        <th>{{ _('Status') }}</th>
+        <th>{{ _('Response') }}</th>
+        <th>{{ _('Sent At') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -23,12 +23,12 @@
       <tr>
         <td>{{ log.id }}</td>
         <td>{{ log.job_id }}</td>
-        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ log.status }}</span></td>
-        <td><details><summary style="cursor:pointer;color:var(--primary);">Show response</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
+        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ _(log.status) }}</span></td>
+        <td><details><summary style="cursor:pointer;color:var(--primary);">{{ _('Show response') }}</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="text-align:center;color:#888;padding:2rem;">No logs yet. Jobs will appear here after they execute.</td></tr>
+      <tr><td colspan="5" style="text-align:center;color:#888;padding:2rem;">{{ _('No logs yet.') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

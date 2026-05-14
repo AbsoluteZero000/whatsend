@@ -1,29 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang|default('en') }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign Up — WhatSend</title>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <title>{{ _('Sign Up') }} — WhatSend</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=3">
 </head>
 <body class="auth-page">
   <div class="auth-card">
     <h1>📬 WhatSend</h1>
-    <h2>Sign up</h2>
+    <h2>{{ _('Sign up') }}</h2>
     {% if error %}
       <p class="error">{{ error }}</p>
     {% endif %}
     <form method="POST" action="/auth/signup">
-      <input type="text" name="username" placeholder="Username" required autocomplete="username">
-      <input type="password" name="password" placeholder="Password" required autocomplete="new-password">
+      <input type="text" name="username" placeholder="{{ _('Username') }}" required autocomplete="username">
+      <input type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="new-password">
       <select name="timezone">
         {% for tz in timezones %}
         <option value="{{ tz }}">{{ tz }}</option>
         {% endfor %}
       </select>
-      <button type="submit">Sign up</button>
+      <button type="submit">{{ _('Sign up') }}</button>
     </form>
-    <p class="alt-link">Already have an account? <a href="/auth/signin">Sign in</a></p>
+    <p class="alt-link">{{ _('Already have an account?') }} <a href="/auth/signin">{{ _('Sign in') }}</a></p>
   </div>
 </body>
 </html>

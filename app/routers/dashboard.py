@@ -54,4 +54,4 @@ async def dashboard_page(request: Request, db: AsyncSession = Depends(get_db)):
         "success_rate": success_rate,
         "tokens_count": tokens_count or 0,
     }
-    return request.app.state.render(request, "dashboard/index.html", greeting=greeting, stats=stats, recent_jobs=recent_jobs, recent_logs=recent_logs)
+    return request.app.state.render(request, "dashboard/index.html", greeting=greeting, stats=stats, recent_jobs=recent_jobs, recent_logs=recent_logs, username=user["username"])
