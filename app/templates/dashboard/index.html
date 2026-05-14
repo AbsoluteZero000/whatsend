@@ -70,7 +70,15 @@
             {% for job in recent_jobs %}
             <tr>
               <td>{{ job.label or "—" }}</td>
-              <td><code>{{ job.trigger_value[:25] }}{{ "…" if job.trigger_value|length > 25 }}</code></td>
+              <td>
+                {% if job.trigger_type == "now" %}
+                  Now ({{ tz(parse_dt(job.trigger_value), user_tz) }})
+                {% elif job.trigger_type == "date" %}
+                  {{ tz(parse_dt(job.trigger_value), user_tz) }}
+                {% else %}
+                  {{ cron_to_text(job.trigger_value) }}
+                {% endif %}
+              </td>
               <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
               <td>{{ tz(job.created_at, user_tz) }}</td>
             </tr>

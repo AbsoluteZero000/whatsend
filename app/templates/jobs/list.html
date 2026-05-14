@@ -34,18 +34,20 @@
         <td><span class="badge badge-{{ job.status }}">{{ job.status }}</span></td>
         <td>{{ tz(job.created_at, user_tz) }}</td>
         <td>
-          {% if job.status in ("pending", "active") and job.trigger_type != "now" %}
-          <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
-          {% endif %}
-          {% if job.status in ("pending", "active") %}
-          <form method="POST" action="/jobs/{{ job.id }}/cancel" style="display:inline">
-            <button class="btn btn-sm btn-danger">Cancel</button>
-          </form>
-          {% endif %}
-          <form method="POST" action="/jobs/{{ job.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this job?')">
-            <button class="btn btn-sm btn-danger">Delete</button>
-          </form>
-          <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
+          <div class="actions">
+            {% if job.status in ("pending", "active") and job.trigger_type != "now" %}
+            <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
+            {% endif %}
+            {% if job.status in ("pending", "active") %}
+            <form method="POST" action="/jobs/{{ job.id }}/cancel" style="display:inline">
+              <button class="btn btn-sm btn-danger">Cancel</button>
+            </form>
+            {% endif %}
+            <form method="POST" action="/jobs/{{ job.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this job?')">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+            <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
+          </div>
         </td>
       </tr>
       {% else %}
