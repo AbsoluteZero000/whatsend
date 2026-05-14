@@ -109,8 +109,6 @@ def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
             return f"{minute} {hour} * * *"
         elif cron_freq == "weekdays":
             return f"{minute} {hour} * * 1-5"
-        elif cron_freq == "weekly":
-            return f"{minute} {hour} * * {kw.get('cron_dow', '1')}"
         elif cron_freq == "custom":
             days = kw.get("cron_days", [])
             return f"{minute} {hour} * * {','.join(sorted(days, key=int))}"
@@ -136,7 +134,6 @@ async def create_job(
     trigger_value_date: str = Form(default=""),
     cron_freq: str = Form(default="daily"),
     cron_time: str = Form(default="09:00"),
-    cron_dow: str = Form(default="1"),
     cron_dom: int = Form(default=1),
     cron_days: list[str] = Form(default=[]),
     cron_raw: str = Form(default=""),
@@ -156,7 +153,6 @@ async def create_job(
         trigger_value_date=trigger_value_date,
         cron_time=cron_time,
         cron_freq=cron_freq,
-        cron_dow=cron_dow,
         cron_dom=cron_dom,
         cron_days=cron_days,
         cron_raw=cron_raw,
@@ -280,7 +276,7 @@ def parse_cron_for_form(expr: str) -> dict:
     if dow == "1-5" and dom == "*":
         return {"cron_freq": "weekdays", "cron_time": cron_time}
     if dom == "*" and dow != "*" and "," not in dow and "-" not in dow:
-        return {"cron_freq": "weekly", "cron_time": cron_time, "cron_dow": dow}
+        return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": [dow]}
     if dom == "*" and dow != "*" and "," in dow:
         return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": dow.split(",")}
     if dom != "*" and dow == "*":
@@ -345,7 +341,6 @@ async def edit_job(
     trigger_value_date: str = Form(default=""),
     cron_freq: str = Form(default="daily"),
     cron_time: str = Form(default="09:00"),
-    cron_dow: str = Form(default="1"),
     cron_dom: int = Form(default=1),
     cron_days: list[str] = Form(default=[]),
     cron_raw: str = Form(default=""),
@@ -378,7 +373,6 @@ async def edit_job(
         trigger_value_date=trigger_value_date,
         cron_time=cron_time,
         cron_freq=cron_freq,
-        cron_dow=cron_dow,
         cron_dom=cron_dom,
         cron_days=cron_days,
         cron_raw=cron_raw,

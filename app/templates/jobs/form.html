@@ -58,7 +58,6 @@
 
     {% set cf = cron_freq|default('daily') %}
     {% set ct = cron_time|default('09:00') %}
-    {% set cdow = cron_dow|default('1') %}
     {% set cdom = cron_dom|default(1) %}
     {% set cdays = cron_days|default([]) %}
     {% set craw = cron_raw|default('') %}
@@ -69,7 +68,6 @@
         <select id="cron_freq" name="cron_freq">
           <option value="daily" {% if cf == 'daily' %}selected{% endif %}>Daily</option>
           <option value="weekdays" {% if cf == 'weekdays' %}selected{% endif %}>Weekdays (Mon–Fri)</option>
-          <option value="weekly" {% if cf == 'weekly' %}selected{% endif %}>Weekly (single day)</option>
           <option value="custom" {% if cf == 'custom' %}selected{% endif %}>Weekly (custom days)</option>
           <option value="monthly" {% if cf == 'monthly' %}selected{% endif %}>Monthly</option>
           <option value="raw" {% if cf == 'raw' %}selected{% endif %}>Custom cron…</option>
@@ -81,18 +79,7 @@
           <input type="text" id="cron_raw" name="cron_raw" placeholder="e.g. 0 9 * * 1" value="{{ craw }}">
           <small style="color:#888;">Format: minute hour day month day_of_week</small>
         </div>
-        <div id="cron_dow_group" style="display:none;">
-          <label for="cron_dow">Day of week</label>
-          <select id="cron_dow" name="cron_dow">
-            <option value="0" {% if cdow == '0' %}selected{% endif %}>Sunday</option>
-            <option value="1" {% if cdow == '1' %}selected{% endif %}>Monday</option>
-            <option value="2" {% if cdow == '2' %}selected{% endif %}>Tuesday</option>
-            <option value="3" {% if cdow == '3' %}selected{% endif %}>Wednesday</option>
-            <option value="4" {% if cdow == '4' %}selected{% endif %}>Thursday</option>
-            <option value="5" {% if cdow == '5' %}selected{% endif %}>Friday</option>
-            <option value="6" {% if cdow == '6' %}selected{% endif %}>Saturday</option>
-          </select>
-        </div>
+
         <div id="cron_dom_group" style="display:none;">
           <label for="cron_dom">Day of month</label>
           <input type="number" id="cron_dom" name="cron_dom" min="1" max="31" value="{{ cdom }}">
@@ -132,7 +119,6 @@
     var freq = document.getElementById('cron_freq').value;
     var isRaw = freq === 'raw';
     document.getElementById('cron_time').style.display = isRaw ? 'none' : 'block';
-    document.getElementById('cron_dow_group').style.display = freq === 'weekly' ? 'block' : 'none';
     document.getElementById('cron_custom_group').style.display = freq === 'custom' ? 'block' : 'none';
     document.getElementById('cron_dom_group').style.display = freq === 'monthly' ? 'block' : 'none';
     document.getElementById('cron_raw_group').style.display = isRaw ? 'block' : 'none';
