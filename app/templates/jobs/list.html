@@ -44,6 +44,8 @@
             {% if job.status in ("pending", "active") and job.trigger_type != "now" %}
             <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
             {% endif %}
+            <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
+            {% if job.status in ("pending", "active") %}<div class="actions-divider"></div>{% endif %}
             {% if job.status in ("pending", "active") %}
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
               <button class="btn btn-sm btn-danger">Cancel</button>
@@ -52,7 +54,6 @@
             <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="return confirm('Delete this job?')">
               <button class="btn btn-sm btn-danger">Delete</button>
             </form>
-            <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
           </div>
         </td>
       </tr>
