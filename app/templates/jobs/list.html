@@ -45,7 +45,7 @@
         <td>{{ tz(job.created_at, user_tz) }}</td>
         <td>
           <div class="actions">
-            {% if job.status in ("pending", "active") and job.trigger_type != "now" %}
+            {% if job.status in ("pending", "active", "trigger") and job.trigger_type != "now" %}
             <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">Edit</a>
             {% endif %}
             <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">Logs</a>
@@ -66,7 +66,7 @@
             <form method="POST" action="/jobs/{{ job.id }}/cancel">
               <button class="btn btn-sm btn-danger">Cancel</button>
             </form>
-            {% elif job.trigger_type == "trigger" and job.status == "pending" %}
+            {% elif job.trigger_type == "trigger" and job.status == "trigger" %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/send-now">
               <button class="btn btn-sm btn-primary">Send Now</button>

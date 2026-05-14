@@ -60,7 +60,7 @@ async def list_jobs(request: Request, status: str = "active", db: AsyncSession =
 
     query = select(Job).where(Job.user_id == user_id)
     if status == "active":
-        query = query.where(Job.status.in_(["pending", "active"]))
+        query = query.where(Job.status.in_(["pending", "active", "trigger"]))
     elif status == "completed":
         query = query.where(Job.status.in_(["completed", "cancelled"]))
     elif status == "paused":
@@ -193,7 +193,7 @@ async def create_job(
         image_path=image_path,
         trigger_type=trigger_type,
         trigger_value=trigger_value,
-        status="pending",
+        status="trigger" if trigger_type == "trigger" else "pending",
     )
     db.add(job)
     await db.commit()
@@ -265,12 +265,11 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status in ("pending",):
+    if job and job.status in ("trigger",):
         job.status = "active"
         await db.commit()
         await send_job(job_id)
-        if job.trigger_type != "cron":
-            job.status = "completed"
+        job.status = "completed"
         await db.commit()
     return RedirectResponse(url="/jobs", status_code=303)
 
@@ -282,7 +281,7 @@ async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(g
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status in ("pending", "active"):
+    if job and job.status in ("pending", "active", "trigger"):
         await remove_job(job_id)
         job.status = "cancelled"
         await db.commit()

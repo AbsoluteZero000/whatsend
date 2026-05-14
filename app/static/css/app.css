@@ -84,6 +84,7 @@ tr:hover { background: #fafafa; }
 .badge-completed { background: #55efc4; color: #004d33; }
 .badge-failed { background: #fab1a0; color: #6b1a00; }
 .badge-paused { background: #dfe6e9; color: #2d3436; }
+.badge-trigger { background: #a29bfe; color: #fff; }
 .badge-skipped { background: #ffeaa7; color: #6c5b00; }
 .skip-badge { display: inline-block; margin-left: 0.35rem; padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.7rem; background: #fdebd0; color: #a04000; font-weight: 600; white-space: nowrap; }
 
