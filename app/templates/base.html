@@ -43,6 +43,7 @@
       <a href="https://github.com/absolutezero000/whatsend" target="_blank">GitHub</a>
     </span>
   </footer>
+<div id="global-spinner" class="spinner-overlay"><div class="spinner"></div></div>
 <script>
 function updateClock() {
   const now = new Date();
@@ -57,6 +58,19 @@ document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
   if (e.key === 'n') { e.preventDefault(); window.location.href = '/jobs/create'; }
   if (e.key === '/') { e.preventDefault(); document.getElementById('jobSearch')?.focus(); }
+});
+
+let htmxRequests = 0;
+document.addEventListener('htmx:beforeRequest', function() {
+  htmxRequests++;
+  document.getElementById('global-spinner').classList.add('visible');
+});
+document.addEventListener('htmx:afterRequest', function() {
+  htmxRequests--;
+  if (htmxRequests <= 0) {
+    htmxRequests = 0;
+    document.getElementById('global-spinner').classList.remove('visible');
+  }
 });
 
 const themeToggle = document.getElementById('themeToggle');
