@@ -11,6 +11,7 @@
   <a href="/jobs?status=completed" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">{{ _('Completed') }}</a>
   <a href="/jobs?status=failed" class="filter-btn {% if current_status == 'failed' %}active{% endif %}">{{ _('Failed') }}</a>
   <a href="/jobs?status=all" class="filter-btn {% if current_status == 'all' %}active{% endif %}">{{ _('All') }}</a>
+  <input type="search" id="jobSearch" class="search-input" placeholder="{{ _('Search jobs…') }}" title="{{ _('Press / to focus') }}">
 </div>
 <div class="table-wrap">
   <table>

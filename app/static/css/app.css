@@ -100,6 +100,10 @@ tr:hover { background: var(--bg-table-hover); }
 .filter-btn { padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem; text-decoration: none; color: var(--text-nav); background: var(--bg-card); border: 1.5px solid var(--border-light); font-weight: 500; transition: 0.15s; }
 .filter-btn:hover { border-color: #25D366; color: #25D366; }
 .filter-btn.active { background: #25D366; color: #fff; border-color: #25D366; }
+.search-input { padding: 0.4rem 0.75rem; border: 1.5px solid var(--border-light); border-radius: 20px; font-size: 0.85rem; background: var(--bg-input); color: var(--text); outline: none; width: 180px; margin-left: auto; transition: border-color 0.15s; }
+.search-input:focus { border-color: #25D366; }
+.search-input::placeholder { color: var(--text-faint); }
+
 .btn-primary { background: #25D366; color: #fff; }
 .btn-primary:hover { background: #1da851; }
 .btn-danger { background: #e74c3c; color: #fff; }
