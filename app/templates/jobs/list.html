@@ -6,12 +6,15 @@
   <a href="/jobs/create" class="btn btn-primary">{{ _('+ New Job') }}</a>
 </div>
 <div class="filter-bar">
-  <a href="/jobs?status=active" class="filter-btn {% if current_status == 'active' %}active{% endif %}">{{ _('Active') }}</a>
-  <a href="/jobs?status=paused" class="filter-btn {% if current_status == 'paused' %}active{% endif %}">{{ _('Paused') }}</a>
-  <a href="/jobs?status=completed" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">{{ _('Completed') }}</a>
-  <a href="/jobs?status=failed" class="filter-btn {% if current_status == 'failed' %}active{% endif %}">{{ _('Failed') }}</a>
-  <a href="/jobs?status=all" class="filter-btn {% if current_status == 'all' %}active{% endif %}">{{ _('All') }}</a>
-  <input type="search" id="jobSearch" class="search-input" placeholder="{{ _('Search jobs…') }}" title="{{ _('Press / to focus') }}">
+  <a href="/jobs?status=active&q={{ q }}" class="filter-btn {% if current_status == 'active' %}active{% endif %}">{{ _('Active') }}</a>
+  <a href="/jobs?status=paused&q={{ q }}" class="filter-btn {% if current_status == 'paused' %}active{% endif %}">{{ _('Paused') }}</a>
+  <a href="/jobs?status=completed&q={{ q }}" class="filter-btn {% if current_status == 'completed' %}active{% endif %}">{{ _('Completed') }}</a>
+  <a href="/jobs?status=failed&q={{ q }}" class="filter-btn {% if current_status == 'failed' %}active{% endif %}">{{ _('Failed') }}</a>
+  <a href="/jobs?status=all&q={{ q }}" class="filter-btn {% if current_status == 'all' %}active{% endif %}">{{ _('All') }}</a>
+  <form method="GET" action="/jobs" class="search-form">
+    <input type="hidden" name="status" value="{{ current_status }}">
+    <input type="search" id="jobSearch" class="search-input" placeholder="{{ _('Search jobs…') }}" title="{{ _('Press / to focus') }}" name="q" value="{{ q }}" hx-get="/jobs?status={{ current_status }}" hx-trigger="keyup changed delay:300ms, search" hx-target=".table-wrap" hx-push-url="true">
+  </form>
 </div>
 <div class="table-wrap">
   <table>

@@ -61,7 +61,7 @@ async def save_upload(file: UploadFile) -> str | None:
 
 
 @router.get("")
-async def list_jobs(request: Request, status: str = "active", db: AsyncSession = Depends(get_db)):
+async def list_jobs(request: Request, status: str = "active", q: str = "", db: AsyncSession = Depends(get_db)):
     user = require_user(request)
     user_id = int(user["sub"])
 
@@ -74,6 +74,11 @@ async def list_jobs(request: Request, status: str = "active", db: AsyncSession =
         query = query.where(Job.status == "paused")
     elif status == "failed":
         query = query.where(Job.status == "failed")
+    if q:
+        like = f"%{q}%"
+        query = query.where(
+            Job.label.ilike(like) | Job.group_name.ilike(like) | Job.group_id.ilike(like)
+        )
     query = query.order_by(Job.created_at.desc())
 
     result = await db.execute(query)
@@ -105,7 +110,7 @@ async def list_jobs(request: Request, status: str = "active", db: AsyncSession =
             j.status = "trigger"
         await db.commit()
 
-    return request.app.state.render(request, "jobs/list.html", jobs=jobs, current_status=status)
+    return request.app.state.render(request, "jobs/list.html", jobs=jobs, current_status=status, q=q)
 
 
 @router.get("/create")
