@@ -245,3 +245,10 @@ footer { max-width: 1100px; margin: 3rem auto 1.5rem; padding: 0 1rem; display: 
 [dir="rtl"] .toast-container { right: auto; left: 1rem; }
 [dir="rtl"] .toast { transform: translateX(-100%); }
 [dir="rtl"] .toast-visible { transform: translateX(0); }
+
+.msg-toggle { background: none; border: none; cursor: pointer; font-size: 0.7rem; color: var(--text-faint); padding: 0.15rem 0.3rem; transition: transform 0.2s; line-height: 1; }
+.msg-toggle:hover { color: #25D366; }
+.msg-toggle.open { transform: rotate(90deg); color: #25D366; }
+.msg-row { display: none; }
+.msg-row.open { display: table-row; }
+.msg-content { font-size: 0.85rem; color: var(--text-secondary); background: var(--bg-code); padding: 0.6rem 0.8rem; border-radius: 6px; white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto; margin: 0.25rem 0; }

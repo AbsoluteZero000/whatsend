@@ -108,6 +108,13 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+function toggleMsg(id) {
+  var row = document.getElementById('msg-' + id);
+  var btn = row.previousElementSibling.querySelector('.msg-toggle');
+  row.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
 function showToast(message, type) {
   var container = document.getElementById('toast-container');
   var toast = document.createElement('div');

@@ -17,6 +17,7 @@
   <table>
     <thead>
       <tr>
+        <th></th>
         <th>{{ _('Label') }}</th>
         <th>{{ _('Group') }}</th>
         <th>{{ _('Trigger') }}</th>
@@ -27,7 +28,8 @@
     </thead>
     <tbody>
       {% for job in jobs %}
-      <tr>
+      <tr class="job-row">
+        <td><button class="msg-toggle" onclick="toggleMsg({{ job.id }})" title="{{ _('Preview message') }}">&#x25B6;</button></td>
         <td>{{ job.label or "—" }}</td>
         <td><code>{{ job.group_name or job.group_id }}{% if job.image_path %} 🖼{% endif %}</code></td>
         <td>
@@ -88,8 +90,11 @@
           </div>
         </td>
       </tr>
+      <tr id="msg-{{ job.id }}" class="msg-row">
+        <td colspan="7"><div class="msg-content">{{ job.message }}</div></td>
+      </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-row" style="padding:2rem;">{{ _('No jobs scheduled yet.') }}</td></tr>
+      <tr><td colspan="7" class="empty-row" style="padding:2rem;">{{ _('No jobs scheduled yet.') }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
