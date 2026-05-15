@@ -94,7 +94,7 @@
         <td colspan="7"><div class="msg-content">{{ job.message }}</div></td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="empty-row" style="padding:2rem;">{{ _('No jobs scheduled yet.') }}</td></tr>
+      <tr><td colspan="7" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

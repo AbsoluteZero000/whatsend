@@ -78,7 +78,7 @@
               <td>{{ tz(job.created_at, user_tz) }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="empty-row">{{ _('No jobs yet.') }} <a href="/jobs/create">{{ _('Create one') }}</a></td></tr>
+            <tr><td colspan="4" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs yet.') }} <a href="/jobs/create" class="empty-state-link">{{ _('Create one') }}</a></div></div></td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -107,7 +107,7 @@
               <td>{{ tz(log.sent_at, user_tz) }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="3" class="empty-row">{{ _('No activity yet.') }}</td></tr>
+            <tr><td colspan="3" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">{{ _('No activity yet.') }}</div></div></td></tr>
             {% endfor %}
           </tbody>
         </table>

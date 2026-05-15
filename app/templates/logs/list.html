@@ -28,7 +28,7 @@
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="text-align:center;color:#888;padding:2rem;">{{ _('No logs yet.') }}</td></tr>
+      <tr><td colspan="5" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">{{ _('No logs yet.') }}</div></div></td></tr>
       {% endfor %}
     </tbody>
   </table>
