@@ -17,23 +17,16 @@
     <label for="label">{{ _('Label (optional)') }}</label>
     <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if edit_mode and job.label %}value="{{ job.label }}"{% endif %}>
 
-    {% if edit_mode %}
-    <label>{{ _('Group') }}</label>
-    <input type="hidden" name="group_id" value="{{ job.group_id }}">
-    <input type="hidden" name="group_name" value="{{ job.group_name or '' }}">
-    <input type="text" value="{{ job.group_name or job.group_id }}" disabled style="opacity:0.7;">
-    {% else %}
     <label for="group_id">{{ _('Group') }}</label>
     <select id="group_id" name="group_id" required>
       <option value="">{{ _('-- Select a group --') }}</option>
       {% for g in groups %}
-      <option value="{{ g.id }}">{{ g.name or g.id }}</option>
+      <option value="{{ g.id }}" {% if edit_mode and (job.group_id == g.id) %}selected{% endif %}>{{ g.name or g.id }}</option>
       {% endfor %}
-      <option value="__manual__">{{ _('Manual entry…') }}</option>
+      <option value="__manual__" {% if edit_mode and job.group_id not in groups|map(attribute='id') %}selected{% endif %}>{{ _('Manual entry…') }}</option>
     </select>
-    <input type="text" id="group_id_manual" name="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
-    <input type="hidden" id="group_name" name="group_name" value="">
-    {% endif %}
+    <input type="text" id="group_id_manual" name="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;" {% if edit_mode and job.group_id not in groups|map(attribute='id') %}value="{{ job.group_id }}"{% endif %}>
+    <input type="hidden" id="group_name" name="group_name" value="{% if edit_mode %}{{ job.group_name or '' }}{% endif %}">
 
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
@@ -134,7 +127,6 @@
   document.getElementById('cron_freq').addEventListener('change', toggleCronFields);
   toggleCronFields();
 
-  {% if not edit_mode %}
   document.getElementById('group_id').addEventListener('change', function() {
     var manual = document.getElementById('group_id_manual');
     var hidden = document.getElementById('group_name');
@@ -148,6 +140,16 @@
       hidden.value = selected.text;
     }
   });
-  {% endif %}
+  (function() {
+    var sel = document.getElementById('group_id');
+    if (sel.value === '__manual__') {
+      document.getElementById('group_id_manual').style.display = 'block';
+    }
+    if (sel.value) {
+      var hidden = document.getElementById('group_name');
+      var selected = sel.options[sel.selectedIndex];
+      if (sel.value !== '__manual__') hidden.value = selected.text;
+    }
+  })();
 </script>
 {% endblock %}
