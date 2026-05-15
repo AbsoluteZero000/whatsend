@@ -10,6 +10,15 @@
   </section>
 
   <section>
+    <h2>The story</h2>
+    <p>Originally named <strong>WhatSend</strong>, this project was born out of a simple problem: we had a place where WhatsApp messages needed to be sent for events on specific days, but we'd often forget or be late.</p>
+    <p><strong>v1</strong> was a Python script using <code>pywhatkit</code> to send messages automatically. It worked — kinda. But it required a browser with an already signed-in WhatsApp user, was painfully slow, and couldn't run on a server.</p>
+    <p>We went back to manual sending for a while. Then <strong>v2</strong> appeared: same idea but powered by the <strong>Whapi.Cloud</strong> API instead of pywhatkit. A huge improvement — no browser needed, fast, server-ready.</p>
+    <p>But it was still configured via a YAML file, which meant editing files and redeploying every time something changed. So <strong>v3</strong> added REST APIs so everything could be configured remotely. Then the question came: how will normal people use this? That's when the web dashboard was born — Jinja2 templates, HTMX for interactivity, zero JavaScript build step.</p>
+    <p>And that's where we are today. Zamzam (formerly WhatSend) is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.</p>
+  </section>
+
+  <section>
     <h2>Getting a Whapi.Cloud token</h2>
     <ol>
       <li>Go to <a href="https://whapi.cloud" target="_blank">whapi.cloud</a> and sign up.</li>
