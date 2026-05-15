@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.token import Token
 from app.routers.auth import require_user
-from app.services.crypto import encrypt_token
+from app.services.crypto import encrypt_token, decrypt_token
 
 router = APIRouter(prefix="/tokens", tags=["tokens"])
 
@@ -53,6 +53,42 @@ async def toggle_token(token_id: int, request: Request, db: AsyncSession = Depen
     if token:
         token.is_active = not token.is_active
         await db.commit()
+    return RedirectResponse(url="/tokens", status_code=303)
+
+
+@router.get("/{token_id}/edit")
+async def edit_token_page(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Token).where(Token.id == token_id, Token.user_id == user_id))
+    token = result.scalar_one_or_none()
+    if not token:
+        return RedirectResponse(url="/tokens", status_code=303)
+
+    return request.app.state.render(request, "tokens/form.html", token=token, edit_mode=True)
+
+
+@router.post("/{token_id}/edit")
+async def edit_token(
+    token_id: int,
+    request: Request,
+    name: str = Form(default=""),
+    api_token: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Token).where(Token.id == token_id, Token.user_id == user_id))
+    token = result.scalar_one_or_none()
+    if not token:
+        return RedirectResponse(url="/tokens", status_code=303)
+
+    token.name = name or None
+    if api_token:
+        token.api_token = encrypt_token(api_token)
+    await db.commit()
     return RedirectResponse(url="/tokens", status_code=303)
 
 

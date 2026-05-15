@@ -26,14 +26,17 @@
         <td>{{ tz(token.created_at, user_tz) }}</td>
         <td>{{ tz(token.last_used_at, user_tz) }}</td>
         <td>
-          <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
-            <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-danger' }}">
-              {{ _('Activate') if not token.is_active else _('Deactivate') }}
-            </button>
-          </form>
-          <form method="POST" action="/tokens/{{ token.id }}/delete" style="display:inline">
-            <button class="btn btn-sm btn-danger">{{ _('Delete') }}</button>
-          </form>
+          <div class="actions">
+            <a href="/tokens/{{ token.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
+            <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
+              <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-warning' }}">
+                {{ _('Activate') if not token.is_active else _('Deactivate') }}
+              </button>
+            </form>
+            <form method="POST" action="/tokens/{{ token.id }}/delete" style="display:inline">
+              <button class="btn btn-sm btn-danger">{{ _('Delete') }}</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% else %}

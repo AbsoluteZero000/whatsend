@@ -1,18 +1,24 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Add API Token') }} — WhatSend{% endblock %}
+{% block title %}{% if edit_mode %}{{ _('Edit API Token') }} — WhatSend{% else %}{{ _('Add API Token') }} — WhatSend{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
-  <h1>{{ _('Add API Token') }}</h1>
+  <h1>{% if edit_mode %}{{ _('Edit API Token') }}{% else %}{{ _('Add API Token') }}{% endif %}</h1>
 </div>
 <div class="form-card">
-  <form method="POST" action="/tokens/create">
+  <form method="POST" action="{% if edit_mode %}/tokens/{{ token.id }}/edit{% else %}/tokens/create{% endif %}">
     <label for="name">{{ _('Name (optional)') }}</label>
-    <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}">
+    <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}" {% if edit_mode and token.name %}value="{{ token.name }}"{% endif %}>
 
     <label for="api_token">{{ _('Whapi.Cloud API Token') }}</label>
+    {% if edit_mode %}
+    <input type="text" id="api_token" name="api_token" placeholder="•••••••• ({{ _('leave blank to keep current') }})">
+    <small style="color:var(--text-muted);">{{ _('Leave blank to keep the current token unchanged.') }}</small>
+    {% else %}
     <input type="text" id="api_token" name="api_token" required placeholder="{{ _('Paste your token here') }}">
+    {% endif %}
 
     <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
+    <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>
 </div>
 {% endblock %}
