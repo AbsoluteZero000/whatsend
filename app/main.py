@@ -118,6 +118,8 @@ async def redirect_handler(request: Request, exc: RedirectRequired):
 static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+app.mount("/uploads", StaticFiles(directory=str(jobs.UPLOAD_DIR)), name="uploads")
+
 app.include_router(about.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
