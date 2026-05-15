@@ -7,7 +7,8 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func as sqlfunc, select
+from sqlalchemy import asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -60,26 +61,50 @@ async def save_upload(file: UploadFile) -> str | None:
     return str(dest.resolve())
 
 
+ALLOWED_SORT_COLS = {"label", "group_name", "trigger_type", "status", "created_at"}
+
 @router.get("")
-async def list_jobs(request: Request, status: str = "active", q: str = "", db: AsyncSession = Depends(get_db)):
+async def list_jobs(
+    request: Request,
+    status: str = "active",
+    q: str = "",
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    page: int = 1,
+    per_page: int = 25,
+    db: AsyncSession = Depends(get_db),
+):
     user = require_user(request)
     user_id = int(user["sub"])
 
-    query = select(Job).where(Job.user_id == user_id)
+    if sort_by not in ALLOWED_SORT_COLS:
+        sort_by = "created_at"
+    if sort_order not in ("asc", "desc"):
+        sort_order = "desc"
+
+    base_query = select(Job).where(Job.user_id == user_id)
     if status == "active":
-        query = query.where(Job.status.in_(["pending", "active", "trigger"]))
+        base_query = base_query.where(Job.status.in_(["pending", "active", "trigger"]))
     elif status == "completed":
-        query = query.where(Job.status.in_(["completed", "cancelled"]))
+        base_query = base_query.where(Job.status.in_(["completed", "cancelled"]))
     elif status == "paused":
-        query = query.where(Job.status == "paused")
+        base_query = base_query.where(Job.status == "paused")
     elif status == "failed":
-        query = query.where(Job.status == "failed")
+        base_query = base_query.where(Job.status == "failed")
     if q:
         like = f"%{q}%"
-        query = query.where(
+        base_query = base_query.where(
             Job.label.ilike(like) | Job.group_name.ilike(like) | Job.group_id.ilike(like)
         )
-    query = query.order_by(Job.created_at.desc())
+
+    count_q = select(sqlfunc.count()).select_from(base_query.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+
+    order_col = getattr(Job, sort_by)
+    order_fn = desc if sort_order == "desc" else asc
+    query = base_query.order_by(order_fn(order_col)).offset((page - 1) * per_page).limit(per_page)
 
     result = await db.execute(query)
     jobs = result.scalars().all()
@@ -110,7 +135,10 @@ async def list_jobs(request: Request, status: str = "active", q: str = "", db: A
             j.status = "trigger"
         await db.commit()
 
-    return request.app.state.render(request, "jobs/list.html", jobs=jobs, current_status=status, q=q)
+    return request.app.state.render(request, "jobs/list.html",
+                                     jobs=jobs, current_status=status, q=q,
+                                     sort_by=sort_by, sort_order=sort_order,
+                                     page=page, total_pages=total_pages, total=total)
 
 
 @router.get("/create")

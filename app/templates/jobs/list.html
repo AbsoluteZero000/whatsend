@@ -21,11 +21,14 @@
     <thead>
       <tr>
         <th></th>
-        <th>{{ _('Label') }}</th>
-        <th>{{ _('Group') }}</th>
-        <th>{{ _('Trigger') }}</th>
-        <th>{{ _('Status') }}</th>
-        <th>{{ _('Created') }}</th>
+        {% macro sort_th(label, col) %}
+        <th><a href="?status={{ current_status }}&q={{ q }}&sort_by={{ col }}&sort_order={{ 'asc' if sort_by == col and sort_order == 'desc' else 'desc' }}&page=1" class="sort-link">{{ label }}{% if sort_by == col %}<span class="sort-icon">{{ ' ▲' if sort_order == 'asc' else ' ▼' }}</span>{% endif %}</a></th>
+        {% endmacro %}
+        {{ sort_th(_('Label'), 'label') }}
+        {{ sort_th(_('Group'), 'group_name') }}
+        {{ sort_th(_('Trigger'), 'trigger_type') }}
+        {{ sort_th(_('Status'), 'status') }}
+        {{ sort_th(_('Created'), 'created_at') }}
         <th>{{ _('Actions') }}</th>
       </tr>
     </thead>
@@ -105,5 +108,18 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    <a href="?status={{ current_status }}&q={{ q }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1" class="page-link {{ 'disabled' if page == 1 }}">&laquo;</a>
+    <a href="?status={{ current_status }}&q={{ q }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page={{ page-1 }}" class="page-link {{ 'disabled' if page == 1 }}">&lsaquo;</a>
+    {% for p in range(1, total_pages + 1) %}
+      {% if p >= page - 2 and p <= page + 2 %}
+      <a href="?status={{ current_status }}&q={{ q }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page={{ p }}" class="page-link {{ 'active' if p == page }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+    <a href="?status={{ current_status }}&q={{ q }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page={{ page+1 }}" class="page-link {{ 'disabled' if page == total_pages }}">&rsaquo;</a>
+    <a href="?status={{ current_status }}&q={{ q }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page={{ total_pages }}" class="page-link {{ 'disabled' if page == total_pages }}">&raquo;</a>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
