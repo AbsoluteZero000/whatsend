@@ -23,8 +23,8 @@ async def send_job(job_id: int):
         if not job:
             return
 
-        if job.skip_count > 0 and job.trigger_type != "trigger":
-            if job.trigger_type in ("now", "date"):
+        if job.skip_count > 0 and job.trigger_type not in ("trigger", "now"):
+            if job.trigger_type == "date":
                 skipped = job.skip_count
                 job.skip_count = 0
                 log = Log(job_id=job.id, status="skipped", response=f"Skipped {skipped} time(s)")
@@ -43,9 +43,6 @@ async def send_job(job_id: int):
             db.add(log)
             await db.commit()
             return
-
-        if job.trigger_type == "trigger":
-            job.skip_count = 0
 
         sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
         try:

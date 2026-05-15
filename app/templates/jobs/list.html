@@ -39,7 +39,7 @@
           {% else %}
             {{ cron_to_text(job.trigger_value) }}
           {% endif %}
-          {% if job.skip_count > 0 %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
+          {% if job.skip_count > 0 and job.trigger_type not in ("trigger", "now") %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
         </td>
         <td><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></td>
         <td>{{ tz(job.created_at, user_tz) }}</td>
@@ -49,7 +49,7 @@
             <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
             {% endif %}
             <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">{{ _('Logs') }}</a>
-            {% if job.status in ("pending", "active") and job.trigger_type != "trigger" %}
+            {% if job.status in ("pending", "active") and job.trigger_type not in ("trigger", "now") %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/pause">
               <button class="btn btn-sm btn-warning">{{ _('Pause') }}</button>
