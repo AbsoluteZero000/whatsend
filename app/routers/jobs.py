@@ -3,6 +3,8 @@ import zoneinfo
 from datetime import datetime
 from pathlib import Path
 
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -17,6 +19,11 @@ from app.services.scheduler import register_job, remove_job, send_job
 from app.services.sender import WhatsAppSender
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+def redirect_with_flash(url: str, success: str = "") -> RedirectResponse:
+    if success:
+        url += ("&" if "?" in url else "?") + urlencode({"success": success})
+    return RedirectResponse(url=url, status_code=303)
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(Path(__file__).resolve().parent.parent.parent / "uploads")))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -206,7 +213,7 @@ async def create_job(
     await db.refresh(job)
     await register_job(job)
     await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job created")
 
 
 @router.post("/{job_id}/pause")
@@ -220,7 +227,7 @@ async def pause_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         await remove_job(job_id)
         job.status = "paused"
         await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job paused")
 
 
 @router.post("/{job_id}/resume")
@@ -235,7 +242,7 @@ async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(g
         await db.commit()
         await register_job(job)
         await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job resumed")
 
 
 @router.post("/{job_id}/skip")
@@ -248,7 +255,7 @@ async def skip_job(job_id: int, request: Request, db: AsyncSession = Depends(get
     if job and job.status in ("pending", "active"):
         job.skip_count += 1
         await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job skipped")
 
 
 @router.post("/{job_id}/skip-clear")
@@ -261,7 +268,7 @@ async def skip_clear_job(job_id: int, request: Request, db: AsyncSession = Depen
     if job and job.skip_count > 0:
         job.skip_count = 0
         await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Skips cleared")
 
 
 @router.post("/{job_id}/send-now")
@@ -273,7 +280,7 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
     job = result.scalar_one_or_none()
     if job and job.status in ("trigger",):
         await send_job(job_id)
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job sent")
 
 
 @router.post("/{job_id}/cancel")
@@ -287,7 +294,7 @@ async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(g
         await remove_job(job_id)
         job.status = "cancelled"
         await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job cancelled")
 
 
 @router.post("/{job_id}/delete")
@@ -305,7 +312,7 @@ async def delete_job(job_id: int, request: Request, db: AsyncSession = Depends(g
         await remove_job(job_id)
         await db.delete(job)
         await db.commit()
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job deleted")
 
 
 def parse_cron_for_form(expr: str) -> dict:
@@ -438,4 +445,4 @@ async def edit_job(
     await register_job(job)
     await db.commit()
 
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_with_flash("/jobs", success="Job updated")
