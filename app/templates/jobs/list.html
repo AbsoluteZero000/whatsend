@@ -13,7 +13,7 @@
   <a href="/jobs?status=all&q={{ q }}" class="filter-btn {% if current_status == 'all' %}active{% endif %}">{{ _('All') }}</a>
   <form method="GET" action="/jobs" class="search-form">
     <input type="hidden" name="status" value="{{ current_status }}">
-    <input type="search" id="jobSearch" class="search-input" placeholder="{{ _('Search jobs…') }}" title="{{ _('Press / to focus') }}" name="q" value="{{ q }}" hx-get="/jobs?status={{ current_status }}" hx-trigger="keyup changed delay:300ms, search" hx-target=".table-wrap" hx-push-url="true">
+    <input type="search" id="jobSearch" class="search-input" placeholder="{{ _('Search jobs…') }}" title="{{ _('Press / to focus') }}" name="q" value="{{ q }}">
   </form>
 </div>
 <div class="table-wrap">
