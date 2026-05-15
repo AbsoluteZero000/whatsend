@@ -315,6 +315,36 @@ async def delete_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     return redirect_with_flash("/jobs", success="Job deleted")
 
 
+@router.post("/{job_id}/clone")
+async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        return redirect_with_flash("/jobs", success="Job cloned")  # will just redirect with message
+
+    clone = Job(
+        user_id=job.user_id,
+        token_id=job.token_id,
+        label=(job.label + " (copy)") if job.label else None,
+        group_id=job.group_id,
+        group_name=job.group_name,
+        message=job.message,
+        image_path=job.image_path,
+        trigger_type=job.trigger_type,
+        trigger_value=job.trigger_value,
+        status="trigger" if job.trigger_type == "trigger" else "pending",
+    )
+    db.add(clone)
+    await db.commit()
+    await db.refresh(clone)
+    await register_job(clone)
+    await db.commit()
+    return redirect_with_flash("/jobs", success="Job cloned")
+
+
 def parse_cron_for_form(expr: str) -> dict:
     parts = expr.split()
     if len(parts) != 5:

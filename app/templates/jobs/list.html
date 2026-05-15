@@ -52,6 +52,10 @@
             <a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
             {% endif %}
             <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">{{ _('Logs') }}</a>
+            <div class="actions-divider"></div>
+            <form method="POST" action="/jobs/{{ job.id }}/clone">
+              <button class="btn btn-sm btn-secondary">{{ _('Clone') }}</button>
+            </form>
             {% if job.status in ("pending", "active") and job.trigger_type not in ("trigger", "now") %}
             <div class="actions-divider"></div>
             <form method="POST" action="/jobs/{{ job.id }}/pause">
