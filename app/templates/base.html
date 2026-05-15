@@ -44,6 +44,15 @@
     </span>
   </footer>
 <div id="global-spinner" class="spinner-overlay"><div class="spinner"></div></div>
+<div id="confirm-modal" class="modal-overlay">
+  <div class="modal-box">
+    <p class="modal-message" id="confirm-message"></p>
+    <div class="modal-actions">
+      <button id="confirm-cancel" class="btn btn-secondary">{{ _('Cancel') }}</button>
+      <button id="confirm-ok" class="btn btn-danger">{{ _('Delete') }}</button>
+    </div>
+  </div>
+</div>
 <script>
 function updateClock() {
   const now = new Date();
@@ -70,6 +79,31 @@ document.addEventListener('htmx:afterRequest', function() {
   if (htmxRequests <= 0) {
     htmxRequests = 0;
     document.getElementById('global-spinner').classList.remove('visible');
+  }
+});
+
+let confirmForm = null;
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('visible');
+  confirmForm = null;
+}
+function customConfirm(e, message) {
+  e.preventDefault();
+  confirmForm = e.target;
+  document.getElementById('confirm-message').textContent = message;
+  document.getElementById('confirm-modal').classList.add('visible');
+}
+document.getElementById('confirm-ok').addEventListener('click', function() {
+  if (confirmForm) { confirmForm.submit(); }
+  closeConfirm();
+});
+document.getElementById('confirm-cancel').addEventListener('click', closeConfirm);
+document.getElementById('confirm-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeConfirm();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('confirm-modal').classList.contains('visible')) {
+    closeConfirm();
   }
 });
 

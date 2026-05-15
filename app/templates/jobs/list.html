@@ -82,7 +82,7 @@
               <button class="btn btn-sm btn-primary">{{ _('Resume') }}</button>
             </form>
             {% endif %}
-            <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="return confirm('{{ _('Delete this job?') }}')">
+            <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="customConfirm(event, '{{ _('Delete this job?') }}')">
               <button class="btn btn-sm btn-danger">{{ _('Delete') }}</button>
             </form>
           </div>
