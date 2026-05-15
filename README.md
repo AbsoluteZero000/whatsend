@@ -12,7 +12,7 @@ We went back to manual sending. Then **v2** appeared: same idea but powered by t
 
 **v3** added REST APIs so everything could be configured remotely. Then came the question: how will normal people use this? That's when the web dashboard was born — Jinja2 templates, vanilla JS, zero build step.
 
-And that's where we are today. WhatSend (branded as **Zamzam** on the production branch) is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.
+And that's where we are today. WhatSend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.
 
 ## Features
 
