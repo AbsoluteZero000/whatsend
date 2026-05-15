@@ -363,9 +363,11 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
         form_data.update(parse_cron_for_form(job.trigger_value))
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    image_available = bool(job.image_path and Path(job.image_path).exists())
     return request.app.state.render(request, "jobs/form.html",
                                      job=job, tokens=tokens, groups=groups,
-                                     now=now, user_tz=user_tz, edit_mode=True, **form_data)
+                                     now=now, user_tz=user_tz, edit_mode=True,
+                                     image_available=image_available, **form_data)
 
 
 @router.post("/{job_id}/edit")

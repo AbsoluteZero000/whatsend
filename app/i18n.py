@@ -123,6 +123,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "e.g. Monday morning report": "مثال: تقرير صباح الاثنين",
         "Type your WhatsApp message here…": "اكتب رسالة WhatsApp هنا…",
         "Current image:": "الصورة الحالية:",
+        "Could not find the image file — please upload it again.": "تعذر العثور على ملف الصورة — يرجى رفعه مرة أخرى.",
         "Supported: JPEG, PNG, GIF, WebP — up to 5MB": "المسموح: JPEG, PNG, GIF, WebP — حتى 5MB",
         "Format: minute hour day month day_of_week": "الصيغة: دقيقة ساعة يوم شهر يوم_الأسبوع",
         "Trigger type cannot be changed for now jobs.": "لا يمكن تغيير نوع المشغل للمهام الفورية.",
