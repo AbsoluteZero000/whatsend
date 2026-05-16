@@ -7,7 +7,7 @@
   <title>{% block title %}{{ _('WhatsApp Scheduler') }}{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=7">
+  <link rel="stylesheet" href="/static/css/app.css?v=8">
 </head>
 <body>
   <nav>
@@ -113,6 +113,14 @@ function toggleMsg(id) {
   var btn = row.previousElementSibling.querySelector('.msg-toggle');
   row.classList.toggle('open');
   btn.classList.toggle('open');
+}
+
+function dismissOnboarding() {
+  var overlay = document.getElementById('onboarding-overlay');
+  if (!overlay) return;
+  fetch('/auth/onboarded', { method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'} });
+  overlay.style.opacity = '0';
+  setTimeout(function() { overlay.remove(); }, 300);
 }
 
 function showToast(message, type) {

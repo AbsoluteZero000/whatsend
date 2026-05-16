@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Form, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,7 +60,7 @@ async def signup(
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
@@ -86,7 +86,7 @@ async def signin(
     if not user or not verify_password(password, user.password_hash):
         return request.app.state.render(request, "auth/signin.html", error="Invalid credentials")
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
@@ -98,6 +98,18 @@ async def signout():
     redirect = RedirectResponse(url="/auth/signin", status_code=303)
     redirect.delete_cookie(key="session")
     return redirect
+
+
+@router.post("/onboarded")
+async def mark_onboarded(request: Request, db: AsyncSession = Depends(get_db)):
+    user_payload = require_user(request)
+    user_id = int(user_payload["sub"])
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        user.onboarded = True
+        await db.commit()
+    return JSONResponse({"ok": True})
 
 
 @router.get("/timezone")
@@ -125,7 +137,8 @@ async def timezone_update(
         await db.commit()
 
     lang = user_payload.get("lang", "en")
-    token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone, "lang": lang})
+    onboarded = user_payload.get("onboarded", True)
+    token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone, "lang": lang, "onboarded": onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
@@ -174,7 +187,7 @@ async def profile_update(
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang})
+    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
     redirect = RedirectResponse(url="/auth/profile", status_code=303)
     redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
     return redirect
@@ -205,6 +218,7 @@ async def lang_toggle(
             "username": user_payload["username"],
             "tz": user_payload.get("tz", "UTC"),
             "lang": lang,
+            "onboarded": user_payload.get("onboarded", True),
         })
         redirect = RedirectResponse(url=referer, status_code=303)
         redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")

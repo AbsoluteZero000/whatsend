@@ -49,6 +49,8 @@ def _migrate(conn):
     if "lang" not in cols:
         conn.execute(text("ALTER TABLE users ADD COLUMN lang VARCHAR(2) DEFAULT 'en'"))
         conn.execute(text("UPDATE users SET lang = 'en' WHERE lang IS NULL"))
+    if "onboarded" not in cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN onboarded BOOLEAN DEFAULT 0"))
 
     _fix_cron_dow_migration(conn)
 

@@ -1,6 +1,21 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Dashboard') }} — WhatSend{% endblock %}
 {% block content %}
+{% if not onboarded %}
+<div id="onboarding-overlay" class="onboarding-overlay">
+  <div class="onboarding-card">
+    <h2>👋 {{ _('Welcome to WhatSend!') }}</h2>
+    <p>{{ _("Here's a quick tour to get you started:") }}</p>
+    <div class="onboarding-steps">
+      <div class="onboarding-step"><span class="step-icon">🔑</span> <span>{{ _("Add your Whapi.Cloud token in Tokens") }}</span></div>
+      <div class="onboarding-step"><span class="step-icon">📅</span> <span>{{ _("Create a job — pick a group, write a message, set a schedule") }}</span></div>
+      <div class="onboarding-step"><span class="step-icon">⚡</span> <span>{{ _("Use Send Now for instant messages or Trigger for on-demand") }}</span></div>
+      <div class="onboarding-step"><span class="step-icon">📊</span> <span>{{ _("Monitor delivery in Logs") }}</span></div>
+    </div>
+    <button class="btn btn-primary" onclick="dismissOnboarding()">{{ _("Got it, let's start!") }}</button>
+  </div>
+</div>
+{% endif %}
 <div class="dashboard">
   <div class="header-row">
     <div>

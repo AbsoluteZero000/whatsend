@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.job import Job
 from app.models.log import Log
 from app.models.token import Token
+from app.models.user import User
 from app.routers.auth import get_current_user, require_user
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -46,6 +47,10 @@ async def dashboard_page(request: Request, db: AsyncSession = Depends(get_db)):
     else:
         greeting = "Good evening"
 
+    u_result = await db.execute(select(User).where(User.id == user_id))
+    db_user = u_result.scalar_one_or_none()
+    onboarded = db_user.onboarded if db_user else True
+
     stats = {
         "total_jobs": total or 0,
         "active_jobs": active or 0,
@@ -54,4 +59,4 @@ async def dashboard_page(request: Request, db: AsyncSession = Depends(get_db)):
         "success_rate": success_rate,
         "tokens_count": tokens_count or 0,
     }
-    return request.app.state.render(request, "dashboard/index.html", greeting=greeting, stats=stats, recent_jobs=recent_jobs, recent_logs=recent_logs, username=user["username"])
+    return request.app.state.render(request, "dashboard/index.html", greeting=greeting, stats=stats, recent_jobs=recent_jobs, recent_logs=recent_logs, username=user["username"], onboarded=onboarded)
