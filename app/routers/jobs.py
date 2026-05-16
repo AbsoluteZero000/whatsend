@@ -411,11 +411,19 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     return redirect_with_flash("/jobs", success="Job cloned")
 
 
-def parse_cron_for_form(expr: str) -> dict:
+def parse_cron_for_form(expr: str, tz_name: str = "UTC") -> dict:
     parts = expr.split()
     if len(parts) != 5:
         return {}
     minute, hour, dom, month, dow = parts
+    if hour != "*" and tz_name != "UTC":
+        try:
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            utc_dt = datetime.strptime(f"{today} {hour.zfill(2)}:{minute.zfill(2)}", "%Y-%m-%d %H:%M").replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+            local_dt = utc_dt.astimezone(zoneinfo.ZoneInfo(tz_name))
+            hour, minute = local_dt.strftime("%H"), local_dt.strftime("%M")
+        except Exception:
+            pass
     cron_time = f"{hour.zfill(2)}:{minute.zfill(2)}"
     if dow == "*" and dom == "*":
         return {"cron_freq": "daily", "cron_time": cron_time}
@@ -507,7 +515,7 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
         except (ValueError, zoneinfo.ZoneInfoNotFoundError):
             form_data["trigger_value_date"] = ""
     elif job.trigger_type == "cron":
-        form_data.update(parse_cron_for_form(job.trigger_value))
+        form_data.update(parse_cron_for_form(job.trigger_value, user_tz))
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     image_available = bool(job.image_path and Path(job.image_path).exists())
