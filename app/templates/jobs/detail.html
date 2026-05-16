@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Job') }} #{{ job.id }} — Zamzam{% endblock %}
+{% block content %}
+<div class="section-header header-row">
+  <div>
+    <h1>{{ _('Job') }} #{{ job.id }}</h1>
+    <p class="tz-note">{{ job.label or "—" }}</p>
+  </div>
+  <a href="/jobs" class="btn btn-secondary">{{ _('&larr; Back to Jobs') }}</a>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-card">
+    <div class="detail-card-header">{{ _('Job Details') }}</div>
+    <div class="detail-body">
+      <div class="detail-row">
+        <span class="detail-label">{{ _('ID') }}</span>
+        <span class="detail-value">#{{ job.id }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Label') }}</span>
+        <span class="detail-value">{{ job.label or "—" }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Group') }}</span>
+        <span class="detail-value"><code>{{ job.group_name or job.group_id }}</code></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Status') }}</span>
+        <span class="detail-value"><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Trigger Type') }}</span>
+        <span class="detail-value">{{ job.trigger_type }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Trigger Value') }}</span>
+        <span class="detail-value">
+          {% if job.trigger_type == "now" %}
+            {{ _('Now') }} ({{ tz(parse_dt(job.trigger_value), user_tz) }})
+          {% elif job.trigger_type == "date" %}
+            {{ tz(parse_dt(job.trigger_value), user_tz) }}
+          {% elif job.trigger_type == "trigger" %}
+            {{ _('On Trigger') }}
+          {% else %}
+            {{ cron_to_text(job.trigger_value, user_tz) }}
+          {% endif %}
+        </span>
+      </div>
+      {% if job.skip_count > 0 and job.trigger_type not in ("trigger", "now") %}
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Skips') }}</span>
+        <span class="detail-value">{{ job.skip_count }}x</span>
+      </div>
+      {% endif %}
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Created') }}</span>
+        <span class="detail-value">{{ tz(job.created_at, user_tz) }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Updated') }}</span>
+        <span class="detail-value">{{ tz(job.updated_at, user_tz) }}</span>
+      </div>
+      {% if next_run %}
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Next Run') }}</span>
+        <span class="detail-value">{{ next_run }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="detail-card">
+    <div class="detail-card-header">{{ _('Message') }}</div>
+    <div class="detail-body">
+      <div class="detail-message">{{ job.message }}</div>
+      {% if image_available %}
+      <div class="detail-image">
+        <img src="/uploads/{{ image_filename }}" alt="{{ _('Message image') }}" class="detail-img">
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="detail-card detail-card-actions">
+    <div class="detail-card-header">{{ _('Actions') }}</div>
+    <div class="detail-body">
+      <div class="detail-actions">
+        {% if job.status in ("pending", "active", "trigger") and job.trigger_type != "now" %}
+        <a href="/jobs/{{ job.id }}/edit" class="btn btn-primary">{{ _('Edit') }}</a>
+        {% endif %}
+        <a href="/logs?job_id={{ job.id }}" class="btn btn-primary">{{ _('Logs') }}</a>
+        <form method="POST" action="/jobs/{{ job.id }}/clone">
+          <button class="btn btn-secondary">{{ _('Clone') }}</button>
+        </form>
+        {% if job.status in ("pending", "active") and job.trigger_type not in ("trigger", "now") %}
+        <form method="POST" action="/jobs/{{ job.id }}/pause">
+          <button class="btn btn-warning">{{ _('Pause') }}</button>
+        </form>
+        <form method="POST" action="/jobs/{{ job.id }}/skip">
+          <button class="btn btn-skip">{{ _('Skip') }}{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
+        </form>
+        {% if job.skip_count > 0 %}
+        <form method="POST" action="/jobs/{{ job.id }}/skip-clear">
+          <button class="btn btn-clear" title="{{ _('Clear skips') }}">✕ {{ _('Clear') }}</button>
+        </form>
+        {% endif %}
+        <form method="POST" action="/jobs/{{ job.id }}/cancel">
+          <button class="btn btn-danger">{{ _('Cancel') }}</button>
+        </form>
+        {% elif job.trigger_type == "trigger" and job.status in ("pending", "trigger") %}
+        <form method="POST" action="/jobs/{{ job.id }}/send-now">
+          <button class="btn btn-primary">{{ _('Send Now') }}</button>
+        </form>
+        <form method="POST" action="/jobs/{{ job.id }}/cancel">
+          <button class="btn btn-danger">{{ _('Cancel') }}</button>
+        </form>
+        {% elif job.status == "paused" %}
+        <form method="POST" action="/jobs/{{ job.id }}/resume">
+          <button class="btn btn-primary">{{ _('Resume') }}</button>
+        </form>
+        {% endif %}
+        <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="customConfirm(event, '{{ _('Delete this job?') }}')">
+          <button class="btn btn-danger">{{ _('Delete') }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-header" style="margin-top:2rem;">
+  <h2>{{ _('Recent Logs') }}</h2>
+  <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">{{ _('View All Logs') }}</a>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>{{ _('ID') }}</th>
+        <th>{{ _('Status') }}</th>
+        <th>{{ _('Response') }}</th>
+        <th>{{ _('Sent At') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.id }}</td>
+        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ _(log.status) }}</span></td>
+        <td><details><summary style="cursor:pointer;color:var(--primary);">{{ _('Show response') }}</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
+        <td>{{ tz(log.sent_at, user_tz) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">{{ _('No logs yet for this job.') }}</div></div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

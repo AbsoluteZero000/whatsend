@@ -21,6 +21,7 @@
     <thead>
       <tr>
         <th></th>
+        <th><a href="?status={{ current_status }}&q={{ q }}&sort_by=id&sort_order={{ 'asc' if sort_by == 'id' and sort_order == 'desc' else 'desc' }}&page=1" class="sort-link">#{% if sort_by == 'id' %}<span class="sort-icon">{{ ' ▲' if sort_order == 'asc' else ' ▼' }}</span>{% endif %}</a></th>
         {% macro sort_th(label, col) %}
         <th><a href="?status={{ current_status }}&q={{ q }}&sort_by={{ col }}&sort_order={{ 'asc' if sort_by == col and sort_order == 'desc' else 'desc' }}&page=1" class="sort-link">{{ label }}{% if sort_by == col %}<span class="sort-icon">{{ ' ▲' if sort_order == 'asc' else ' ▼' }}</span>{% endif %}</a></th>
         {% endmacro %}
@@ -37,6 +38,7 @@
       {% for job in jobs %}
       <tr class="job-row">
         <td><button class="msg-toggle" onclick="toggleMsg({{ job.id }})" title="{{ _('Preview message') }}">&#x25B6;</button></td>
+        <td><a href="/jobs/{{ job.id }}" class="job-id-link">#{{ job.id }}</a></td>
         <td>{{ job.label or "—" }}</td>
         <td><code>{{ job.group_name or job.group_id }}{% if job.image_path %} 🖼{% endif %}</code></td>
         <td>
@@ -103,10 +105,10 @@
         </td>
       </tr>
       <tr id="msg-{{ job.id }}" class="msg-row">
-        <td colspan="8"><div class="msg-content">{{ job.message }}</div></td>
+        <td colspan="9"><div class="msg-content">{{ job.message }}</div></td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
+      <tr><td colspan="9" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

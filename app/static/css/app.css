@@ -277,3 +277,20 @@ footer { max-width: 1100px; margin: 3rem auto 1.5rem; padding: 0 1rem; display: 
 .onboarding-steps { margin: 1.5rem 0; }
 .onboarding-step { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; font-size: 0.95rem; line-height: 1.4; }
 .step-icon { font-size: 1.25rem; flex-shrink: 0; }
+
+.job-id-link { color: var(--primary); text-decoration: none; font-variant-numeric: tabular-nums; }
+.job-id-link:hover { text-decoration: underline; }
+
+.detail-grid { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1.25rem; }
+.detail-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-sm); overflow: hidden; }
+.detail-card-header { padding: 0.75rem 1rem; font-weight: 600; font-size: 0.9rem; border-bottom: 1px solid var(--border); background: var(--bg-table-th); text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); }
+.detail-body { padding: 1rem; }
+.detail-row { display: flex; padding: 0.4rem 0; border-bottom: 1px solid var(--border-table); }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { flex: 0 0 120px; font-size: 0.85rem; color: var(--text-secondary); }
+.detail-value { flex: 1; font-size: 0.9rem; word-break: break-word; }
+.detail-message { white-space: pre-wrap; word-break: break-word; font-size: 0.9rem; line-height: 1.6; }
+.detail-image { margin-top: 1rem; }
+.detail-img { max-width: 100%; max-height: 400px; border-radius: 6px; border: 1px solid var(--border); }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.detail-actions form { display: inline; }

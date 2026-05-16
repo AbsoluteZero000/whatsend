@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.job import Job
+from app.models.log import Log
 from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
@@ -62,7 +63,7 @@ async def save_upload(file: UploadFile) -> str | None:
     return str(dest.resolve())
 
 
-ALLOWED_SORT_COLS = {"label", "group_name", "trigger_type", "status", "created_at"}
+ALLOWED_SORT_COLS = {"id", "label", "group_name", "trigger_type", "status", "created_at"}
 
 
 def time_left_str(job: Job) -> str:
@@ -428,6 +429,49 @@ def parse_cron_for_form(expr: str) -> dict:
     if dom != "*" and dow == "*":
         return {"cron_freq": "monthly", "cron_time": cron_time, "cron_dom": int(dom)}
     return {"cron_freq": "raw", "cron_raw": expr}
+
+
+@router.get("/{job_id}")
+async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    user_id = int(user["sub"])
+    user_tz = user.get("tz", "UTC")
+
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    scheduled = apscheduler.get_job(str(job.id))
+    next_run = ""
+    if scheduled and scheduled.next_run_time:
+        diff = scheduled.next_run_time - datetime.now(scheduled.next_run_time.tzinfo)
+        total_seconds = int(diff.total_seconds())
+        if total_seconds >= 0:
+            if total_seconds < 60:
+                next_run = "Now"
+            else:
+                minutes = total_seconds // 60
+                hours = minutes // 60
+                days = hours // 24
+                if days > 0:
+                    next_run = f"{days}d {hours % 24}h"
+                elif hours > 0:
+                    next_run = f"{hours}h {minutes % 60}m"
+                else:
+                    next_run = f"{minutes}m"
+
+    log_result = await db.execute(
+        select(Log).where(Log.job_id == job_id).order_by(Log.sent_at.desc()).limit(20)
+    )
+    logs = log_result.scalars().all()
+
+    image_available = bool(job.image_path and Path(job.image_path).exists())
+    image_filename = Path(job.image_path).name if image_available else ""
+
+    return request.app.state.render(request, "jobs/detail.html",
+                                     job=job, logs=logs, next_run=next_run,
+                                     image_available=image_available, image_filename=image_filename)
 
 
 @router.get("/{job_id}/edit")
