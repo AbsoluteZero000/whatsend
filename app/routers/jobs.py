@@ -174,7 +174,10 @@ def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
         return local_to_utc(tv, user_tz)
     elif trigger_type == "cron":
         cron_time = kw.get("cron_time", "09:00")
-        hour, minute = cron_time.split(":")
+        cron_datetime = f"{datetime.utcnow().strftime('%Y-%m-%d')} {cron_time}"
+        utc_datetime = local_to_utc(cron_datetime, user_tz)
+        utc_time = utc_datetime.split()[1]
+        hour, minute = utc_time.split(":")
         cron_freq = kw.get("cron_freq", "daily")
         if cron_freq == "daily":
             return f"{minute} {hour} * * *"
