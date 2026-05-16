@@ -53,31 +53,4 @@ def _migrate(conn):
         conn.execute(text("ALTER TABLE users ADD COLUMN onboarded BOOLEAN DEFAULT 0"))
         conn.execute(text("UPDATE users SET onboarded = 1"))
 
-    _fix_cron_dow_migration(conn)
 
-
-def _fix_cron_dow(v: str) -> str:
-    parts = v.split()
-    if len(parts) != 5:
-        return v
-    dow = parts[4]
-    if dow == "*":
-        return v
-    fixed: list[str] = []
-    for token in dow.split(","):
-        if "-" in token:
-            a, b = token.split("-", 1)
-            fixed.append(f"{(int(a) - 1) % 7}-{(int(b) - 1) % 7}")
-        else:
-            fixed.append(str((int(token) - 1) % 7))
-    parts[4] = ",".join(fixed)
-    return " ".join(parts)
-
-
-def _fix_cron_dow_migration(conn):
-    from sqlalchemy import text
-    rows = conn.execute(text("SELECT id, trigger_value FROM jobs WHERE trigger_type = 'cron'")).fetchall()
-    for row in rows:
-        fixed = _fix_cron_dow(row.trigger_value)
-        if fixed != row.trigger_value:
-            conn.execute(text("UPDATE jobs SET trigger_value = :val WHERE id = :id"), {"val": fixed, "id": row.id})
