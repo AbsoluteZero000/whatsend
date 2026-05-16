@@ -32,6 +32,19 @@ class WhatsAppSender:
         response.raise_for_status()
         return response.json()
 
+    async def send_video(self, chat_id: str, video_path: str, caption: str = "") -> dict:
+        p = Path(video_path)
+        with p.open("rb") as fh:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/messages/video",
+                    headers={"authorization": f"Bearer {self.token}"},
+                    data={"to": chat_id, "caption": caption},
+                    files={"media": (p.name, fh, "video/mp4")},
+                )
+        response.raise_for_status()
+        return response.json()
+
     async def get_groups(self) -> list[dict]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
@@ -44,6 +57,9 @@ class WhatsAppSender:
         return data.get("groups", [])
 
     async def send(self, chat_id: str, message: str, image_path: str | None = None) -> dict:
-        if image_path:
-            return await self.send_image(chat_id, image_path, caption=message)
-        return await self.send_text(chat_id, message)
+        if not image_path:
+            return await self.send_text(chat_id, message)
+        ext = Path(image_path).suffix.lower()
+        if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
+            return await self.send_video(chat_id, image_path, caption=message)
+        return await self.send_image(chat_id, image_path, caption=message)

@@ -74,9 +74,15 @@
     <div class="detail-card-header">{{ _('Message') }}</div>
     <div class="detail-body">
       <div class="detail-message">{{ job.message }}</div>
-      {% if image_available %}
+      {% if media_available %}
       <div class="detail-image">
-        <img src="/uploads/{{ image_filename }}" alt="{{ _('Message image') }}" class="detail-img">
+        {% if media_is_video %}
+        <video controls class="detail-img">
+          <source src="/uploads/{{ media_filename }}">
+        </video>
+        {% else %}
+        <img src="/uploads/{{ media_filename }}" alt="{{ _('Message media') }}" class="detail-img">
+        {% endif %}
       </div>
       {% endif %}
     </div>

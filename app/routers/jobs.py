@@ -30,8 +30,10 @@ def redirect_with_flash(url: str, success: str = "") -> RedirectResponse:
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(Path(__file__).resolve().parent.parent.parent / "uploads")))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 
 def local_to_utc(date_str: str, tz_name: str = "UTC") -> str:
@@ -55,7 +57,7 @@ async def save_upload(file: UploadFile) -> str | None:
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="Image exceeds 5MB limit")
+        raise HTTPException(status_code=400, detail="File exceeds 50MB limit")
 
     stem = datetime.now().strftime("%Y%m%d%H%M%S%f")
     dest = UPLOAD_DIR / f"{stem}{ext}"
@@ -474,12 +476,14 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     )
     logs = log_result.scalars().all()
 
-    image_available = bool(job.image_path and Path(job.image_path).exists())
-    image_filename = Path(job.image_path).name if image_available else ""
+    media_available = bool(job.image_path and Path(job.image_path).exists())
+    media_filename = Path(job.image_path).name if media_available else ""
+    media_is_video = bool(media_available and Path(job.image_path).suffix.lower() in VIDEO_EXTENSIONS)
 
     return request.app.state.render(request, "jobs/detail.html",
                                      job=job, logs=logs, next_run=next_run,
-                                     image_available=image_available, image_filename=image_filename)
+                                     media_available=media_available, media_filename=media_filename,
+                                     media_is_video=media_is_video)
 
 
 @router.get("/{job_id}/edit")
