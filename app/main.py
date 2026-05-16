@@ -7,8 +7,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.database import create_tables
+from sqlalchemy import select
+
+from app.database import async_session, create_tables
 from app.i18n import _ as _translate
+from app.models.job import Job
 from app.routers import about, auth, dashboard, jobs, logs, tokens
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
@@ -100,6 +103,14 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
+
+    async with async_session() as db:
+        result = await db.execute(select(Job).where(Job.image_path.isnot(None)))
+        for job in result.scalars().all():
+            if job.image_path and not Path(job.image_path).exists():
+                job.image_path = None
+        await db.commit()
+
     apscheduler.start()
     await load_all_jobs()
     yield
