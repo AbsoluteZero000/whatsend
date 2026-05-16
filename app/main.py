@@ -52,13 +52,24 @@ _jinja_env.globals["parse_dt"] = parse_dt
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
-def cron_to_text(expr: str) -> str:
+def cron_to_text(expr: str, tz_name: str = "UTC") -> str:
     try:
         parts = expr.split()
         if len(parts) != 5:
             return expr
         minute, hour, dom, month, dow = parts
         time = f"{hour.zfill(2)}:{minute.zfill(2)}"
+
+        if tz_name != "UTC" and hour != "*":
+            try:
+                t = time.split(":")
+                today = datetime.utcnow().strftime("%Y-%m-%d")
+                import zoneinfo
+                utc_dt = datetime.strptime(f"{today} {t[0]}:{t[1]}", "%Y-%m-%d %H:%M").replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+                local_dt = utc_dt.astimezone(zoneinfo.ZoneInfo(tz_name))
+                time = local_dt.strftime("%H:%M")
+            except Exception:
+                pass
 
         if dow == "*" and dom == "*":
             return f"Daily at {time}"

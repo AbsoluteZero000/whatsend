@@ -71,7 +71,7 @@
                 {% elif job.trigger_type == "date" %}
                   {{ tz(parse_dt(job.trigger_value), user_tz) }}
                 {% else %}
-                  {{ cron_to_text(job.trigger_value) }}
+                  {{ cron_to_text(job.trigger_value, user_tz) }}
                 {% endif %}
               </td>
               <td><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></td>

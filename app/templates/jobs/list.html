@@ -47,7 +47,7 @@
           {% elif job.trigger_type == "trigger" %}
             {{ _('On Trigger') }}
           {% else %}
-            {{ cron_to_text(job.trigger_value) }}
+            {{ cron_to_text(job.trigger_value, user_tz) }}
           {% endif %}
           {% if job.skip_count > 0 and job.trigger_type not in ("trigger", "now") %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
         </td>
