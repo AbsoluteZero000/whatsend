@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Log') }} #{{ log.id }} — Zamzam{% endblock %}
+{% block content %}
+<div class="section-header header-row">
+  <div>
+    <h1>{{ _('Log') }} #{{ log.id }}</h1>
+    <p class="tz-note">{{ _('Job') }} <a href="/jobs/{{ job.id }}" class="job-id-link">#{{ job.id }}</a> &mdash; {{ job.label or "—" }}</p>
+  </div>
+  <a href="/logs?job_id={{ job.id }}" class="btn btn-secondary">← {{ _('Back to Logs') }}</a>
+</div>
+
+<div class="detail-grid">
+  <div class="detail-card">
+    <div class="detail-card-header">{{ _('Log Details') }}</div>
+    <div class="detail-body">
+      <div class="detail-row">
+        <span class="detail-label">{{ _('ID') }}</span>
+        <span class="detail-value">#{{ log.id }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Job') }}</span>
+        <span class="detail-value"><a href="/jobs/{{ job.id }}" class="job-id-link">#{{ job.id }}</a> &mdash; {{ job.label or "—" }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Status') }}</span>
+        <span class="detail-value"><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ _(log.status) }}</span></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">{{ _('Sent At') }}</span>
+        <span class="detail-value">{{ tz(log.sent_at, user_tz) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-card">
+    <div class="detail-card-header">{{ _('Response') }}</div>
+    <div class="detail-body">
+      <pre style="white-space:pre-wrap;word-break:break-word;font-size:0.9rem;line-height:1.6;margin:0;max-height:600px;overflow-y:auto;background:var(--bg-code);padding:1rem;border-radius:6px;"><code>{{ log.response or "—" }}</code></pre>
+    </div>
+  </div>
+</div>
+{% endblock %}

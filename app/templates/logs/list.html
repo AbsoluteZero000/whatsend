@@ -21,7 +21,7 @@
     <tbody>
       {% for log in logs %}
       <tr>
-        <td>{{ log.id }}</td>
+        <td><a href="/logs/{{ log.id }}" class="job-id-link">#{{ log.id }}</a></td>
         <td><a href="/jobs/{{ log.job_id }}" class="job-id-link">#{{ log.job_id }}</a></td>
         <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ _(log.status) }}</span></td>
         <td><details><summary style="cursor:pointer;color:var(--primary);">{{ _('Show response') }}</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
