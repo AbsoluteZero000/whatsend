@@ -17,6 +17,7 @@ from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
 from app.services.scheduler import register_job, remove_job, send_job
+from app.services.scheduler import scheduler as apscheduler
 from app.services.sender import WhatsAppSender
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -62,6 +63,30 @@ async def save_upload(file: UploadFile) -> str | None:
 
 
 ALLOWED_SORT_COLS = {"label", "group_name", "trigger_type", "status", "created_at"}
+
+
+def time_left_str(job: Job) -> str:
+    if job.status not in ("pending", "active", "trigger"):
+        return ""
+    if job.trigger_type in ("now", "trigger"):
+        return ""
+    scheduled = apscheduler.get_job(str(job.id))
+    if not scheduled or not scheduled.next_run_time:
+        return ""
+    diff = scheduled.next_run_time - datetime.now(scheduled.next_run_time.tzinfo)
+    total_seconds = int(diff.total_seconds())
+    if total_seconds < 0:
+        return ""
+    if total_seconds < 60:
+        return "Now"
+    minutes = total_seconds // 60
+    hours = minutes // 60
+    days = hours // 24
+    if days > 0:
+        return f"{days}d {hours % 24}h"
+    if hours > 0:
+        return f"{hours}h {minutes % 60}m"
+    return f"{minutes}m"
 
 @router.get("")
 async def list_jobs(
@@ -135,10 +160,13 @@ async def list_jobs(
             j.status = "trigger"
         await db.commit()
 
+    time_left_map = {job.id: time_left_str(job) for job in jobs}
+
     return request.app.state.render(request, "jobs/list.html",
                                      jobs=jobs, current_status=status, q=q,
                                      sort_by=sort_by, sort_order=sort_order,
-                                     page=page, total_pages=total_pages, total=total)
+                                     page=page, total_pages=total_pages, total=total,
+                                     time_left_map=time_left_map)
 
 
 @router.get("/create")

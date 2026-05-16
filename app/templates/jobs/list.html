@@ -27,6 +27,7 @@
         {{ sort_th(_('Label'), 'label') }}
         {{ sort_th(_('Group'), 'group_name') }}
         {{ sort_th(_('Trigger'), 'trigger_type') }}
+        <th>{{ _('Next Run') }}</th>
         {{ sort_th(_('Status'), 'status') }}
         {{ sort_th(_('Created'), 'created_at') }}
         <th>{{ _('Actions') }}</th>
@@ -50,6 +51,7 @@
           {% endif %}
           {% if job.skip_count > 0 and job.trigger_type not in ("trigger", "now") %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
         </td>
+        <td class="next-run-cell">{% if time_left_map.get(job.id) %}{{ time_left_map[job.id] }}{% endif %}</td>
         <td><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></td>
         <td>{{ tz(job.created_at, user_tz) }}</td>
         <td>
@@ -101,10 +103,10 @@
         </td>
       </tr>
       <tr id="msg-{{ job.id }}" class="msg-row">
-        <td colspan="7"><div class="msg-content">{{ job.message }}</div></td>
+        <td colspan="8"><div class="msg-content">{{ job.message }}</div></td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
+      <tr><td colspan="8" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

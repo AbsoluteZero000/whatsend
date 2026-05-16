@@ -268,3 +268,5 @@ footer { max-width: 1100px; margin: 3rem auto 1.5rem; padding: 0 1rem; display: 
 .page-link:hover { border-color: #25D366; color: #25D366; }
 .page-link.active { background: #25D366; color: #fff; border-color: #25D366; }
 .page-link.disabled { opacity: 0.4; pointer-events: none; }
+
+.next-run-cell { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
