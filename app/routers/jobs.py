@@ -210,10 +210,11 @@ def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
         if cron_freq == "daily":
             return f"{minute} {hour} * * *"
         elif cron_freq == "weekdays":
-            return f"{minute} {hour} * * 1-5"
+            return f"{minute} {hour} * * 0-4"
         elif cron_freq == "custom":
             days = kw.get("cron_days", [])
-            return f"{minute} {hour} * * {','.join(sorted(days, key=int))}"
+            fixed = sorted((int(d) + 6) % 7 for d in days)
+            return f"{minute} {hour} * * {','.join(str(d) for d in fixed)}"
         elif cron_freq == "monthly":
             return f"{minute} {hour} {kw.get('cron_dom', 1)} * *"
         elif cron_freq == "raw":
@@ -417,12 +418,13 @@ def parse_cron_for_form(expr: str) -> dict:
     cron_time = f"{hour.zfill(2)}:{minute.zfill(2)}"
     if dow == "*" and dom == "*":
         return {"cron_freq": "daily", "cron_time": cron_time}
-    if dow == "1-5" and dom == "*":
+    if dow == "0-4" and dom == "*":
         return {"cron_freq": "weekdays", "cron_time": cron_time}
-    if dom == "*" and dow != "*" and "," not in dow and "-" not in dow:
-        return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": [dow]}
-    if dom == "*" and dow != "*" and "," in dow:
-        return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": dow.split(",")}
+    if dom == "*" and "," in dow:
+        days = [str((int(d) + 1) % 7) for d in dow.split(",")]
+        return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": days}
+    if dom == "*" and dow != "*" and "-" not in dow:
+        return {"cron_freq": "custom", "cron_time": cron_time, "cron_days": [str((int(dow) + 1) % 7)]}
     if dom != "*" and dow == "*":
         return {"cron_freq": "monthly", "cron_time": cron_time, "cron_dom": int(dom)}
     return {"cron_freq": "raw", "cron_raw": expr}

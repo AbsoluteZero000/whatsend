@@ -49,7 +49,7 @@ _jinja_env.globals["tz"] = tz
 _jinja_env.globals["parse_dt"] = parse_dt
 
 
-WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 def cron_to_text(expr: str) -> str:
@@ -62,9 +62,9 @@ def cron_to_text(expr: str) -> str:
 
         if dow == "*" and dom == "*":
             return f"Daily at {time}"
-        if dow == "1-5" and dom == "*":
+        if dow == "0-4" and dom == "*":
             return f"Weekdays at {time}"
-        if dow == "0,6" and dom == "*":
+        if dow == "5,6" and dom == "*":
             return f"Weekends at {time}"
         if dom == "*" and "," in dow:
             names = [WEEKDAYS[int(d)] for d in dow.split(",")]
