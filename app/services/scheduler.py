@@ -5,6 +5,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.database import async_session
 from app.models.job import Job
@@ -18,7 +19,7 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 
 async def send_job(job_id: int):
     async with async_session() as db:
-        result = await db.execute(select(Job).where(Job.id == job_id))
+        result = await db.execute(select(Job).where(Job.id == job_id).options(selectinload(Job.job_groups)))
         job = result.scalar_one_or_none()
         if not job:
             return

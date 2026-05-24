@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func as sqlfunc, select
 from sqlalchemy import asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.job import Job, JobGroup
@@ -134,7 +135,7 @@ async def list_jobs(
     order_fn = desc if sort_order == "desc" else asc
     query = base_query.order_by(order_fn(order_col)).offset((page - 1) * per_page).limit(per_page)
 
-    result = await db.execute(query)
+    result = await db.execute(query.options(selectinload(Job.job_groups)))
     jobs = result.scalars().all()
 
     missing_job_groups: list[JobGroup] = []
@@ -397,7 +398,7 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     user = require_user(request)
     user_id = int(user["sub"])
 
-    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups)))
     job = result.scalar_one_or_none()
     if not job:
         return redirect_with_flash("/jobs", success="Job cloned")  # will just redirect with message
@@ -459,7 +460,7 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups)))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -504,7 +505,7 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups)))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -570,7 +571,7 @@ async def edit_job(
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups)))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
