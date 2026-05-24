@@ -46,6 +46,13 @@ async def send_job(job_id: int):
             return
 
         groups = job.job_groups if job.job_groups else [type("G", (object,), {"group_id": job.group_id, "group_name": job.group_name})()]
+        groups = [g for g in groups if g.group_id]
+        if not groups:
+            log = Log(job_id=job.id, status="failed", response="No groups assigned to this job")
+            db.add(log)
+            await db.commit()
+            return
+
         sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
         results: list[str] = []
         overall_status = "sent"

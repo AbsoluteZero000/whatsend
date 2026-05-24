@@ -258,6 +258,9 @@ async def create_job(
         group_ids.append(group_id_manual)
         group_names.append("")
 
+    if not group_ids:
+        return redirect_with_flash("/jobs/create", success="Please select at least one group.")
+
     image_path = await save_upload(image) if image else None
 
     trigger_value = build_trigger_value(
@@ -579,6 +582,9 @@ async def edit_job(
     if group_id_manual:
         group_ids.append(group_id_manual)
         group_names.append("")
+
+    if not group_ids:
+        return redirect_with_flash(f"/jobs/{job_id}/edit", success="Please select at least one group.")
 
     image_path = job.image_path
     if image and image.filename:

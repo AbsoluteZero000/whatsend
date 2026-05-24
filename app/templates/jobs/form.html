@@ -113,7 +113,8 @@
     </div>
     <small id="trigger_hint" style="color:#888;">{{ _('Timezone:') }} {{ user_tz }}</small>
 
-    <button type="submit" class="btn btn-primary">{% if edit_mode %}{{ _('Update Job') }}{% else %}{{ _('Create Job') }}{% endif %}</button>
+    <div id="group_error" class="form-error" style="display:none;color:var(--danger);margin-bottom:0.5rem;">{{ _('Please select at least one group.') }}</div>
+    <button type="submit" class="btn btn-primary" id="submit_btn">{% if edit_mode %}{{ _('Update Job') }}{% else %}{{ _('Create Job') }}{% endif %}</button>
   </form>
 </div>
 <script>
@@ -199,5 +200,13 @@
   });
 
   renderChips();
+
+  document.querySelector('form').addEventListener('submit', function(e) {
+    if (_selectedGroups.length === 0) {
+      e.preventDefault();
+      document.getElementById('group_error').style.display = 'block';
+      document.getElementById('group_chips').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
 </script>
 {% endblock %}
