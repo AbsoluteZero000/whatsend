@@ -17,16 +17,21 @@
     <label for="label">{{ _('Label (optional)') }}</label>
     <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if edit_mode and job.label %}value="{{ job.label }}"{% endif %}>
 
-    <label for="group_id">{{ _('Group') }}</label>
-    <select id="group_id" name="group_id" required>
-      <option value="">{{ _('-- Select a group --') }}</option>
-      {% for g in groups %}
-      <option value="{{ g.id }}" {% if edit_mode and (job.group_id == g.id) %}selected{% endif %}>{{ g.name or g.id }}</option>
-      {% endfor %}
-      <option value="__manual__" {% if edit_mode and job.group_id not in groups|map(attribute='id') %}selected{% endif %}>{{ _('Manual entry…') }}</option>
-    </select>
-    <input type="text" id="group_id_manual" name="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;" {% if edit_mode and job.group_id not in groups|map(attribute='id') %}value="{{ job.group_id }}"{% endif %}>
-    <input type="hidden" id="group_name" name="group_name" value="{% if edit_mode %}{{ job.group_name or '' }}{% endif %}">
+    <label>{{ _('Groups') }}</label>
+    <div class="group-picker">
+      <div class="group-picker-row">
+        <select id="group_picker_select" class="group-picker-select">
+          <option value="">{{ _('-- Select a group --') }}</option>
+          {% for g in groups %}
+          <option value="{{ g.id }}" data-name="{{ g.name or g.id }}">{{ g.name or g.id }}</option>
+          {% endfor %}
+          <option value="__manual__">{{ _('Manual entry…') }}</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-primary" onclick="addGroup()">{{ _('+ Add') }}</button>
+      </div>
+      <input type="text" id="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
+      <div id="group_chips" class="group-chips"></div>
+    </div>
 
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
@@ -134,29 +139,65 @@
   document.getElementById('cron_freq').addEventListener('change', toggleCronFields);
   toggleCronFields();
 
-  document.getElementById('group_id').addEventListener('change', function() {
-    var manual = document.getElementById('group_id_manual');
-    var hidden = document.getElementById('group_name');
-    var selected = this.options[this.selectedIndex];
-    manual.style.display = this.value === '__manual__' ? 'block' : 'none';
-    if (this.value === '__manual__') {
-      manual.required = true;
-      hidden.value = '';
-    } else {
-      manual.required = false;
-      hidden.value = selected.text;
+  var _selectedGroups = [
+    {% for sg in selected_groups %}
+    {id: "{{ sg.id }}", name: "{{ sg.name }}"},
+    {% endfor %}
+  ];
+
+  function renderChips() {
+    var container = document.getElementById('group_chips');
+    container.innerHTML = '';
+    var idsHtml = '';
+    var namesHtml = '';
+    _selectedGroups.forEach(function(g, i) {
+      var chip = document.createElement('span');
+      chip.className = 'group-chip';
+      chip.textContent = g.name;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip-remove';
+      btn.innerHTML = '&times;';
+      btn.onclick = function() { _selectedGroups.splice(i, 1); renderChips(); };
+      chip.appendChild(btn);
+      container.appendChild(chip);
+      idsHtml += '<input type="hidden" name="group_ids" value="' + g.id + '">';
+      namesHtml += '<input type="hidden" name="group_names" value="' + g.name + '">';
+    });
+    container.insertAdjacentHTML('beforeend', idsHtml + namesHtml);
+  }
+
+  function addGroup() {
+    var sel = document.getElementById('group_picker_select');
+    var val = sel.value;
+    if (!val) return;
+    if (val === '__manual__') {
+      var manual = document.getElementById('group_id_manual');
+      manual.style.display = 'block';
+      manual.focus();
+      sel.value = '';
+      return;
+    }
+    var name = sel.options[sel.selectedIndex].getAttribute('data-name');
+    if (_selectedGroups.some(function(g) { return g.id === val; })) return;
+    _selectedGroups.push({id: val, name: name});
+    sel.value = '';
+    renderChips();
+  }
+
+  document.getElementById('group_id_manual').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      var val = this.value.trim();
+      if (val && !_selectedGroups.some(function(g) { return g.id === val; })) {
+        _selectedGroups.push({id: val, name: val});
+        this.value = '';
+        this.style.display = 'none';
+        renderChips();
+      }
     }
   });
-  (function() {
-    var sel = document.getElementById('group_id');
-    if (sel.value === '__manual__') {
-      document.getElementById('group_id_manual').style.display = 'block';
-    }
-    if (sel.value) {
-      var hidden = document.getElementById('group_name');
-      var selected = sel.options[sel.selectedIndex];
-      if (sel.value !== '__manual__') hidden.value = selected.text;
-    }
-  })();
+
+  renderChips();
 </script>
 {% endblock %}

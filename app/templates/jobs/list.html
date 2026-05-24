@@ -40,7 +40,17 @@
         <td><button class="msg-toggle" onclick="toggleMsg({{ job.id }})" title="{{ _('Preview message') }}">&#x25B6;</button></td>
         <td><a href="/jobs/{{ job.id }}" class="job-id-link">#{{ job.id }}</a></td>
         <td>{{ job.label or "—" }}</td>
-        <td><code>{{ job.group_name or job.group_id }}{% if job.image_path %} 🖼{% endif %}</code></td>
+        <td>
+          {% set gs = job.job_groups %}
+          {% if not gs %}
+          <code>{{ job.group_name or job.group_id }}{% if job.image_path %} 🖼{% endif %}</code>
+          {% else %}
+          <div class="group-list">
+            {% for jg in gs %}<span class="group-tag">{{ jg.group_name or jg.group_id }}</span>{% endfor %}
+            {% if job.image_path %} <span class="group-tag">🖼</span>{% endif %}
+          </div>
+          {% endif %}
+        </td>
         <td>
           {% if job.trigger_type == "now" %}
             {{ _('Now') }} ({{ tz(parse_dt(job.trigger_value), user_tz) }})

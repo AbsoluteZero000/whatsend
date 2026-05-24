@@ -6,6 +6,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+class JobGroup(Base):
+    __tablename__ = "job_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[int] = mapped_column(Integer, ForeignKey("jobs.id"), nullable=False)
+    group_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    group_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    job: Mapped["Job"] = relationship("Job", back_populates="job_groups")
+
+
 class Job(Base):
     __tablename__ = "jobs"
 
@@ -27,3 +38,4 @@ class Job(Base):
     user: Mapped["User"] = relationship("User", back_populates="jobs")
     token: Mapped["Token"] = relationship("Token", back_populates="jobs")
     logs: Mapped[list["Log"]] = relationship("Log", back_populates="job", cascade="all, delete-orphan")
+    job_groups: Mapped[list["JobGroup"]] = relationship("JobGroup", back_populates="job", cascade="all, delete-orphan")

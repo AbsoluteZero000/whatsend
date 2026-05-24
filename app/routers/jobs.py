@@ -12,7 +12,7 @@ from sqlalchemy import asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.job import Job
+from app.models.job import Job, JobGroup
 from app.models.log import Log
 from app.models.token import Token
 from app.routers.auth import require_user
@@ -137,8 +137,12 @@ async def list_jobs(
     result = await db.execute(query)
     jobs = result.scalars().all()
 
-    missing = [j for j in jobs if not j.group_name]
-    if missing:
+    missing_job_groups: list[JobGroup] = []
+    for j in jobs:
+        for jg in j.job_groups:
+            if not jg.group_name:
+                missing_job_groups.append(jg)
+    if missing_job_groups:
         result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
         tokens = result.scalars().all()
         group_map: dict[str, str] = {}
@@ -151,10 +155,10 @@ async def list_jobs(
                     break
             except Exception:
                 continue
-        for j in missing:
-            name = group_map.get(j.group_id)
+        for jg in missing_job_groups:
+            name = group_map.get(jg.group_id)
             if name:
-                j.group_name = name
+                jg.group_name = name
         await db.commit()
 
     pending_triggers = [j for j in jobs if j.trigger_type == "trigger" and j.status == "pending"]
@@ -192,7 +196,7 @@ async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
             continue
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz)
+    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[])
 
 
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
@@ -230,9 +234,9 @@ async def create_job(
     request: Request,
     token_id: int = Form(...),
     label: str = Form(default=""),
-    group_id: str = Form(...),
+    group_ids: list[str] = Form(default=[]),
+    group_names: list[str] = Form(default=[]),
     group_id_manual: str = Form(default=""),
-    group_name: str = Form(default=""),
     message: str = Form(...),
     image: UploadFile | None = None,
     trigger_type: str = Form(...),
@@ -249,8 +253,9 @@ async def create_job(
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    if group_id == "__manual__":
-        group_id = group_id_manual
+    if group_id_manual:
+        group_ids.append(group_id_manual)
+        group_names.append("")
 
     image_path = await save_upload(image) if image else None
 
@@ -268,8 +273,8 @@ async def create_job(
         user_id=user_id,
         token_id=token_id,
         label=label or None,
-        group_id=group_id,
-        group_name=group_name or None,
+        group_id=group_ids[0] if group_ids else "",
+        group_name=group_names[0] if group_names else None,
         message=message,
         image_path=image_path,
         trigger_type=trigger_type,
@@ -279,6 +284,10 @@ async def create_job(
     db.add(job)
     await db.commit()
     await db.refresh(job)
+    for i, gid in enumerate(group_ids):
+        gname = group_names[i] if i < len(group_names) else None
+        db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
+    await db.commit()
     await register_job(job)
     await db.commit()
     return redirect_with_flash("/jobs", success="Job created")
@@ -408,6 +417,9 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     db.add(clone)
     await db.commit()
     await db.refresh(clone)
+    for jg in job.job_groups:
+        db.add(JobGroup(job_id=clone.id, group_id=jg.group_id, group_name=jg.group_name))
+    await db.commit()
     await register_job(clone)
     await db.commit()
     return redirect_with_flash("/jobs", success="Job cloned")
@@ -523,10 +535,14 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     image_available = bool(job.image_path and Path(job.image_path).exists())
+    selected_groups = [{"id": jg.group_id, "name": jg.group_name or jg.group_id} for jg in job.job_groups]
+    if not selected_groups and job.group_id:
+        selected_groups = [{"id": job.group_id, "name": job.group_name or job.group_id}]
     return request.app.state.render(request, "jobs/form.html",
                                      job=job, tokens=tokens, groups=groups,
                                      now=now, user_tz=user_tz, edit_mode=True,
-                                     image_available=image_available, **form_data)
+                                     image_available=image_available,
+                                     selected_groups=selected_groups, **form_data)
 
 
 @router.post("/{job_id}/edit")
@@ -535,9 +551,9 @@ async def edit_job(
     job_id: int,
     token_id: int = Form(...),
     label: str = Form(default=""),
-    group_id: str = Form(...),
+    group_ids: list[str] = Form(default=[]),
+    group_names: list[str] = Form(default=[]),
     group_id_manual: str = Form(default=""),
-    group_name: str = Form(default=""),
     message: str = Form(...),
     image: UploadFile | None = None,
     trigger_type: str = Form(...),
@@ -559,8 +575,9 @@ async def edit_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if group_id == "__manual__":
-        group_id = group_id_manual
+    if group_id_manual:
+        group_ids.append(group_id_manual)
+        group_names.append("")
 
     image_path = job.image_path
     if image and image.filename:
@@ -584,13 +601,19 @@ async def edit_job(
 
     job.token_id = token_id
     job.label = label or None
-    job.group_id = group_id
-    job.group_name = group_name or None
+    job.group_id = group_ids[0] if group_ids else ""
+    job.group_name = group_names[0] if group_names else None
     job.message = message
     job.image_path = image_path
     job.trigger_type = trigger_type
     job.trigger_value = trigger_value
     job.skip_count = 0
+
+    for old in job.job_groups:
+        await db.delete(old)
+    for i, gid in enumerate(group_ids):
+        gname = group_names[i] if i < len(group_names) else None
+        db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
     await db.commit()
 
     await remove_job(job_id)

@@ -44,14 +44,20 @@ async def send_job(job_id: int):
             await db.commit()
             return
 
+        groups = job.job_groups if job.job_groups else [type("G", (object,), {"group_id": job.group_id, "group_name": job.group_name})()]
         sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
-        try:
-            resp = await sender.send(job.group_id, job.message, job.image_path)
-            status = "sent"
-            response = json.dumps(resp, indent=2, default=str)
-        except Exception as e:
-            status = "failed"
-            response = str(e)
+        results: list[str] = []
+        overall_status = "sent"
+        for g in groups:
+            try:
+                resp = await sender.send(g.group_id, job.message, job.image_path)
+                results.append(f"{g.group_id}: sent")
+            except Exception as e:
+                overall_status = "failed"
+                results.append(f"{g.group_id}: {e}")
+
+        status = overall_status
+        response = json.dumps(results, indent=2, default=str)
 
         log = Log(job_id=job.id, status=status, response=response)
         db.add(log)

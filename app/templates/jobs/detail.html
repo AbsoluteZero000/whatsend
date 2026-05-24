@@ -22,8 +22,15 @@
         <span class="detail-value">{{ job.label or "—" }}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">{{ _('Group') }}</span>
-        <span class="detail-value"><code>{{ job.group_name or job.group_id }}</code></span>
+        <span class="detail-label">{{ _('Groups') }}</span>
+        <span class="detail-value">
+          {% set gs = job.job_groups %}
+          {% if gs %}
+            {% for jg in gs %}<code>{{ jg.group_name or jg.group_id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+          {% else %}
+            <code>{{ job.group_name or job.group_id }}</code>
+          {% endif %}
+        </span>
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('Status') }}</span>

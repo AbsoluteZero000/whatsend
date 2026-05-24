@@ -53,4 +53,24 @@ def _migrate(conn):
         conn.execute(text("ALTER TABLE users ADD COLUMN onboarded BOOLEAN DEFAULT 0"))
         conn.execute(text("UPDATE users SET onboarded = 1"))
 
+    try:
+        jgcols = [c["name"] for c in inspector.get_columns("job_groups")]
+        if "job_id" not in jgcols:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS job_groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER NOT NULL REFERENCES jobs(id),
+                    group_id VARCHAR(255) NOT NULL,
+                    group_name VARCHAR(255)
+                )
+            """))
+            existing = conn.execute(text("SELECT id, group_id, group_name FROM jobs")).fetchall()
+            for row in existing:
+                conn.execute(
+                    text("INSERT INTO job_groups (job_id, group_id, group_name) VALUES (:job_id, :group_id, :group_name)"),
+                    {"job_id": row.id, "group_id": row.group_id, "group_name": row.group_name},
+                )
+    except Exception:
+        pass
+
 
