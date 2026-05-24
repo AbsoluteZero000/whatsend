@@ -2,82 +2,82 @@
 {% block title %}{{ _('Help') }} — WhatSend{% endblock %}
 {% block content %}
 <div class="help-page">
-  <h1>Help & About</h1>
+  <h1>{{ _('Help & About') }}</h1>
 
   <section>
-    <h2>What is WhatSend?</h2>
-    <p>WhatSend lets you schedule WhatsApp messages to be sent immediately or at a specific time — one-time or recurring. You create a <strong>job</strong> with a message, pick a group, and choose a trigger — the app handles the rest.</p>
+    <h2>{{ _('What is WhatSend?') }}</h2>
+    <p>{{ _("WhatSend lets you schedule WhatsApp messages to be sent immediately or at a specific time — one-time or recurring. You create a job with a message, pick a group, and choose a trigger — the app handles the rest.") }}</p>
   </section>
 
   <section>
-    <h2>The story</h2>
-    <p>Originally named <strong>WhatSend</strong>, this project was born out of a simple problem: we had a place where WhatsApp messages needed to be sent for events on specific days, but we'd often forget or be late.</p>
-    <p><strong>v1</strong> was a Python script using <code>pywhatkit</code> to send messages automatically. It worked — kinda. But it required a browser with an already signed-in WhatsApp user, was painfully slow, and couldn't run on a server.</p>
-    <p>We went back to manual sending for a while. Then <strong>v2</strong> appeared: same idea but powered by the <strong>Whapi.Cloud</strong> API instead of pywhatkit. A huge improvement — no browser needed, fast, server-ready.</p>
-    <p>But it was still configured via a YAML file, which meant editing files and redeploying every time something changed. So <strong>v3</strong> added REST APIs so everything could be configured remotely. Then the question came: how will normal people use this? That's when the web dashboard was born — Jinja2 templates, HTMX for interactivity, zero JavaScript build step.</p>
-    <p>And that's where we are today. WhatSend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.</p>
+    <h2>{{ _('The story') }}</h2>
+    <p>{{ _("Originally named WhatSend, this project was born out of a simple problem: we had a place where WhatsApp messages needed to be sent for events on specific days, but we'd often forget or be late.") }}</p>
+    <p>{{ _("v1 was a Python script using pywhatkit to send messages automatically. It worked — kinda. But it required a browser with an already signed-in WhatsApp user, was painfully slow, and couldn't run on a server.") }}</p>
+    <p>{{ _("We went back to manual sending for a while. Then v2 appeared: same idea but powered by the Whapi.Cloud API instead of pywhatkit. A huge improvement — no browser needed, fast, server-ready.") }}</p>
+    <p>{{ _("But it was still configured via a YAML file, which meant editing files and redeploying every time something changed. So v3 added REST APIs so everything could be configured remotely. Then the question came: how will normal people use this? That's when the web dashboard was born — Jinja2 templates, HTMX for interactivity, zero JavaScript build step.") }}</p>
+    <p>{{ _("And that's where we are today. WhatSend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.") }}</p>
   </section>
 
   <section>
-    <h2>Getting a Whapi.Cloud token</h2>
+    <h2>{{ _('Getting a Whapi.Cloud token') }}</h2>
     <ol>
-      <li>Go to <a href="https://whapi.cloud" target="_blank">whapi.cloud</a> and sign up.</li>
-      <li>Create a new channel and link your WhatsApp account by scanning the QR code.</li>
-      <li>Copy your <strong>API token</strong> from the channel dashboard.</li>
+      <li>{{ _('Go to whapi.cloud and sign up.') }}</li>
+      <li>{{ _('Create a new channel and link your WhatsApp account by scanning the QR code.') }}</li>
+      <li>{{ _('Copy your API token from the channel dashboard.') }}</li>
     </ol>
     <div class="note">
-      <strong>Note:</strong> The token is a long string like <code>a1b2c3d4e5f6...</code>. You'll paste this into WhatSend when adding a token.
+      <strong>{{ _('Note:') }}</strong> {{ _("The token is a long string like a1b2c3d4e5f6... You'll paste this into WhatSend when adding a token.") }}
     </div>
   </section>
 
   <section>
-    <h2>How to use</h2>
+    <h2>{{ _('How to use') }}</h2>
 
-    <h3>1. Add an API token</h3>
-    <p>Go to <strong>Tokens</strong> → <strong>+ Add Token</strong>, give it a name (e.g. "work"), and paste your Whapi.Cloud API token.</p>
+    <h3>{{ _('1. Add an API token') }}</h3>
+    <p>{{ _('Go to Tokens → + Add Token, give it a name (e.g. "work"), and paste your Whapi.Cloud API token.') }}</p>
 
-    <h3>2. Create a job</h3>
-    <p>Go to <strong>Jobs</strong> → <strong>+ New Job</strong>. Fill in:</p>
+    <h3>{{ _('2. Create a job') }}</h3>
+    <p>{{ _('Go to Jobs → + New Job. Fill in:') }}</p>
     <ul>
-      <li><strong>API Token</strong> — which token to send with</li>
-      <li><strong>Label</strong> — a friendly name for your own reference</li>
-      <li><strong>Group</strong> — select from your fetched WhatsApp groups, or enter a group ID manually</li>
-      <li><strong>Message</strong> — the text to send (emoji supported ✅)</li>
-      <li><strong>Image</strong> — optional image attachment (JPEG/PNG/GIF/WebP, max 5MB)</li>
-      <li><strong>Trigger</strong> — <strong>Send Now</strong> (fires immediately), <strong>One-time</strong> (pick date & time), or <strong>Recurring</strong> (Daily / Weekdays / Weekly / Monthly)</li>
+      <li><strong>{{ _('API Token') }}</strong> — {{ _('which token to send with') }}</li>
+      <li><strong>{{ _('Label') }}</strong> — {{ _('a friendly name for your own reference') }}</li>
+      <li><strong>{{ _('Group') }}</strong> — {{ _('select from your fetched WhatsApp groups, or enter a group ID manually') }}</li>
+      <li><strong>{{ _('Message') }}</strong> — {{ _('the text to send (emoji supported)') }}</li>
+      <li><strong>{{ _('Image') }}</strong> — {{ _('optional image attachment (JPEG/PNG/GIF/WebP, max 5MB)') }}</li>
+      <li><strong>{{ _('Trigger') }}</strong> — <strong>{{ _('Send Now') }}</strong> ({{ _('fires immediately') }}), <strong>{{ _('One-time') }}</strong> ({{ _('pick date & time') }}), {{ _('or') }} <strong>{{ _('Recurring') }}</strong> ({{ _('Daily / Weekdays / Weekly / Monthly') }})</li>
     </ul>
     <div class="note">
-      <strong>Tip:</strong> Times are converted from your timezone (shown in the nav bar) to UTC automatically. Click the timezone badge to change it.
+      <strong>{{ _('Tip:') }}</strong> {{ _('Times are converted from your timezone (shown in the nav bar) to UTC automatically. Click the timezone badge to change it.') }}
     </div>
 
-    <h3>3. Monitor</h3>
-    <p>Check the <strong>Logs</strong> page to see if your messages were sent successfully. Click <strong>Show response</strong> to view the full API response.</p>
+    <h3>{{ _('3. Monitor') }}</h3>
+    <p>{{ _('Check the Logs page to see if your messages were sent successfully. Click Show response to view the full API response.') }}</p>
   </section>
 
   <section>
-    <h2>Recurring schedules</h2>
+    <h2>{{ _('Recurring schedules') }}</h2>
     <table>
       <thead>
-        <tr><th>Option</th><th>Meaning</th></tr>
+        <tr><th>{{ _('Option') }}</th><th>{{ _('Meaning') }}</th></tr>
       </thead>
       <tbody>
-        <tr><td>Daily</td><td>Every day at the chosen time</td></tr>
-        <tr><td>Weekdays (Mon–Fri)</td><td>Monday through Friday at the chosen time</td></tr>
-        <tr><td>Weekly (single day)</td><td>Once a week on the selected day</td></tr>
-        <tr><td>Weekly (custom days)</td><td>Select specific days (e.g. Mon, Wed, Fri)</td></tr>
-        <tr><td>Monthly</td><td>On the selected day of the month</td></tr>
+        <tr><td>{{ _('Daily') }}</td><td>{{ _('Every day at the chosen time') }}</td></tr>
+        <tr><td>{{ _('Weekdays (Mon–Fri)') }}</td><td>{{ _('Monday through Friday at the chosen time') }}</td></tr>
+        <tr><td>{{ _('Weekly (single day)') }}</td><td>{{ _('Once a week on the selected day') }}</td></tr>
+        <tr><td>{{ _('Weekly (custom days)') }}</td><td>{{ _('Select specific days (e.g. Mon, Wed, Fri)') }}</td></tr>
+        <tr><td>{{ _('Monthly') }}</td><td>{{ _('On the selected day of the month') }}</td></tr>
       </tbody>
     </table>
   </section>
 
   <section>
-    <h2>Your WhatsApp number must be in the group</h2>
-    <p>Whapi.Cloud sends messages through your linked WhatsApp number. That number <strong>must be a member</strong> of any group you want to send to. If you get a <code>403</code> error, make sure your WhatsApp account has been added to the group.</p>
+    <h2>{{ _('Your WhatsApp number must be in the group') }}</h2>
+    <p>{{ _("Whapi.Cloud sends messages through your linked WhatsApp number. That number must be a member of any group you want to send to. If you get a 403 error, make sure your WhatsApp account has been added to the group.") }}</p>
   </section>
 
   <section>
-    <h2>Timezone</h2>
-    <p>You set your timezone during signup. It's stored in your account and used to convert dates between your local time and UTC. Click the timezone badge in the nav bar to change it at any time.</p>
+    <h2>{{ _('Timezone') }}</h2>
+    <p>{{ _("You set your timezone during signup. It's stored in your account and used to convert dates between your local time and UTC. Click the timezone badge in the nav bar to change it at any time.") }}</p>
   </section>
 </div>
 {% endblock %}
