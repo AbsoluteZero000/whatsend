@@ -20,14 +20,13 @@
     <label>{{ _('Groups') }}</label>
     <div class="group-picker">
       <div class="group-picker-row">
-        <select id="group_picker_select" class="group-picker-select">
+        <select id="group_picker_select" class="group-picker-select" onchange="addGroup()">
           <option value="">{{ _('-- Select a group --') }}</option>
           {% for g in groups %}
           <option value="{{ g.id }}" data-name="{{ g.name or g.id }}">{{ g.name or g.id }}</option>
           {% endfor %}
           <option value="__manual__">{{ _('Manual entry…') }}</option>
         </select>
-        <button type="button" class="btn btn-sm btn-primary" onclick="addGroup()">{{ _('+ Add') }}</button>
       </div>
       <input type="text" id="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
       <div id="group_chips" class="group-chips"></div>
