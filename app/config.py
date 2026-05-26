@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     whapi_base_url: str = "https://gate.whapi.cloud"
+    signal_base_url: str = "http://localhost:8080"
+    signal_number: str = ""
 
 
 settings = Settings()

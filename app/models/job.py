@@ -23,6 +23,7 @@ class Job(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     token_id: Mapped[int] = mapped_column(Integer, ForeignKey("tokens.id"), nullable=False)
+    provider: Mapped[str] = mapped_column(String(20), default="whatsapp")
     label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     group_id: Mapped[str] = mapped_column(String(255), nullable=False)
     group_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

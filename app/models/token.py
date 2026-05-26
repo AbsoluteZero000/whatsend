@@ -12,6 +12,7 @@ class Token(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    provider: Mapped[str] = mapped_column(String(20), default="whatsapp")
     api_token: Mapped[str] = mapped_column(String(512), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
