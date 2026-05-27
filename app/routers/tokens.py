@@ -38,13 +38,14 @@ async def create_token_page(request: Request):
 async def create_token(
     request: Request,
     name: str = Form(default=""),
+    provider: str = Form(default="whatsapp"),
     api_token: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
     user_id = int(user["sub"])
 
-    token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token))
+    token = Token(user_id=user_id, name=name or None, provider=provider, api_token=encrypt_token(api_token))
     db.add(token)
     await db.commit()
     return _flash("/tokens", success="Token created")
@@ -81,6 +82,7 @@ async def edit_token(
     token_id: int,
     request: Request,
     name: str = Form(default=""),
+    provider: str = Form(default="whatsapp"),
     api_token: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
@@ -93,6 +95,7 @@ async def edit_token(
         return RedirectResponse(url="/tokens", status_code=303)
 
     token.name = name or None
+    token.provider = provider
     if api_token:
         token.api_token = encrypt_token(api_token)
     await db.commit()

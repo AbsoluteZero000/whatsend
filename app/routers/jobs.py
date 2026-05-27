@@ -20,7 +20,7 @@ from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
 from app.services.scheduler import register_job, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
-from app.services.sender import WhatsAppSender
+from app.services.sender import get_sender
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -149,9 +149,9 @@ async def list_jobs(
         group_map: dict[str, str] = {}
         for t in tokens:
             try:
-                sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
-                groups = await sender.get_groups()
-                group_map = {g["id"]: g.get("name") or g["id"] for g in groups}
+                sender = get_sender(provider=t.provider or "whatsapp", api_token=decrypt_token(t.api_token))
+                recipients = await sender.get_recipients()
+                group_map = {r["id"]: r.get("name") or r["id"] for r in recipients}
                 if group_map:
                     break
             except Exception:
@@ -186,18 +186,18 @@ async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
-    groups: list[dict] = []
+    recipients: list[dict] = []
     for t in tokens:
         try:
-            sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
-            groups = await sender.get_groups()
-            if groups:
+            sender = get_sender(provider=t.provider or "whatsapp", api_token=decrypt_token(t.api_token))
+            recipients = await sender.get_recipients()
+            if recipients:
                 break
         except Exception:
             continue
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[])
+    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=recipients, now=now, user_tz=user_tz, selected_groups=[])
 
 
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
@@ -261,6 +261,10 @@ async def create_job(
     if not group_ids:
         return redirect_with_flash("/jobs/create", success="Please select at least one group.")
 
+    tok_result = await db.execute(select(Token).where(Token.id == token_id))
+    tok = tok_result.scalar_one_or_none()
+    provider = tok.provider if tok else "whatsapp"
+
     image_path = await save_upload(image) if image else None
 
     trigger_value = build_trigger_value(
@@ -276,6 +280,7 @@ async def create_job(
     job = Job(
         user_id=user_id,
         token_id=token_id,
+        provider=provider,
         label=label or None,
         group_id=group_ids[0] if group_ids else "",
         group_name=group_names[0] if group_names else None,
@@ -516,12 +521,12 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
-    groups: list[dict] = []
+    recipients: list[dict] = []
     for t in tokens:
         try:
-            sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
-            groups = await sender.get_groups()
-            if groups:
+            sender = get_sender(provider=t.provider or "whatsapp", api_token=decrypt_token(t.api_token))
+            recipients = await sender.get_recipients()
+            if recipients:
                 break
         except Exception:
             continue
@@ -543,7 +548,7 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     if not selected_groups and job.group_id:
         selected_groups = [{"id": job.group_id, "name": job.group_name or job.group_id}]
     return request.app.state.render(request, "jobs/form.html",
-                                     job=job, tokens=tokens, groups=groups,
+                                     job=job, tokens=tokens, groups=recipients,
                                      now=now, user_tz=user_tz, edit_mode=True,
                                      image_available=image_available,
                                      selected_groups=selected_groups, **form_data)
@@ -585,6 +590,10 @@ async def edit_job(
 
     if not group_ids:
         return redirect_with_flash(f"/jobs/{job_id}/edit", success="Please select at least one group.")
+
+    tok_result = await db.execute(select(Token).where(Token.id == token_id))
+    tok = tok_result.scalar_one_or_none()
+    job.provider = tok.provider if tok else "whatsapp"
 
     image_path = job.image_path
     if image and image.filename:

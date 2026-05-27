@@ -6,7 +6,7 @@
 
   <section>
     <h2>{{ _('What is WhatSend?') }}</h2>
-    <p>{{ _("WhatSend lets you schedule WhatsApp messages to be sent immediately or at a specific time — one-time or recurring. You create a job with a message, pick a group, and choose a trigger — the app handles the rest.") }}</p>
+    <p>{{ _("WhatSend lets you schedule messages to be sent immediately or at a specific time — one-time or recurring. It supports WhatsApp (via Whapi.Cloud) and Signal (via signal-cli REST API). You create a job with a message, pick a recipient, and choose a trigger — the app handles the rest.") }}</p>
   </section>
 
   <section>
@@ -19,14 +19,21 @@
   </section>
 
   <section>
-    <h2>{{ _('Getting a Whapi.Cloud token') }}</h2>
+    <h2>{{ _('Getting an API token') }}</h2>
+    <h3>{{ _('WhatsApp (Whapi.Cloud)') }}</h3>
     <ol>
       <li>{{ _('Go to whapi.cloud and sign up.') }}</li>
       <li>{{ _('Create a new channel and link your WhatsApp account by scanning the QR code.') }}</li>
       <li>{{ _('Copy your API token from the channel dashboard.') }}</li>
     </ol>
+    <h3>{{ _('Signal (REST API)') }}</h3>
+    <ol>
+      <li>{{ _('Run a signal-cli-rest-api Docker container (e.g. bbernhard/signal-cli-rest-api).') }}</li>
+      <li>{{ _('Register your Signal number with the API.') }}</li>
+      <li>{{ _('Configure the SIGNAL_BASE_URL and SIGNAL_NUMBER in your environment.') }}</li>
+    </ol>
     <div class="note">
-      <strong>{{ _('Note:') }}</strong> {{ _("The token is a long string like a1b2c3d4e5f6... You'll paste this into WhatSend when adding a token.") }}
+      <strong>{{ _('Note:') }}</strong> {{ _("API tokens are encrypted at rest using Fernet symmetric encryption.") }}
     </div>
   </section>
 
@@ -34,14 +41,14 @@
     <h2>{{ _('How to use') }}</h2>
 
     <h3>{{ _('1. Add an API token') }}</h3>
-    <p>{{ _('Go to Tokens → + Add Token, give it a name (e.g. "work"), and paste your Whapi.Cloud API token.') }}</p>
+    <p>{{ _('Go to Tokens → + Add Token, pick the provider (WhatsApp or Signal), give it a name, and paste your API token.') }}</p>
 
     <h3>{{ _('2. Create a job') }}</h3>
     <p>{{ _('Go to Jobs → + New Job. Fill in:') }}</p>
     <ul>
       <li><strong>{{ _('API Token') }}</strong> — {{ _('which token to send with') }}</li>
       <li><strong>{{ _('Label') }}</strong> — {{ _('a friendly name for your own reference') }}</li>
-      <li><strong>{{ _('Group') }}</strong> — {{ _('select from your fetched WhatsApp groups, or enter a group ID manually') }}</li>
+      <li><strong>{{ _('Group') }}</strong> — {{ _('select from your fetched groups/recipients, or enter an ID manually') }}</li>
       <li><strong>{{ _('Message') }}</strong> — {{ _('the text to send (emoji supported)') }}</li>
       <li><strong>{{ _('Image') }}</strong> — {{ _('optional image attachment (JPEG/PNG/GIF/WebP, max 5MB)') }}</li>
       <li><strong>{{ _('Trigger') }}</strong> — <strong>{{ _('Send Now') }}</strong> ({{ _('fires immediately') }}), <strong>{{ _('One-time') }}</strong> ({{ _('pick date & time') }}), {{ _('or') }} <strong>{{ _('Recurring') }}</strong> ({{ _('Daily / Weekdays / Weekly / Monthly') }})</li>
@@ -71,8 +78,11 @@
   </section>
 
   <section>
-    <h2>{{ _('Your WhatsApp number must be in the group') }}</h2>
+    <h2>{{ _('Provider notes') }}</h2>
+    <h3>{{ _('WhatsApp') }}</h3>
     <p>{{ _("Whapi.Cloud sends messages through your linked WhatsApp number. That number must be a member of any group you want to send to. If you get a 403 error, make sure your WhatsApp account has been added to the group.") }}</p>
+    <h3>{{ _('Signal') }}</h3>
+    <p>{{ _("Signal messages are sent via the signal-cli-rest-api gateway. Your Signal number must be registered with the gateway and be a member of any group you send to.") }}</p>
   </section>
 
   <section>
