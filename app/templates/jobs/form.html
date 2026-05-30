@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — WhatSend{% else %}{{ _('New Scheduled Job') }} — WhatSend{% endif %}{% endblock %}
+{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — Zamzam{% else %}{{ _('New Scheduled Job') }} — Zamzam{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
   <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>
@@ -10,9 +10,10 @@
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or token.api_token[:20] }}</option>
+      <option value="{{ token.id }}" data-provider="{{ token.provider or 'whatsapp' }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or token.api_token[:20] }} ({{ token.provider or 'whatsapp' }})</option>
       {% endfor %}
     </select>
+    <small style="color:var(--text-muted);" id="provider_indicator">{{ _('Provider:') }} <span id="selected_provider">—</span></small>
 
     <label for="label">{{ _('Label (optional)') }}</label>
     <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if edit_mode and job.label %}value="{{ job.label }}"{% endif %}>
@@ -33,7 +34,7 @@
     </div>
 
     <label for="message">{{ _('Message') }}</label>
-    <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
+    <textarea id="message" name="message" required placeholder="{{ _('Type your message here…') }}">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
 
     <label for="image">{{ _('Media (optional, max 50MB)') }}</label>
     <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm">
@@ -117,6 +118,17 @@
   </form>
 </div>
 <script>
+  function updateProviderIndicator() {
+    var sel = document.getElementById('token_id');
+    var opt = sel.options[sel.selectedIndex];
+    var provider = opt ? opt.getAttribute('data-provider') : '—';
+    document.getElementById('selected_provider').textContent = provider;
+  }
+  document.getElementById('token_id').addEventListener('change', updateProviderIndicator);
+  {% if edit_mode %}
+  updateProviderIndicator();
+  {% endif %}
+
   function toggleTriggerValue() {
     var type = document.getElementById('trigger_type').value;
     var show = type !== 'now' && type !== 'trigger';

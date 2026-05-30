@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}{{ _('Edit API Token') }} — WhatSend{% else %}{{ _('Add API Token') }} — WhatSend{% endif %}{% endblock %}
+{% block title %}{% if edit_mode %}{{ _('Edit API Token') }} — Zamzam{% else %}{{ _('Add API Token') }} — Zamzam{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
   <h1>{% if edit_mode %}{{ _('Edit API Token') }}{% else %}{{ _('Add API Token') }}{% endif %}</h1>
@@ -9,7 +9,13 @@
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}" {% if edit_mode and token.name %}value="{{ token.name }}"{% endif %}>
 
-    <label for="api_token">{{ _('Whapi.Cloud API Token') }}</label>
+    <label for="provider">{{ _('Provider') }}</label>
+    <select id="provider" name="provider" required>
+      <option value="whatsapp" {% if edit_mode and token.provider == 'whatsapp' %}selected{% endif %}>WhatsApp (Whapi.Cloud)</option>
+      <option value="signal" {% if edit_mode and token.provider == 'signal' %}selected{% endif %}>Signal (REST API)</option>
+    </select>
+
+    <label for="api_token">{{ _('API Token') }}</label>
     {% if edit_mode %}
     <input type="text" id="api_token" name="api_token" placeholder="•••••••• ({{ _('leave blank to keep current') }})">
     <small style="color:var(--text-muted);">{{ _('Leave blank to keep the current token unchanged.') }}</small>

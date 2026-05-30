@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Jobs') }} — WhatSend{% endblock %}
+{% block title %}{{ _('Jobs') }} — Zamzam{% endblock %}
 {% block content %}
 <div class="section-header header-row">
   <h1>{{ _('Scheduled Jobs') }}</h1>
@@ -26,6 +26,7 @@
         <th><a href="?status={{ current_status }}&q={{ q }}&sort_by={{ col }}&sort_order={{ 'asc' if sort_by == col and sort_order == 'desc' else 'desc' }}&page=1" class="sort-link">{{ label }}{% if sort_by == col %}<span class="sort-icon">{{ ' ▲' if sort_order == 'asc' else ' ▼' }}</span>{% endif %}</a></th>
         {% endmacro %}
         {{ sort_th(_('Label'), 'label') }}
+        <th>{{ _('Provider') }}</th>
         {{ sort_th(_('Group'), 'group_name') }}
         {{ sort_th(_('Trigger'), 'trigger_type') }}
         <th>{{ _('Next Run') }}</th>
@@ -40,6 +41,7 @@
         <td><button class="msg-toggle" onclick="toggleMsg({{ job.id }})" title="{{ _('Preview message') }}">&#x25B6;</button></td>
         <td><a href="/jobs/{{ job.id }}" class="job-id-link">#{{ job.id }}</a></td>
         <td>{{ job.label or "—" }}</td>
+        <td>{{ job.provider or "whatsapp" }}</td>
         <td>
           {% set gs = job.job_groups %}
           {% if not gs %}
@@ -115,10 +117,10 @@
         </td>
       </tr>
       <tr id="msg-{{ job.id }}" class="msg-row">
-        <td colspan="9"><div class="msg-content">{{ job.message }}</div></td>
+        <td colspan="10"><div class="msg-content">{{ job.message }}</div></td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
+      <tr><td colspan="10" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-text">{{ _('No jobs scheduled yet.') }}</div><a href="/jobs/create" class="btn btn-primary">{{ _('Create your first job') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

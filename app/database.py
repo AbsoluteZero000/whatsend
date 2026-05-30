@@ -73,4 +73,18 @@ def _migrate(conn):
     except Exception:
         pass
 
+    try:
+        tcols = [c["name"] for c in inspector.get_columns("tokens")]
+        if "provider" not in tcols:
+            conn.execute(text("ALTER TABLE tokens ADD COLUMN provider VARCHAR(20) DEFAULT 'whatsapp'"))
+    except Exception:
+        pass
+
+    try:
+        jcols2 = [c["name"] for c in inspector.get_columns("jobs")]
+        if "provider" not in jcols2:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN provider VARCHAR(20) DEFAULT 'whatsapp'"))
+    except Exception:
+        pass
+
 

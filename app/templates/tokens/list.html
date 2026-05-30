@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Tokens') }} — WhatSend{% endblock %}
+{% block title %}{{ _('Tokens') }} — Zamzam{% endblock %}
 {% block content %}
 <div class="section-header header-row">
   <h1>{{ _('API Tokens') }}</h1>
@@ -10,6 +10,7 @@
     <thead>
       <tr>
         <th>{{ _('Name') }}</th>
+        <th>{{ _('Provider') }}</th>
         <th>{{ _('Token') }}</th>
         <th>{{ _('Active') }}</th>
         <th>{{ _('Created') }}</th>
@@ -21,6 +22,7 @@
       {% for token in tokens %}
       <tr>
         <td>{{ token.name or "—" }}</td>
+        <td>{{ token.provider or "whatsapp" }}</td>
         <td><code>••••••••{{ token.api_token[-8:] }}</code></td>
         <td>{{ "✅" if token.is_active else "❌" }}</td>
         <td>{{ tz(token.created_at, user_tz) }}</td>
@@ -40,7 +42,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">{{ _('No tokens yet.') }}</div><a href="/tokens/create" class="btn btn-primary">{{ _('Add your first token') }}</a></div></td></tr>
+      <tr><td colspan="7" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">{{ _('No tokens yet.') }}</div><a href="/tokens/create" class="btn btn-primary">{{ _('Add your first token') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

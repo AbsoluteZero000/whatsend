@@ -12,7 +12,7 @@ from app.models.job import Job
 from app.models.log import Log
 from app.models.token import Token
 from app.services.crypto import decrypt_token
-from app.services.sender import WhatsAppSender
+from app.services.sender import get_sender
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -53,7 +53,7 @@ async def send_job(job_id: int):
             await db.commit()
             return
 
-        sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
+        sender = get_sender(provider=job.provider or "whatsapp", api_token=decrypt_token(token.api_token))
         results: list[str] = []
         overall_status = "sent"
         for g in groups:
