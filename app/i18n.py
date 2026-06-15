@@ -252,6 +252,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Type your message here…": "اكتب رسالتك هنا…",
         "whatsapp": "whatsapp",
         "signal": "signal",
+        "API Keys": "مفاتيح API",
+        "No API keys yet.": "لا توجد مفاتيح API بعد.",
+        "Generate one": "إنشاء مفتاح",
+        "+ Generate Key": "+ إنشاء مفتاح",
+        "Generate API Key": "إنشاء مفتاح API",
+        "Generate": "إنشاء",
+        "Copy this key now. You will not be able to see it again.": "انسخ هذا المفتاح الآن. لن تتمكن من رؤيته مرة أخرى.",
+        "Copied!": "تم النسخ!",
+        "e.g. My API key": "مثال: مفتاح API الخاص بي",
+        "Create API Key": "إنشاء مفتاح API",
+        "API key toggled": "تم تبديل مفتاح API",
+        "API key deleted": "تم حذف مفتاح API",
     },
 }
 

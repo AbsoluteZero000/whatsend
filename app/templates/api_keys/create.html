@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Generate API Key') }} — Zamzam{% endblock %}
+{% block content %}
+<div class="section-header">
+  <h1>{{ _('Generate API Key') }}</h1>
+</div>
+<div class="form-card">
+  {% if new_key %}
+  <div class="api-key-reveal">
+    <p style="color:var(--danger);font-weight:bold;margin-bottom:1rem;">⚠️ {{ _('Copy this key now. You will not be able to see it again.') }}</p>
+    <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+      <code id="new-api-key" style="flex:1;padding:0.75rem;background:var(--bg-secondary);border-radius:6px;font-size:0.9rem;word-break:break-all;">{{ new_key }}</code>
+      <button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('new-api-key').textContent);showToast('{{ _('Copied!') }}', 'success')">{{ _('Copy') }}</button>
+    </div>
+    <a href="/api-keys" class="btn btn-primary">{{ _('Done') }}</a>
+  </div>
+  {% else %}
+  <form method="POST" action="/api-keys/create">
+    <label for="name">{{ _('Name (optional)') }}</label>
+    <input type="text" id="name" name="name" placeholder="{{ _('e.g. My API key') }}">
+    <button type="submit" class="btn btn-primary">{{ _('Generate') }}</button>
+    <a href="/api-keys" class="btn btn-secondary">{{ _('Cancel') }}</a>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

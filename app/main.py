@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.database import async_session, create_tables
 from app.i18n import _ as _translate
 from app.models.job import Job
-from app.routers import about, auth, dashboard, jobs, logs, tokens
+from app.routers import about, api, api_keys, auth, dashboard, jobs, logs, tokens
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 
@@ -148,6 +148,8 @@ app.include_router(dashboard.router)
 app.include_router(tokens.router)
 app.include_router(jobs.router)
 app.include_router(logs.router)
+app.include_router(api_keys.router)
+app.include_router(api.router)
 
 
 @app.get("/")
