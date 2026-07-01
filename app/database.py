@@ -21,7 +21,7 @@ async def get_db():
 
 async def create_tables():
     async with engine.begin() as conn:
-        from app.models import user, token, job, log
+        from app.models import user, token, job, log, apikey
         await conn.run_sync(Base.metadata.create_all)
 
     async with engine.begin() as conn:

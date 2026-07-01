@@ -20,3 +20,4 @@ class User(Base):
 
     tokens: Mapped[list["Token"]] = relationship("Token", back_populates="user", cascade="all, delete-orphan")
     jobs: Mapped[list["Job"]] = relationship("Job", back_populates="user", cascade="all, delete-orphan")
+    api_keys: Mapped[list["ApiKey"]] = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")

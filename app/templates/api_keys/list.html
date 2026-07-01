@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ _('API Keys') }} — Zamzam{% endblock %}
+{% block content %}
+<div class="section-header header-row">
+  <h1>{{ _('API Keys') }}</h1>
+  <a href="/api-keys/create" class="btn btn-primary">{{ _('+ Generate Key') }}</a>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>{{ _('Name') }}</th>
+        <th>{{ _('Key') }}</th>
+        <th>{{ _('Active') }}</th>
+        <th>{{ _('Created') }}</th>
+        <th>{{ _('Last Used') }}</th>
+        <th>{{ _('Actions') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for key in api_keys %}
+      <tr>
+        <td>{{ key.name or "—" }}</td>
+        <td><code>{{ key.key_prefix }}...</code></td>
+        <td>{{ "✅" if key.is_active else "❌" }}</td>
+        <td>{{ tz(key.created_at, user_tz) }}</td>
+        <td>{{ tz(key.last_used_at, user_tz) }}</td>
+        <td>
+          <div class="actions">
+            <form method="POST" action="/api-keys/{{ key.id }}/toggle" style="display:inline">
+              <button class="btn btn-sm {{ 'btn-primary' if not key.is_active else 'btn-warning' }}">
+                {{ _('Activate') if not key.is_active else _('Deactivate') }}
+              </button>
+            </form>
+            <form method="POST" action="/api-keys/{{ key.id }}/delete" style="display:inline">
+              <button class="btn btn-sm btn-danger">{{ _('Delete') }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">{{ _('No API keys yet.') }}</div><a href="/api-keys/create" class="btn btn-primary">{{ _('Generate one') }}</a></div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
