@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
@@ -45,6 +46,12 @@ class FakeSender:
     async def send(self, group_id: str, message: str) -> dict:
         self.calls.append((group_id, message))
         return {"id": "message-1"}
+
+    async def get_groups(self) -> list[dict]:
+        return [
+            {"id": "120363123456789@g.us", "name": "Main group"},
+            {"id": "120363987654321@g.us", "name": None},
+        ]
 
 
 def test_api_key_auth_accepts_valid_bearer_key():
@@ -112,3 +119,35 @@ def test_api_send_requires_group_id():
 
     assert exc.value.status_code == 400
     assert exc.value.detail == "group_id is required"
+
+
+def test_api_groups_returns_linked_token_groups(monkeypatch):
+    user = User(id=7, username="api-user", password_hash="hash")
+    api_key = ApiKey(id=1, user_id=7, token_id=3, key_prefix="wts_1_testkey", key_hash="hash")
+    token = Token(id=3, user_id=7, name="whatsapp", api_token=encrypt_token("whapi-token"))
+    db = FakeDb(token)
+    sender = FakeSender()
+    monkeypatch.setattr(api, "get_sender", lambda provider, api_token: sender)
+
+    result = asyncio.run(
+        api.api_groups(
+            context=api.ApiKeyContext(user=user, api_key=api_key),
+            db=db,
+        )
+    )
+
+    assert result == {
+        "success": True,
+        "groups": [
+            {"id": "120363123456789@g.us", "name": "Main group"},
+            {"id": "120363987654321@g.us", "name": "120363987654321@g.us"},
+        ],
+    }
+
+
+def test_upstream_error_includes_whapi_response_detail():
+    request = httpx.Request("POST", "https://gate.whapi.cloud/messages/text")
+    response = httpx.Response(404, json={"message": "Chat not found"}, request=request)
+    exc = httpx.HTTPStatusError("not found", request=request, response=response)
+
+    assert api._upstream_error(exc) == "Whapi rejected the request (404): Chat not found"
