@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,13 @@ from app.services.crypto import decrypt_token
 from app.services.sender import get_sender
 
 router = APIRouter(prefix="/api", tags=["api"])
+
+
+class SendMessageRequest(BaseModel):
+    group_id: str | None = Field(default=None, min_length=1)
+    number: str | None = Field(default=None, min_length=1)
+    message: str = Field(min_length=1)
+    provider: str = "whatsapp"
 
 
 async def get_api_key_user(
@@ -56,16 +64,16 @@ async def get_api_key_user(
 
 @router.post("/send")
 async def api_send(
-    body: dict,
+    body: SendMessageRequest,
     user: User = Depends(get_api_key_user),
     db: AsyncSession = Depends(get_db),
 ):
-    number = body.get("number")
-    message = body.get("message")
-    provider = body.get("provider", "whatsapp")
+    group_id = body.group_id or body.number
+    message = body.message
+    provider = body.provider
 
-    if not number or not message:
-        raise HTTPException(status_code=400, detail="number and message are required")
+    if not group_id:
+        raise HTTPException(status_code=400, detail="group_id is required")
 
     if provider != "whatsapp":
         raise HTTPException(status_code=400, detail="provider must be 'whatsapp'")
@@ -87,11 +95,11 @@ async def api_send(
     sender = get_sender(provider, api_token)
 
     try:
-        resp = await sender.send(number, message)
+        resp = await sender.send(group_id, message)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
     token.last_used_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return {"success": True, "data": resp}
+    return {"success": True, "group_id": group_id, "data": resp}

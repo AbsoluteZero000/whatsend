@@ -53,10 +53,12 @@ And that's where we are today. WhatSend is a full-featured WhatsApp scheduler yo
 
 ```
 users ──1:N── tokens ──1:N── jobs ──1:N── logs
+  └──1:N── api_keys
 ```
 
 - **user** — `id, username, password_hash, timezone, lang (en/ar), is_active`
 - **token** — `id, user_id, name, api_token (encrypted), is_active, last_used_at`
+- **api_key** — `id, user_id, name, key_prefix, key_hash, is_active, last_used_at`
 - **job** — `id, user_id, token_id, label, group_id, group_name, message, image_path, trigger_type (now/date/cron/trigger), trigger_value, status, skip_count`
 - **log** — `id, job_id, status (sent/failed/skipped), response, sent_at`
 
@@ -70,6 +72,22 @@ python run.py
 ```
 
 Open http://localhost:8000, sign up, add a Whapi.Cloud token, and create your first message.
+
+## External API
+
+Generate an API key from `/api-keys`, then send a WhatsApp group message with:
+
+```bash
+curl -X POST https://your-app.example.com/api/send \
+  -H "Authorization: Bearer wts_1_yourapikey" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "group_id": "120363123456789@g.us",
+    "message": "Hello group"
+  }'
+```
+
+The API uses the authenticated user's first active Whapi.Cloud token. The target `group_id` must be a WhatsApp group ID that the linked Whapi.Cloud account can send to.
 
 ## Directory layout
 
