@@ -14,7 +14,16 @@ from app.models.token import Token
 from app.services.crypto import decrypt_token
 from app.services.sender import WhatsAppSender
 
-scheduler = AsyncIOScheduler(timezone="UTC")
+MISFIRE_GRACE_SECONDS = 10 * 60
+
+scheduler = AsyncIOScheduler(
+    timezone=timezone.utc,
+    job_defaults={
+        "misfire_grace_time": MISFIRE_GRACE_SECONDS,
+        "coalesce": True,
+        "max_instances": 1,
+    },
+)
 
 
 async def send_job(job_id: int):
@@ -76,7 +85,7 @@ async def send_job(job_id: int):
             job.status = "active"
         else:
             job.status = "completed" if status == "sent" else "pending"
-        token.last_used_at = datetime.now()
+        token.last_used_at = datetime.now(timezone.utc)
         await db.commit()
 
 
@@ -87,21 +96,31 @@ async def register_job(job: Job):
         return
 
     trigger = None
+    now = datetime.now(timezone.utc)
     if job.trigger_type == "now":
-        trigger = DateTrigger(run_date=datetime.now(timezone.utc) + timedelta(seconds=2))
+        trigger = DateTrigger(run_date=now + timedelta(seconds=2), timezone=timezone.utc)
     elif job.trigger_type == "date":
         try:
-            run_date = datetime.strptime(job.trigger_value, "%Y-%m-%d %H:%M")
+            run_date = datetime.strptime(job.trigger_value, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
         except ValueError:
             return
-        if run_date < datetime.now():
+        if run_date < now - timedelta(seconds=MISFIRE_GRACE_SECONDS):
             return
-        trigger = DateTrigger(run_date=run_date)
+        if run_date < now:
+            run_date = now + timedelta(seconds=1)
+        trigger = DateTrigger(run_date=run_date, timezone=timezone.utc)
     elif job.trigger_type == "cron":
         parts = job.trigger_value.split()
         if len(parts) != 5:
             return
-        trigger = CronTrigger(minute=parts[0], hour=parts[1], day=parts[2], month=parts[3], day_of_week=parts[4])
+        trigger = CronTrigger(
+            minute=parts[0],
+            hour=parts[1],
+            day=parts[2],
+            month=parts[3],
+            day_of_week=parts[4],
+            timezone=timezone.utc,
+        )
 
     if trigger:
         scheduler.add_job(send_job, trigger=trigger, args=[job.id], id=str(job.id), replace_existing=True)

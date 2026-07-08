@@ -63,3 +63,9 @@ class WhatsAppSender:
         if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
             return await self.send_video(chat_id, image_path, caption=message)
         return await self.send_image(chat_id, image_path, caption=message)
+
+
+def get_sender(provider: str, api_token: str):
+    if provider == "whatsapp":
+        return WhatsAppSender(api_token=api_token)
+    raise ValueError(f"Unsupported provider: {provider}")

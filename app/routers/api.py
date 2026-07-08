@@ -67,13 +67,12 @@ async def api_send(
     if not number or not message:
         raise HTTPException(status_code=400, detail="number and message are required")
 
-    if provider not in ("whatsapp", "signal"):
-        raise HTTPException(status_code=400, detail="provider must be 'whatsapp' or 'signal'")
+    if provider != "whatsapp":
+        raise HTTPException(status_code=400, detail="provider must be 'whatsapp'")
 
     result = await db.execute(
         select(Token).where(
             Token.user_id == user.id,
-            Token.provider == provider,
             Token.is_active == True,
         )
     )
