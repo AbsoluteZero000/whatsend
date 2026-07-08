@@ -55,7 +55,8 @@ def test_api_key_auth_accepts_valid_bearer_key():
 
     result = asyncio.run(api.get_api_key_user(FakeRequest(f"Bearer {raw_key}"), db))
 
-    assert result is user
+    assert result.user is user
+    assert result.api_key is api_key
     assert api_key.last_used_at is not None
     assert db.commits == 1
 
@@ -70,9 +71,10 @@ def test_api_key_auth_rejects_invalid_bearer_key():
     assert exc.value.status_code == 401
 
 
-def test_api_send_uses_group_id_and_active_whatsapp_token(monkeypatch):
+def test_api_send_uses_group_id_and_linked_whatsapp_token(monkeypatch):
     user = User(id=7, username="api-user", password_hash="hash")
-    token = Token(user_id=7, name="whatsapp", api_token=encrypt_token("whapi-token"))
+    api_key = ApiKey(id=1, user_id=7, token_id=3, key_prefix="wts_1_testkey", key_hash="hash")
+    token = Token(id=3, user_id=7, name="whatsapp", api_token=encrypt_token("whapi-token"))
     db = FakeDb(token)
     sender = FakeSender()
     monkeypatch.setattr(api, "get_sender", lambda provider, api_token: sender)
@@ -80,7 +82,7 @@ def test_api_send_uses_group_id_and_active_whatsapp_token(monkeypatch):
     result = asyncio.run(
         api.api_send(
             api.SendMessageRequest(group_id="120363123456789@g.us", message="Hello group"),
-            user=user,
+            context=api.ApiKeyContext(user=user, api_key=api_key),
             db=db,
         )
     )
@@ -100,7 +102,10 @@ def test_api_send_requires_group_id():
         asyncio.run(
             api.api_send(
                 api.SendMessageRequest(message="Hello group"),
-                user=User(id=7, username="api-user", password_hash="hash"),
+                context=api.ApiKeyContext(
+                    user=User(id=7, username="api-user", password_hash="hash"),
+                    api_key=ApiKey(id=1, user_id=7, token_id=3, key_prefix="wts_1_testkey", key_hash="hash"),
+                ),
                 db=FakeDb(),
             )
         )

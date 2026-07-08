@@ -15,12 +15,27 @@
     <a href="/api-keys" class="btn btn-primary">{{ _('Done') }}</a>
   </div>
   {% else %}
+  {% if not tokens %}
+  <div class="empty-state">
+    <div class="empty-state-icon">🔑</div>
+    <div class="empty-state-text">{{ _('Add and activate a Whapi.Cloud token before generating an API key.') }}</div>
+    <a href="/tokens/create" class="btn btn-primary">{{ _('Add Token') }}</a>
+    <a href="/api-keys" class="btn btn-secondary">{{ _('Cancel') }}</a>
+  </div>
+  {% else %}
   <form method="POST" action="/api-keys/create">
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" id="name" name="name" placeholder="{{ _('e.g. My API key') }}">
+    <label for="token_id">{{ _('Whapi.Cloud token') }}</label>
+    <select id="token_id" name="token_id" required>
+      {% for token in tokens %}
+      <option value="{{ token.id }}">{{ token.name or _('Unnamed token') }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn btn-primary">{{ _('Generate') }}</button>
     <a href="/api-keys" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}

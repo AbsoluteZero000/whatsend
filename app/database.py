@@ -73,4 +73,10 @@ def _migrate(conn):
     except Exception:
         pass
 
+    try:
+        akcols = [c["name"] for c in inspector.get_columns("api_keys")]
+        if "token_id" not in akcols:
+            conn.execute(text("ALTER TABLE api_keys ADD COLUMN token_id INTEGER REFERENCES tokens(id)"))
+    except Exception:
+        pass
 

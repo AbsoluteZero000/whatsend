@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from dataclasses import dataclass
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -23,10 +24,16 @@ class SendMessageRequest(BaseModel):
     provider: str = "whatsapp"
 
 
+@dataclass
+class ApiKeyContext:
+    user: User
+    api_key: ApiKey
+
+
 async def get_api_key_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> User:
+) -> ApiKeyContext:
     auth = request.headers.get("Authorization")
     if not auth or not auth.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -59,13 +66,13 @@ async def get_api_key_user(
     api_key.last_used_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return user
+    return ApiKeyContext(user=user, api_key=api_key)
 
 
 @router.post("/send")
 async def api_send(
     body: SendMessageRequest,
-    user: User = Depends(get_api_key_user),
+    context: ApiKeyContext = Depends(get_api_key_user),
     db: AsyncSession = Depends(get_db),
 ):
     group_id = body.group_id or body.number
@@ -78,8 +85,15 @@ async def api_send(
     if provider != "whatsapp":
         raise HTTPException(status_code=400, detail="provider must be 'whatsapp'")
 
+    user = context.user
+    api_key = context.api_key
+
+    if not api_key.token_id:
+        raise HTTPException(status_code=400, detail="API key is not linked to a token. Generate a new API key and select a token.")
+
     result = await db.execute(
         select(Token).where(
+            Token.id == api_key.token_id,
             Token.user_id == user.id,
             Token.is_active == True,
         )
