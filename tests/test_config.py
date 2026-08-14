@@ -14,6 +14,6 @@ def test_timezone_choices_include_complete_iana_catalog():
 
 def test_api_key_feature_is_disabled_by_default():
     assert settings.api_keys_enabled is False
-    paths = {route.path for route in app.routes}
+    paths = {route.path for route in app.routes if hasattr(route, "path")}
     assert "/api/send" not in paths
     assert "/api-keys" not in paths
