@@ -1,21 +1,21 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Help') }} — WhatSend{% endblock %}
+{% block title %}{{ _('Help') }} — whatsend{% endblock %}
 {% block content %}
 <div class="help-page">
   <h1>{{ _('Help & About') }}</h1>
 
   <section>
-    <h2>{{ _('What is WhatSend?') }}</h2>
-    <p>{{ _("WhatSend lets you schedule WhatsApp messages to be sent immediately or at a specific time — one-time or recurring. You create a job with a message, pick a group, and choose a trigger — the app handles the rest.") }}</p>
+    <h2>{{ _('What is whatsend?') }}</h2>
+    <p>{{ _("whatsend lets you schedule WhatsApp messages to be sent immediately or at a specific time — one-time or recurring. You create a job with a message, pick a group, and choose a trigger — the app handles the rest.") }}</p>
   </section>
 
   <section>
     <h2>{{ _('The story') }}</h2>
-    <p>{{ _("Originally named WhatSend, this project was born out of a simple problem: we had a place where WhatsApp messages needed to be sent for events on specific days, but we'd often forget or be late.") }}</p>
+    <p>{{ _("whatsend was born out of a simple problem: we had a place where WhatsApp messages needed to be sent for events on specific days, but we'd often forget or be late.") }}</p>
     <p>{{ _("v1 was a Python script using pywhatkit to send messages automatically. It worked — kinda. But it required a browser with an already signed-in WhatsApp user, was painfully slow, and couldn't run on a server.") }}</p>
     <p>{{ _("We went back to manual sending for a while. Then v2 appeared: same idea but powered by the Whapi.Cloud API instead of pywhatkit. A huge improvement — no browser needed, fast, server-ready.") }}</p>
     <p>{{ _("But it was still configured via a YAML file, which meant editing files and redeploying every time something changed. So v3 added REST APIs so everything could be configured remotely. Then the question came: how will normal people use this? That's when the web dashboard was born — Jinja2 templates, HTMX for interactivity, zero JavaScript build step.") }}</p>
-    <p>{{ _("And that's where we are today. WhatSend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.") }}</p>
+    <p>{{ _("And that's where we are today. whatsend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.") }}</p>
   </section>
 
   <section>
@@ -26,32 +26,56 @@
       <li>{{ _('Copy your API token from the channel dashboard.') }}</li>
     </ol>
     <div class="note">
-      <strong>{{ _('Note:') }}</strong> {{ _("The token is a long string like a1b2c3d4e5f6... You'll paste this into WhatSend when adding a token.") }}
+      <strong>{{ _('Note:') }}</strong> {{ _("The token is a long string like a1b2c3d4e5f6... You'll paste this into whatsend when adding a token.") }}
     </div>
   </section>
 
-  <section>
-    <h2>{{ _('How to use') }}</h2>
-
-    <h3>{{ _('1. Add an API token') }}</h3>
-    <p>{{ _('Go to Tokens → + Add Token, give it a name (e.g. "work"), and paste your Whapi.Cloud API token.') }}</p>
-
-    <h3>{{ _('2. Create a job') }}</h3>
-    <p>{{ _('Go to Jobs → + New Job. Fill in:') }}</p>
-    <ul>
-      <li><strong>{{ _('API Token') }}</strong> — {{ _('which token to send with') }}</li>
-      <li><strong>{{ _('Label') }}</strong> — {{ _('a friendly name for your own reference') }}</li>
-      <li><strong>{{ _('Group') }}</strong> — {{ _('select from your fetched WhatsApp groups, or enter a group ID manually') }}</li>
-      <li><strong>{{ _('Message') }}</strong> — {{ _('the text to send (emoji supported)') }}</li>
-      <li><strong>{{ _('Image') }}</strong> — {{ _('optional image attachment (JPEG/PNG/GIF/WebP, max 5MB)') }}</li>
-      <li><strong>{{ _('Trigger') }}</strong> — <strong>{{ _('Send Now') }}</strong> ({{ _('fires immediately') }}), <strong>{{ _('One-time') }}</strong> ({{ _('pick date & time') }}), {{ _('or') }} <strong>{{ _('Recurring') }}</strong> ({{ _('Daily / Weekdays / Weekly / Monthly') }})</li>
-    </ul>
-    <div class="note">
-      <strong>{{ _('Tip:') }}</strong> {{ _('Times are converted from your timezone (shown in the nav bar) to UTC automatically. Click the timezone badge to change it.') }}
+  <section class="quick-start" aria-labelledby="quick-start-title">
+    <div class="quick-start-heading">
+      <span class="eyebrow">{{ _('QUICK START') }}</span>
+      <h2 id="quick-start-title">{{ _('Send your first message in 3 steps') }}</h2>
+      <p>{{ _('Connect your WhatsApp account once, then send immediately or set a schedule.') }}</p>
     </div>
 
-    <h3>{{ _('3. Monitor') }}</h3>
-    <p>{{ _('Check the Logs page to see if your messages were sent successfully. Click Show response to view the full API response.') }}</p>
+    <div class="quick-start-steps">
+      <article class="quick-start-step">
+        <span class="quick-start-number" aria-hidden="true">1</span>
+        <div class="quick-start-content">
+          <h3>{{ _('Connect WhatsApp') }}</h3>
+          <p>{{ _('Add your Whapi.Cloud token and give the connection a name you will recognize.') }}</p>
+          <a class="btn btn-secondary" href="/tokens/create">{{ _('Add token') }} <span aria-hidden="true">→</span></a>
+        </div>
+      </article>
+
+      <article class="quick-start-step">
+        <span class="quick-start-number" aria-hidden="true">2</span>
+        <div class="quick-start-content">
+          <h3>{{ _('Create your message') }}</h3>
+          <p>{{ _('Choose a WhatsApp group, write your message, and optionally attach an image.') }}</p>
+          <div class="schedule-options" aria-label="{{ _('Choose when to send') }}">
+            <span><strong>{{ _('Send Now') }}</strong><small>{{ _('Immediately') }}</small></span>
+            <span><strong>{{ _('One-time') }}</strong><small>{{ _('On a date you choose') }}</small></span>
+            <span><strong>{{ _('Recurring') }}</strong><small>{{ _('On a repeating schedule') }}</small></span>
+          </div>
+          <a class="btn btn-primary" href="/jobs/create">{{ _('Create message') }} <span aria-hidden="true">→</span></a>
+        </div>
+      </article>
+
+      <article class="quick-start-step">
+        <span class="quick-start-number" aria-hidden="true">3</span>
+        <div class="quick-start-content">
+          <h3>{{ _('Confirm delivery') }}</h3>
+          <p>{{ _('Open Logs after the send time. A Sent status confirms delivery; if it fails, open the response for details.') }}</p>
+          <a class="btn btn-secondary" href="/logs">{{ _('View logs') }} <span aria-hidden="true">→</span></a>
+        </div>
+      </article>
+    </div>
+
+    <div class="quick-start-tip">
+      <span aria-hidden="true">◷</span>
+      <p><strong>{{ _('Check your timezone before scheduling.') }}</strong> {{ _('The timezone shown in the navigation bar is used for every scheduled message.') }}</p>
+      <a href="/auth/timezone">{{ _('Change timezone') }}</a>
+    </div>
   </section>
 
   <section>

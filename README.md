@@ -1,4 +1,4 @@
-# WhatSend — WhatsApp Scheduler
+# whatsend — WhatsApp Scheduler
 
 Schedule and send WhatsApp messages from a browser dashboard, powered by [Whapi.Cloud](https://whapi.cloud).
 
@@ -12,7 +12,7 @@ We went back to manual sending. Then **v2** appeared: same idea but powered by t
 
 **v3** added REST APIs so everything could be configured remotely. Then came the question: how will normal people use this? That's when the web dashboard was born — Jinja2 templates, vanilla JS, zero build step.
 
-And that's where we are today. WhatSend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.
+And that's where we are today. whatsend is a full-featured WhatsApp scheduler you can deploy on a $5/month server and control from any browser.
 
 ## Features
 
@@ -21,7 +21,7 @@ And that's where we are today. WhatSend is a full-featured WhatsApp scheduler yo
 - **One-time scheduling** — Pick a date & time with a native datetime picker
 - **Recurring scheduling** — User-friendly UI (Daily, Weekdays, Weekly with multi-day checkboxes, Monthly, Custom cron) — no cron syntax needed
 - **Group picker** — Fetches your WhatsApp groups via the API and shows them by name; manual entry also supported
-- **Image upload** — Attach JPEG/PNG/GIF/WebP (max 5MB)
+- **Media upload** — Attach validated JPEG/PNG/GIF/WebP images or MP4/MOV/AVI/MKV/WebM videos (max 50MB)
 - **Clone jobs** — Duplicate any job with one click
 - **Skip jobs** — Skip the next scheduled execution (or multiple) without cancelling
 - **Search & filter** — Filter by status (Active/Paused/Completed/Failed/All) and search by label or group name
@@ -33,8 +33,10 @@ And that's where we are today. WhatSend is a full-featured WhatsApp scheduler yo
 - **Dark mode** — Toggle via nav button, persisted to localStorage, no flash on load
 - **Arabic (RTL) support** — Full Arabic translation and right-to-left layout
 - **Keyboard shortcuts** — `n` for new job, `/` to focus search
-- **Token encryption** — API tokens encrypted at rest with Fernet (key derived from `SECRET_KEY`)
-- **Persistent scheduler** — Jobs survive app restarts via APScheduler + SQLite
+- **Token encryption** — API tokens encrypted at rest with a separately rotatable Fernet key
+- **Reliable scheduler** — Jobs survive restarts, retry transient failures, and retain local recurring times across DST changes
+- **Recipient attempts** — Multi-group sends track and retry failed recipients independently
+- **Security controls** — CSRF protection, CSP, secure production cookies, rate limits, and account-scoped resources
 
 ## Stack
 
@@ -53,27 +55,31 @@ And that's where we are today. WhatSend is a full-featured WhatsApp scheduler yo
 
 ```
 users ──1:N── tokens ──1:N── jobs ──1:N── logs
+                              └──1:N── delivery_attempts
   └──1:N── api_keys
 ```
 
 - **user** — `id, username, password_hash, timezone, lang (en/ar), is_active`
 - **token** — `id, user_id, name, api_token (encrypted), is_active, last_used_at`
 - **api_key** — `id, user_id, name, key_prefix, key_hash, is_active, last_used_at`
-- **job** — `id, user_id, token_id, label, group_id, group_name, message, image_path, trigger_type (now/date/cron/trigger), trigger_value, status, skip_count`
+- **job** — includes the trigger, IANA schedule timezone, retry state, media path, and recipient groups
 - **log** — `id, job_id, status (sent/failed/skipped), response, sent_at`
+- **delivery_attempt** — per-recipient status, run ID, attempt number, response, and timestamp
 
 ## Quick start
 
 ```bash
 cp .env.example .env          # edit SECRET_KEY
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 python run.py
 ```
 
 Open http://localhost:8000, sign up, add a Whapi.Cloud token, and create your first message.
 
-## External API
+## Optional external API
+
+API-key management and bearer API routes are disabled by default. Set `API_KEYS_ENABLED=true` to register `/api-keys`, `/api/send`, and `/api/groups`.
 
 Generate an API key from `/api-keys`, then send a WhatsApp group message with:
 
@@ -87,7 +93,11 @@ curl -X POST https://your-app.example.com/api/send \
   }'
 ```
 
-The API uses the authenticated user's first active Whapi.Cloud token. The target `group_id` must be a WhatsApp group ID that the linked Whapi.Cloud account can send to.
+Each API key is linked to one active token owned by the same user. The target `group_id` must be a WhatsApp group ID that connection can send to.
+
+## Supported direct Meta integration spike
+
+The repository includes a `MetaCloudSender` and signature-verified webhook scaffold for evaluating Meta's supported WhatsApp Business Platform Cloud API. Keep it disabled until group eligibility and the account-specific event contract have been verified with a Meta test business account. Reverse-engineered WhatsApp Web protocols are intentionally not implemented because they are unsupported, fragile, and prohibited by WhatsApp's terms.
 
 ## Directory layout
 
@@ -96,15 +106,16 @@ whatsend/
 ├── app/
 │   ├── main.py               # FastAPI app, lifespan, Jinja2 env, render(), template helpers
 │   ├── config.py             # Settings + TIMEZONE_CHOICES
-│   ├── database.py           # SQLAlchemy async engine + session + migration
+│   ├── database.py           # SQLAlchemy async engine + session
 │   ├── i18n.py               # Translation dictionary (en/ar)
 │   ├── models/               # User, Token, Job, Log (SQLAlchemy 2.0)
 │   ├── routers/              # auth, dashboard, tokens, jobs, logs, about
 │   ├── services/             # auth (JWT/bcrypt), crypto (Fernet), sender (Whapi.Cloud), scheduler (APScheduler)
 │   ├── templates/            # Jinja2 (base, auth, dashboard, jobs, tokens, logs, about)
 │   └── static/css/           # app.css (light + dark themes, 270 lines)
-├── tests/                    # pytest (test_crypto.py — 6 tests)
-├── uploads/                  # uploaded images (auto-created)
+├── migrations/               # Alembic versioned database migrations
+├── tests/                    # unit and security regression tests
+├── uploads/                  # private uploaded media (auto-created)
 ├── Dockerfile                # Python 3.13-slim
 ├── fly.toml                  # Fly.io config (persistent volume at /data)
 ├── .env                      # SECRET_KEY (not committed)
@@ -116,8 +127,13 @@ whatsend/
 ```bash
 fly launch
 fly secrets set SECRET_KEY="your-secret-key"
+fly secrets set TOKEN_ENCRYPTION_KEY="a-separate-long-random-secret"
 fly volumes create data --region iad --size 1
 fly deploy
 ```
 
-The app uses a persistent 1GB volume at `/data` for SQLite. `auto_stop_machines = false` keeps the scheduler running 24/7.
+The app uses a persistent 1GB volume at `/data` for SQLite. `auto_stop_machines = false` keeps the scheduler running 24/7. Alembic migrations run as the Fly release command and readiness checks cover both the database and scheduler.
+
+This deployment must remain at one application process/machine while it uses SQLite and the in-process scheduler. Before horizontal scaling, move the scheduler to a single elected worker or durable queue and migrate shared state to PostgreSQL. Keep periodic volume snapshots and test database restores.
+
+For application-level SQLite backups, run `python scripts/backup_database.py`. It uses SQLite's consistent backup API and retains the newest 14 copies by default; configure `BACKUP_DIR` and `BACKUP_RETENTION` as needed.

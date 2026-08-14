@@ -20,7 +20,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Create .env for CI
         run: echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')" > .env
@@ -30,3 +30,6 @@ jobs:
 
       - name: Check app can import
         run: python -c "from app.main import app; print('App loaded OK')"
+
+      - name: Verify migrations on a clean database
+        run: DATABASE_URL=sqlite+aiosqlite:////tmp/whatsend-ci.db alembic upgrade head

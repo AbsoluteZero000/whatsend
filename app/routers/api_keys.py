@@ -11,8 +11,9 @@ from app.models.apikey import ApiKey
 from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.auth import hash_password
+from app.services.csrf import csrf_protect
 
-router = APIRouter(prefix="/api-keys", tags=["api_keys"])
+router = APIRouter(prefix="/api-keys", tags=["api_keys"], dependencies=[Depends(csrf_protect)])
 
 
 def _flash(url: str, success: str = "") -> RedirectResponse:

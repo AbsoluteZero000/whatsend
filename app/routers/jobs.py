@@ -1,5 +1,6 @@
 import os
 import zoneinfo
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func as sqlfunc, select
 from sqlalchemy import asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,15 +16,17 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.job import Job, JobGroup
+from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
 from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
-from app.services.scheduler import register_job, remove_job, send_job
+from app.services.csrf import csrf_protect
+from app.services.scheduler import register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
 from app.services.sender import WhatsAppSender
 
-router = APIRouter(prefix="/jobs", tags=["jobs"])
+router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
 
 def redirect_with_flash(url: str, success: str = "") -> RedirectResponse:
     if success:
@@ -35,17 +39,27 @@ MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+MEDIA_SIGNATURES = {
+    ".jpg": ("image/jpeg", lambda h: h.startswith(b"\xff\xd8\xff")),
+    ".png": ("image/png", lambda h: h.startswith(b"\x89PNG\r\n\x1a\n")),
+    ".gif": ("image/gif", lambda h: h.startswith((b"GIF87a", b"GIF89a"))),
+    ".webp": ("image/webp", lambda h: h.startswith(b"RIFF") and h[8:12] == b"WEBP"),
+    ".mp4": ("video/mp4", lambda h: len(h) >= 12 and h[4:8] == b"ftyp"),
+    ".mov": ("video/quicktime", lambda h: len(h) >= 12 and h[4:8] == b"ftyp"),
+    ".avi": ("video/x-msvideo", lambda h: h.startswith(b"RIFF") and h[8:12] == b"AVI "),
+    ".mkv": ("video/x-matroska", lambda h: h.startswith(b"\x1aE\xdf\xa3")),
+    ".webm": ("video/webm", lambda h: h.startswith(b"\x1aE\xdf\xa3")),
+}
 
 
 def local_to_utc(date_str: str, tz_name: str = "UTC") -> str:
-    try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
-        tz_obj = zoneinfo.ZoneInfo(tz_name)
-        aware = dt.replace(tzinfo=tz_obj)
-        utc = aware.astimezone(zoneinfo.ZoneInfo("UTC"))
-        return utc.strftime("%Y-%m-%d %H:%M")
-    except (ValueError, zoneinfo.ZoneInfoNotFoundError):
-        return date_str
+    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+    tz_obj = zoneinfo.ZoneInfo(tz_name)
+    aware = dt.replace(tzinfo=tz_obj)
+    utc = aware.astimezone(zoneinfo.ZoneInfo("UTC"))
+    if utc.astimezone(tz_obj).replace(tzinfo=None) != dt:
+        raise ValueError("This local time does not exist because of a daylight-saving transition")
+    return utc.strftime("%Y-%m-%d %H:%M")
 
 
 async def save_upload(file: UploadFile) -> str | None:
@@ -55,26 +69,58 @@ async def save_upload(file: UploadFile) -> str | None:
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+    expected_mime, signature_matches = MEDIA_SIGNATURES[ext]
+    allowed_content_types = {expected_mime, "application/octet-stream"}
+    if file.content_type and file.content_type not in allowed_content_types:
+        raise HTTPException(status_code=400, detail="The uploaded file type does not match its extension")
 
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=400, detail="File exceeds 50MB limit")
+    dest = UPLOAD_DIR / f"{uuid.uuid4().hex}{ext}"
+    total = 0
+    header = b""
+    try:
+        with dest.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > MAX_UPLOAD_SIZE:
+                    raise HTTPException(status_code=400, detail="File exceeds 50MB limit")
+                if len(header) < 32:
+                    header += chunk[:32 - len(header)]
+                output.write(chunk)
+        if not signature_matches(header):
+            raise HTTPException(status_code=400, detail="The uploaded file content is not a supported media format")
+        return str(dest.resolve())
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise
 
-    stem = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    dest = UPLOAD_DIR / f"{stem}{ext}"
-    dest.write_bytes(content)
-    return str(dest.resolve())
+
+async def delete_media_if_unreferenced(db: AsyncSession, image_path: str, excluding_job_id: int) -> None:
+    references = await db.scalar(
+        select(sqlfunc.count(Job.id)).where(Job.image_path == image_path, Job.id != excluding_job_id)
+    )
+    if not references:
+        Path(image_path).unlink(missing_ok=True)
 
 
 ALLOWED_SORT_COLS = {"id", "label", "group_name", "trigger_type", "status", "created_at"}
 
 
+async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: int) -> Token:
+    result = await db.execute(
+        select(Token).where(Token.id == token_id, Token.user_id == user_id, Token.is_active.is_(True))
+    )
+    token = result.scalar_one_or_none()
+    if not token:
+        raise HTTPException(status_code=400, detail="Select an active token that belongs to your account")
+    return token
+
+
 def time_left_str(job: Job) -> str:
-    if job.status not in ("pending", "active", "trigger"):
+    if job.status not in ("pending", "active", "trigger", "retry_scheduled"):
         return ""
     if job.trigger_type in ("now", "trigger"):
         return ""
-    scheduled = apscheduler.get_job(str(job.id))
+    scheduled = apscheduler.get_job(str(job.id)) or apscheduler.get_job(f"retry:{job.id}")
     if not scheduled or not scheduled.next_run_time:
         return ""
     diff = scheduled.next_run_time - datetime.now(scheduled.next_run_time.tzinfo)
@@ -113,7 +159,7 @@ async def list_jobs(
 
     base_query = select(Job).where(Job.user_id == user_id)
     if status == "active":
-        base_query = base_query.where(Job.status.in_(["pending", "active", "trigger"]))
+        base_query = base_query.where(Job.status.in_(["pending", "active", "trigger", "retry_scheduled"]))
     elif status == "completed":
         base_query = base_query.where(Job.status.in_(["completed", "cancelled"]))
     elif status == "paused":
@@ -178,7 +224,7 @@ async def list_jobs(
 
 
 @router.get("/create")
-async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
+async def create_job_page(request: Request, type: str = "now", db: AsyncSession = Depends(get_db)):
     user = require_user(request)
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
@@ -197,23 +243,30 @@ async def create_job_page(request: Request, db: AsyncSession = Depends(get_db)):
             continue
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[])
+    initial_trigger_type = type if type in {"now", "date", "cron", "trigger"} else "now"
+    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[], initial_trigger_type=initial_trigger_type)
 
 
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
+    if trigger_type not in {"now", "trigger", "date", "cron"}:
+        raise ValueError("Unsupported trigger type")
     if trigger_type == "now":
-        return datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+        return datetime.now(zoneinfo.ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M")
     elif trigger_type == "trigger":
         return ""
     elif trigger_type == "date":
         tv = kw.get("trigger_value_date", "").replace("T", " ")
+        if not tv:
+            raise ValueError("Choose a date and time")
         return local_to_utc(tv, user_tz)
     elif trigger_type == "cron":
         cron_time = kw.get("cron_time", "09:00")
-        cron_datetime = f"{datetime.utcnow().strftime('%Y-%m-%d')} {cron_time}"
-        utc_datetime = local_to_utc(cron_datetime, user_tz)
-        utc_time = utc_datetime.split()[1]
-        hour, minute = utc_time.split(":")
+        try:
+            hour, minute = cron_time.split(":")
+            if not (0 <= int(hour) <= 23 and 0 <= int(minute) <= 59):
+                raise ValueError
+        except (AttributeError, ValueError):
+            raise ValueError("Choose a valid recurring time")
         cron_freq = kw.get("cron_freq", "daily")
         if cron_freq == "daily":
             return f"{minute} {hour} * * *"
@@ -221,13 +274,21 @@ def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
             return f"{minute} {hour} * * 0-4"
         elif cron_freq == "custom":
             days = kw.get("cron_days", [])
+            if not days or any(str(day) not in {"0", "1", "2", "3", "4", "5", "6"} for day in days):
+                raise ValueError("Select at least one valid weekday")
             fixed = sorted((int(d) + 6) % 7 for d in days)
             return f"{minute} {hour} * * {','.join(str(d) for d in fixed)}"
         elif cron_freq == "monthly":
-            return f"{minute} {hour} {kw.get('cron_dom', 1)} * *"
+            day_of_month = int(kw.get("cron_dom", 1))
+            if not 1 <= day_of_month <= 31:
+                raise ValueError("Day of month must be between 1 and 31")
+            return f"{minute} {hour} {day_of_month} * *"
         elif cron_freq == "raw":
-            return kw.get("cron_raw", "")
-    return ""
+            raw = kw.get("cron_raw", "").strip()
+            CronTrigger.from_crontab(raw, timezone=user_tz)
+            return raw
+        raise ValueError("Unsupported recurring frequency")
+    raise ValueError("Unsupported trigger type")
 
 
 @router.post("/create")
@@ -254,6 +315,8 @@ async def create_job(
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
+    await require_owned_active_token(db, user_id, token_id)
+
     if group_id_manual:
         group_ids.append(group_id_manual)
         group_names.append("")
@@ -261,17 +324,23 @@ async def create_job(
     if not group_ids:
         return redirect_with_flash("/jobs/create", success="Please select at least one group.")
 
-    image_path = await save_upload(image) if image else None
+    if trigger_type == "cron" and cron_freq == "custom" and not cron_days:
+        return redirect_with_flash("/jobs/create", success="Select at least one day.")
 
-    trigger_value = build_trigger_value(
-        trigger_type, user_tz,
-        trigger_value_date=trigger_value_date,
-        cron_time=cron_time,
-        cron_freq=cron_freq,
-        cron_dom=cron_dom,
-        cron_days=cron_days,
-        cron_raw=cron_raw,
-    )
+    try:
+        trigger_value = build_trigger_value(
+            trigger_type, user_tz,
+            trigger_value_date=trigger_value_date,
+            cron_time=cron_time,
+            cron_freq=cron_freq,
+            cron_dom=cron_dom,
+            cron_days=cron_days,
+            cron_raw=cron_raw,
+        )
+    except (ValueError, zoneinfo.ZoneInfoNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    image_path = await save_upload(image) if image else None
 
     job = Job(
         user_id=user_id,
@@ -283,17 +352,22 @@ async def create_job(
         image_path=image_path,
         trigger_type=trigger_type,
         trigger_value=trigger_value,
+        schedule_timezone=user_tz,
         status="trigger" if trigger_type == "trigger" else "pending",
     )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-    for i, gid in enumerate(group_ids):
-        gname = group_names[i] if i < len(group_names) else None
-        db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
-    await db.commit()
-    await register_job(job)
-    await db.commit()
+    try:
+        db.add(job)
+        await db.flush()
+        for i, gid in enumerate(group_ids):
+            gname = group_names[i] if i < len(group_names) else None
+            db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
+        await register_job(job)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        if image_path:
+            Path(image_path).unlink(missing_ok=True)
+        raise
     return redirect_with_flash("/jobs", success="Job created")
 
 
@@ -304,7 +378,7 @@ async def pause_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status == "active":
+    if job and job.status in ("active", "retry_scheduled"):
         await remove_job(job_id)
         job.status = "paused"
         await db.commit()
@@ -319,9 +393,14 @@ async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job and job.status == "paused":
-        job.status = "pending"
-        await db.commit()
-        await register_job(job)
+        if job.retry_at and job.trigger_type in {"date", "now"}:
+            job.status = "retry_scheduled"
+            await register_retry(job)
+        else:
+            job.status = "pending"
+            await register_job(job)
+            if job.retry_at:
+                await register_retry(job)
         await db.commit()
     return redirect_with_flash("/jobs", success="Job resumed")
 
@@ -360,6 +439,11 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job and job.status in ("trigger",):
+        await remove_job(job_id)
+        job.retry_count = 0
+        job.retry_at = None
+        job.retry_group_ids = None
+        await db.commit()
         await send_job(job_id)
     return redirect_with_flash("/jobs", success="Job sent")
 
@@ -371,7 +455,7 @@ async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(g
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status in ("pending", "active", "trigger"):
+    if job and job.status in ("pending", "active", "trigger", "retry_scheduled"):
         await remove_job(job_id)
         job.status = "cancelled"
         await db.commit()
@@ -387,9 +471,7 @@ async def delete_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     job = result.scalar_one_or_none()
     if job:
         if job.image_path:
-            p = Path(job.image_path)
-            if p.exists():
-                p.unlink()
+            await delete_media_if_unreferenced(db, job.image_path, job.id)
         await remove_job(job_id)
         await db.delete(job)
         await db.commit()
@@ -416,6 +498,7 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         image_path=job.image_path,
         trigger_type=job.trigger_type,
         trigger_value=job.trigger_value,
+        schedule_timezone=job.schedule_timezone,
         status="trigger" if job.trigger_type == "trigger" else "pending",
     )
     db.add(clone)
@@ -434,14 +517,6 @@ def parse_cron_for_form(expr: str, tz_name: str = "UTC") -> dict:
     if len(parts) != 5:
         return {}
     minute, hour, dom, month, dow = parts
-    if hour != "*" and tz_name != "UTC":
-        try:
-            today = datetime.utcnow().strftime("%Y-%m-%d")
-            utc_dt = datetime.strptime(f"{today} {hour.zfill(2)}:{minute.zfill(2)}", "%Y-%m-%d %H:%M").replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
-            local_dt = utc_dt.astimezone(zoneinfo.ZoneInfo(tz_name))
-            hour, minute = local_dt.strftime("%H"), local_dt.strftime("%M")
-        except Exception:
-            pass
     cron_time = f"{hour.zfill(2)}:{minute.zfill(2)}"
     if dow == "*" and dom == "*":
         return {"cron_freq": "daily", "cron_time": cron_time}
@@ -468,7 +543,7 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    scheduled = apscheduler.get_job(str(job.id))
+    scheduled = apscheduler.get_job(str(job.id)) or apscheduler.get_job(f"retry:{job.id}")
     next_run = ""
     if scheduled and scheduled.next_run_time:
         diff = scheduled.next_run_time - datetime.now(scheduled.next_run_time.tzinfo)
@@ -492,12 +567,20 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     )
     logs = log_result.scalars().all()
 
+    attempt_result = await db.execute(
+        select(DeliveryAttempt)
+        .where(DeliveryAttempt.job_id == job_id)
+        .order_by(DeliveryAttempt.created_at.desc())
+        .limit(50)
+    )
+    delivery_attempts = attempt_result.scalars().all()
+
     media_available = bool(job.image_path and Path(job.image_path).exists())
     media_filename = Path(job.image_path).name if media_available else ""
     media_is_video = bool(media_available and Path(job.image_path).suffix.lower() in VIDEO_EXTENSIONS)
 
     return request.app.state.render(request, "jobs/detail.html",
-                                     job=job, logs=logs, next_run=next_run,
+                                     job=job, logs=logs, delivery_attempts=delivery_attempts, next_run=next_run,
                                      media_available=media_available, media_filename=media_filename,
                                      media_is_video=media_is_video)
 
@@ -579,6 +662,8 @@ async def edit_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    await require_owned_active_token(db, user_id, token_id)
+
     if group_id_manual:
         group_ids.append(group_id_manual)
         group_names.append("")
@@ -586,25 +671,29 @@ async def edit_job(
     if not group_ids:
         return redirect_with_flash(f"/jobs/{job_id}/edit", success="Please select at least one group.")
 
+    if trigger_type == "cron" and cron_freq == "custom" and not cron_days:
+        return redirect_with_flash(f"/jobs/{job_id}/edit", success="Select at least one day.")
+
     image_path = job.image_path
     if image and image.filename:
         new_path = await save_upload(image)
         if new_path:
             if job.image_path:
-                p = Path(job.image_path)
-                if p.exists():
-                    p.unlink()
+                await delete_media_if_unreferenced(db, job.image_path, job.id)
             image_path = new_path
 
-    trigger_value = build_trigger_value(
-        trigger_type, user_tz,
-        trigger_value_date=trigger_value_date,
-        cron_time=cron_time,
-        cron_freq=cron_freq,
-        cron_dom=cron_dom,
-        cron_days=cron_days,
-        cron_raw=cron_raw,
-    )
+    try:
+        trigger_value = build_trigger_value(
+            trigger_type, user_tz,
+            trigger_value_date=trigger_value_date,
+            cron_time=cron_time,
+            cron_freq=cron_freq,
+            cron_dom=cron_dom,
+            cron_days=cron_days,
+            cron_raw=cron_raw,
+        )
+    except (ValueError, zoneinfo.ZoneInfoNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     job.token_id = token_id
     job.label = label or None
@@ -614,15 +703,18 @@ async def edit_job(
     job.image_path = image_path
     job.trigger_type = trigger_type
     job.trigger_value = trigger_value
+    job.schedule_timezone = user_tz
+    job.status = "trigger" if trigger_type == "trigger" else "pending"
     job.skip_count = 0
+    job.retry_count = 0
+    job.retry_at = None
+    job.retry_group_ids = None
 
     for old in job.job_groups:
         await db.delete(old)
     for i, gid in enumerate(group_ids):
         gname = group_names[i] if i < len(group_names) else None
         db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
-    await db.commit()
-
     await remove_job(job_id)
     await register_job(job)
     await db.commit()

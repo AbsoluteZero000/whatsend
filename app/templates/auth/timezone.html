@@ -1,20 +1,22 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Change Timezone') }} — Zamzam{% endblock %}
+{% block title %}{{ _('Change Timezone') }} — whatsend{% endblock %}
 {% block content %}
 <div class="section-header">
   <h1>{{ _('Change Timezone') }}</h1>
 </div>
 <div class="form-card">
   {% if error %}
-    <p class="error">{{ error }}</p>
+    <p class="error">{{ _(error) }}</p>
   {% endif %}
   <form method="POST" action="/auth/timezone">
     <label for="timezone">{{ _('Timezone') }}</label>
-    <select id="timezone" name="timezone" required>
+    <input id="timezone" class="timezone-picker" type="text" name="timezone" value="{{ current_tz }}" list="timezone-options" placeholder="{{ _('Search by city or region…') }}" required autocomplete="off" aria-describedby="timezone-help">
+    <datalist id="timezone-options">
       {% for tz in timezones %}
-      <option value="{{ tz }}" {% if tz == current_tz %}selected{% endif %}>{{ tz }}</option>
+      <option value="{{ tz }}"></option>
       {% endfor %}
-    </select>
+    </datalist>
+    <small id="timezone-help" class="field-help">{{ _('Used to show and schedule messages in your local time.') }}</small>
     <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
     <a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>

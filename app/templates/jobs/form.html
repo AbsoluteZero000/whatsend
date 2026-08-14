@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — Zamzam{% else %}{{ _('New Scheduled Job') }} — Zamzam{% endif %}{% endblock %}
+{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — whatsend{% else %}{{ _('New Scheduled Job') }} — whatsend{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
   <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>
@@ -20,7 +20,7 @@
     <label>{{ _('Groups') }}</label>
     <div class="group-picker">
       <div class="group-picker-row">
-        <select id="group_picker_select" class="group-picker-select" onchange="addGroup()">
+        <select id="group_picker_select" class="group-picker-select">
           <option value="">{{ _('-- Select a group --') }}</option>
           {% for g in groups %}
           <option value="{{ g.id }}" data-name="{{ g.name or g.id }}">{{ g.name or g.id }}</option>
@@ -42,10 +42,10 @@
       {% set is_video = job.image_path.lower().endswith(('.mp4','.mov','.avi','.mkv','.webm')) %}
       {% if is_video %}
       <video controls style="max-width:320px;max-height:320px;border-radius:8px;display:block;border:1px solid var(--border);">
-        <source src="/uploads/{{ job.image_path.split('/')[-1] }}">
+        <source src="/media/{{ job.image_path.split('/')[-1] }}">
       </video>
       {% else %}
-      <img src="/uploads/{{ job.image_path.split('/')[-1] }}" style="max-width:240px;max-height:240px;border-radius:8px;display:block;border:1px solid var(--border);">
+      <img src="/media/{{ job.image_path.split('/')[-1] }}" style="max-width:240px;max-height:240px;border-radius:8px;display:block;border:1px solid var(--border);">
       {% endif %}
       <small style="color:var(--text-muted);margin-top:0.25rem;display:block;">{{ _('Current file:') }} {{ job.image_path.split('/')[-1] }}</small>
     </div>
@@ -58,10 +58,10 @@
 
     <label for="trigger_type">{{ _('Trigger Type') }}</label>
     <select id="trigger_type" name="trigger_type" required {% if edit_mode and job.trigger_type == 'now' %}disabled{% endif %}>
-      <option value="now" {% if edit_mode and job.trigger_type == 'now' %}selected{% endif %}>{{ _('Send Now') }}</option>
-      <option value="date" {% if edit_mode and job.trigger_type == 'date' %}selected{% endif %}>{{ _('One-time (date)') }}</option>
-      <option value="cron" {% if edit_mode and job.trigger_type == 'cron' %}selected{% endif %}>{{ _('Recurring (cron)') }}</option>
-      <option value="trigger" {% if edit_mode and job.trigger_type == 'trigger' %}selected{% endif %}>{{ _('On Trigger') }}</option>
+      <option value="now" {% if (edit_mode and job.trigger_type == 'now') or (not edit_mode and initial_trigger_type|default('now') == 'now') %}selected{% endif %}>{{ _('Send Now') }}</option>
+      <option value="date" {% if (edit_mode and job.trigger_type == 'date') or (not edit_mode and initial_trigger_type|default('now') == 'date') %}selected{% endif %}>{{ _('One-time (date)') }}</option>
+      <option value="cron" {% if (edit_mode and job.trigger_type == 'cron') or (not edit_mode and initial_trigger_type|default('now') == 'cron') %}selected{% endif %}>{{ _('Recurring (cron)') }}</option>
+      <option value="trigger" {% if (edit_mode and job.trigger_type == 'trigger') or (not edit_mode and initial_trigger_type|default('now') == 'trigger') %}selected{% endif %}>{{ _('On Trigger') }}</option>
     </select>
     {% if edit_mode and job.trigger_type == 'now' %}
     <input type="hidden" name="trigger_type" value="now">
@@ -98,15 +98,44 @@
         </div>
         <div id="cron_custom_group" style="display:none;">
           <label>{{ _('Days of week') }}</label>
-          <div class="checkbox-group">
-            <label><input type="checkbox" name="cron_days" value="0" {% if '0' in cdays %}checked{% endif %}> {{ _('Sun') }}</label>
-            <label><input type="checkbox" name="cron_days" value="1" {% if '1' in cdays %}checked{% endif %}> {{ _('Mon') }}</label>
-            <label><input type="checkbox" name="cron_days" value="2" {% if '2' in cdays %}checked{% endif %}> {{ _('Tue') }}</label>
-            <label><input type="checkbox" name="cron_days" value="3" {% if '3' in cdays %}checked{% endif %}> {{ _('Wed') }}</label>
-            <label><input type="checkbox" name="cron_days" value="4" {% if '4' in cdays %}checked{% endif %}> {{ _('Thu') }}</label>
-            <label><input type="checkbox" name="cron_days" value="5" {% if '5' in cdays %}checked{% endif %}> {{ _('Fri') }}</label>
-            <label><input type="checkbox" name="cron_days" value="6" {% if '6' in cdays %}checked{% endif %}> {{ _('Sat') }}</label>
+          <div class="day-picker" id="cron_day_picker" role="group" aria-label="{{ _('Days of week') }}">
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="0" {% if '0' in cdays %}checked{% endif %}>
+              <span>{{ _('Sun') }}</span>
+            </label>
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="1" {% if '1' in cdays %}checked{% endif %}>
+              <span>{{ _('Mon') }}</span>
+            </label>
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="2" {% if '2' in cdays %}checked{% endif %}>
+              <span>{{ _('Tue') }}</span>
+            </label>
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="3" {% if '3' in cdays %}checked{% endif %}>
+              <span>{{ _('Wed') }}</span>
+            </label>
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="4" {% if '4' in cdays %}checked{% endif %}>
+              <span>{{ _('Thu') }}</span>
+            </label>
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="5" {% if '5' in cdays %}checked{% endif %}>
+              <span>{{ _('Fri') }}</span>
+            </label>
+            <label class="day-toggle">
+              <input type="checkbox" name="cron_days" value="6" {% if '6' in cdays %}checked{% endif %}>
+              <span>{{ _('Sat') }}</span>
+            </label>
           </div>
+          <div class="day-picker-footer">
+            <span id="cron_day_summary" class="day-picker-summary"></span>
+            <div class="day-picker-actions">
+              <button type="button" class="btn-clear set-cron-days" data-days="1,2,3,4,5">{{ _('Weekdays') }}</button>
+              <button type="button" class="btn-clear set-cron-days" data-days="">{{ _('Clear') }}</button>
+            </div>
+          </div>
+          <div id="cron_day_error" class="form-error inline-error" style="display:none;">{{ _('Select at least one day.') }}</div>
         </div>
       </div>
     </div>
@@ -116,7 +145,7 @@
     <button type="submit" class="btn btn-primary" id="submit_btn">{% if edit_mode %}{{ _('Update Job') }}{% else %}{{ _('Create Job') }}{% endif %}</button>
   </form>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   function toggleTriggerValue() {
     var type = document.getElementById('trigger_type').value;
     var show = type !== 'now' && type !== 'trigger';
@@ -139,17 +168,53 @@
   document.getElementById('cron_freq').addEventListener('change', toggleCronFields);
   toggleCronFields();
 
-  var _selectedGroups = [
-    {% for sg in selected_groups %}
-    {id: "{{ sg.id }}", name: "{{ sg.name }}"},
-    {% endfor %}
-  ];
+  var cronDayLabels = {
+    '0': "{{ _('Sun') }}",
+    '1': "{{ _('Mon') }}",
+    '2': "{{ _('Tue') }}",
+    '3': "{{ _('Wed') }}",
+    '4': "{{ _('Thu') }}",
+    '5': "{{ _('Fri') }}",
+    '6': "{{ _('Sat') }}"
+  };
+
+  function getCronDayInputs() {
+    return Array.prototype.slice.call(document.querySelectorAll('input[name="cron_days"]'));
+  }
+
+  function updateCronDayPicker() {
+    var selected = getCronDayInputs().filter(function(input) { return input.checked; });
+    getCronDayInputs().forEach(function(input) {
+      var label = input.closest('.day-toggle');
+      if (label) label.classList.toggle('selected', input.checked);
+    });
+    var summary = document.getElementById('cron_day_summary');
+    if (summary) {
+      summary.textContent = selected.length
+        ? selected.map(function(input) { return cronDayLabels[input.value]; }).join(', ')
+        : "{{ _('No days selected') }}";
+    }
+    var error = document.getElementById('cron_day_error');
+    if (error && selected.length > 0) error.style.display = 'none';
+  }
+
+  function setCronDays(values) {
+    getCronDayInputs().forEach(function(input) {
+      input.checked = values.indexOf(input.value) !== -1;
+    });
+    updateCronDayPicker();
+  }
+
+  getCronDayInputs().forEach(function(input) {
+    input.addEventListener('change', updateCronDayPicker);
+  });
+  updateCronDayPicker();
+
+  var _selectedGroups = {{ selected_groups | tojson }};
 
   function renderChips() {
     var container = document.getElementById('group_chips');
     container.innerHTML = '';
-    var idsHtml = '';
-    var namesHtml = '';
     _selectedGroups.forEach(function(g, i) {
       var chip = document.createElement('span');
       chip.className = 'group-chip';
@@ -161,10 +226,17 @@
       btn.onclick = function() { _selectedGroups.splice(i, 1); renderChips(); };
       chip.appendChild(btn);
       container.appendChild(chip);
-      idsHtml += '<input type="hidden" name="group_ids" value="' + g.id + '">';
-      namesHtml += '<input type="hidden" name="group_names" value="' + g.name + '">';
+      var idInput = document.createElement('input');
+      idInput.type = 'hidden';
+      idInput.name = 'group_ids';
+      idInput.value = g.id;
+      container.appendChild(idInput);
+      var nameInput = document.createElement('input');
+      nameInput.type = 'hidden';
+      nameInput.name = 'group_names';
+      nameInput.value = g.name;
+      container.appendChild(nameInput);
     });
-    container.insertAdjacentHTML('beforeend', idsHtml + namesHtml);
   }
 
   function addGroup() {
@@ -184,6 +256,12 @@
     sel.value = '';
     renderChips();
   }
+  document.getElementById('group_picker_select').addEventListener('change', addGroup);
+  document.querySelectorAll('.set-cron-days').forEach(function(button) {
+    button.addEventListener('click', function() {
+      setCronDays(this.dataset.days ? this.dataset.days.split(',') : []);
+    });
+  });
 
   document.getElementById('group_id_manual').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
@@ -205,6 +283,15 @@
       e.preventDefault();
       document.getElementById('group_error').style.display = 'block';
       document.getElementById('group_chips').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (document.getElementById('trigger_type').value === 'cron' && document.getElementById('cron_freq').value === 'custom') {
+      var hasDay = getCronDayInputs().some(function(input) { return input.checked; });
+      if (!hasDay) {
+        e.preventDefault();
+        document.getElementById('cron_day_error').style.display = 'block';
+        document.getElementById('cron_day_picker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   });
 </script>

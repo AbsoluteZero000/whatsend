@@ -3,20 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
-  <title>{% block title %}{{ _('WhatsApp Scheduler') }}{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <script nonce="{{ csp_nonce }}">if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
+  <title>{% block title %}{{ _('whatsend') }}{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=13">
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/app.css?v=17">
 </head>
 <body>
   <nav>
     <div class="nav-inner">
-      <a href="/dashboard" class="brand"><span class="brand-mark">📬</span><span>{{ _('Zamzam') }}</span></a>
+      <a href="/dashboard" class="brand"><span class="brand-mark">📬</span><span>{{ _('whatsend') }}</span></a>
       <div class="nav-links">
         <a href="/dashboard">{{ _('Dashboard') }}</a>
         <a href="/tokens">{{ _('Tokens') }}</a>
-        <a href="/api-keys">{{ _('API Keys') }}</a>
+        {% if api_keys_enabled %}<a href="/api-keys">{{ _('API Keys') }}</a>{% endif %}
         <a href="/jobs">{{ _('Jobs') }}</a>
         <a href="/logs">{{ _('Logs') }}</a>
         <a href="/about">{{ _('Help') }}</a>
@@ -28,7 +29,7 @@
             {{ 'AR' if lang == 'en' else 'EN' }}
           </button>
         </form>
-        <a href="/auth/signout">{{ _('Sign out') }}</a>
+        <form method="POST" action="/auth/signout" class="nav-form"><button type="submit">{{ _('Sign out') }}</button></form>
         {% if user_tz %}<a href="/auth/timezone" class="tz-badge">{{ user_tz }}</a>{% endif %}
         <span class="clock" id="clock"></span>
       </div>
@@ -38,10 +39,10 @@
     {% block content %}{% endblock %}
   </main>
   <footer>
-    <span>📬 {{ _('Zamzam') }}</span>
+    <span>📬 {{ _('whatsend') }}</span>
     <span class="footer-links">
       <a href="/about">{{ _('Help') }}</a>
-      <a href="https://github.com/absolutezero000/whatsend" target="_blank">GitHub</a>
+      <a href="https://github.com/absolutezero000/whatsend" target="_blank" rel="noopener">GitHub</a>
     </span>
   </footer>
 <div id="global-spinner" class="spinner-overlay"><div class="spinner"></div></div>
@@ -55,7 +56,7 @@
     </div>
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 function updateClock() {
   const now = new Date();
   const locale = '{{ lang }}' === 'ar' ? 'ar-EG' : 'en-US';
@@ -95,6 +96,10 @@ function customConfirm(e, message) {
   document.getElementById('confirm-message').textContent = message;
   document.getElementById('confirm-modal').classList.add('visible');
 }
+document.addEventListener('submit', function(e) {
+  var form = e.target.closest('form[data-confirm]');
+  if (form) customConfirm(e, form.dataset.confirm);
+});
 document.getElementById('confirm-ok').addEventListener('click', function() {
   if (confirmForm) { confirmForm.submit(); }
   closeConfirm();
@@ -119,10 +124,11 @@ function toggleMsg(id) {
 function dismissOnboarding() {
   var overlay = document.getElementById('onboarding-overlay');
   if (!overlay) return;
-  fetch('/auth/onboarded', { method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'} });
+  fetch('/auth/onboarded', { method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': window.csrfToken} });
   overlay.style.opacity = '0';
   setTimeout(function() { overlay.remove(); }, 300);
 }
+document.getElementById('dismiss-onboarding')?.addEventListener('click', dismissOnboarding);
 
 function showToast(message, type) {
   var container = document.getElementById('toast-container');
@@ -166,5 +172,6 @@ themeToggle.addEventListener('click', function() {
 });
 updateThemeIcon();
 </script>
+<script src="/static/js/security.js?v=1"></script>
 </body>
 </html>

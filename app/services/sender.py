@@ -1,4 +1,5 @@
 import httpx
+import mimetypes
 from pathlib import Path
 
 
@@ -27,7 +28,7 @@ class WhatsAppSender:
                     f"{self.base_url}/messages/image",
                     headers={"authorization": f"Bearer {self.token}"},
                     data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, "image/jpeg")},
+                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
                 )
         response.raise_for_status()
         return response.json()
@@ -40,7 +41,7 @@ class WhatsAppSender:
                     f"{self.base_url}/messages/video",
                     headers={"authorization": f"Bearer {self.token}"},
                     data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, "video/mp4")},
+                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
                 )
         response.raise_for_status()
         return response.json()
