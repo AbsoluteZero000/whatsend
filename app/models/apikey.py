@@ -11,6 +11,7 @@ class ApiKey(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    token_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tokens.id"), nullable=True)
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     key_prefix: Mapped[str] = mapped_column(String(20), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -19,3 +20,4 @@ class ApiKey(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="api_keys")
+    token: Mapped["Token | None"] = relationship("Token")

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ _('API Keys') }} — Zamzam{% endblock %}
+{% block title %}{{ _('API Keys') }} — whatsend{% endblock %}
 {% block content %}
 <div class="section-header header-row">
   <h1>{{ _('API Keys') }}</h1>
@@ -11,6 +11,7 @@
       <tr>
         <th>{{ _('Name') }}</th>
         <th>{{ _('Key') }}</th>
+        <th>{{ _('Token') }}</th>
         <th>{{ _('Active') }}</th>
         <th>{{ _('Created') }}</th>
         <th>{{ _('Last Used') }}</th>
@@ -22,6 +23,7 @@
       <tr>
         <td>{{ key.name or "—" }}</td>
         <td><code>{{ key.key_prefix }}...</code></td>
+        <td>{{ token_names.get(key.token_id, _('Not linked')) }}</td>
         <td>{{ "✅" if key.is_active else "❌" }}</td>
         <td>{{ tz(key.created_at, user_tz) }}</td>
         <td>{{ tz(key.last_used_at, user_tz) }}</td>
@@ -39,7 +41,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">{{ _('No API keys yet.') }}</div><a href="/api-keys/create" class="btn btn-primary">{{ _('Generate one') }}</a></div></td></tr>
+      <tr><td colspan="7" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">{{ _('No API keys yet.') }}</div><a href="/api-keys/create" class="btn btn-primary">{{ _('Generate one') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>

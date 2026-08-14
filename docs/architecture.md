@@ -1,8 +1,10 @@
-# WhatSend Architecture
+# whatsend Architecture
+
+> **Current implementation note (2026-08-14):** Schema changes are managed by Alembic. Recurring cron expressions are stored in `jobs.schedule_timezone`, delivery retries are persisted on the job, and `delivery_attempts` records recipient-level outcomes. Media is signature-validated and served through an authenticated route. UI POST requests use CSRF protection. API-key pages and bearer API routes are registered only when `API_KEYS_ENABLED=true` (off by default). The deployment remains intentionally single-instance while using SQLite and an in-process scheduler.
 
 ## Overview
 
-WhatSend is a full-stack web application for scheduling WhatsApp messages via the [Whapi.Cloud](https://whapi.cloud) API. Users sign up, add API tokens, pick a group from their WhatsApp account, and schedule messages — one-time, recurring, send immediately, or trigger-on-demand.
+whatsend is a full-stack web application for scheduling WhatsApp messages via the [Whapi.Cloud](https://whapi.cloud) API. Users sign up, add API tokens, pick a group from their WhatsApp account, and schedule messages — one-time, recurring, send immediately, or trigger-on-demand.
 
 ```
 Browser ──HTTPS──> FastAPI ──SQLAlchemy──> SQLite
@@ -196,7 +198,7 @@ When a trigger fires, APScheduler calls `send_job(job_id)`:
 
 - User selects a timezone during signup (stored in `users.timezone` and JWT `tz` field)
 - "One-time" date input is converted from user's timezone to UTC before storing
-- Stored trigger values are always in UTC
+- One-time trigger values are stored in UTC; recurring cron expressions remain in their IANA schedule timezone so DST rules stay correct
 - `tz()` Jinja2 filter converts UTC datetimes to the user's timezone for display
 - `parse_dt()` converts stored datetime strings to Python datetime objects
 - `cron_to_text()` converts cron expressions to human-readable text (e.g. "Daily at 09:00", "Weekdays at 14:30")
@@ -207,18 +209,18 @@ When a trigger fires, APScheduler calls `send_job(job_id)`:
 
 API tokens are encrypted at rest using Fernet symmetric encryption:
 
-1. `SECRET_KEY` from `.env` is hashed with SHA-256
+1. `TOKEN_ENCRYPTION_KEY` is hashed with SHA-256 (legacy installations fall back to `SECRET_KEY`)
 2. The hash is base64-encoded to produce a 32-byte Fernet key
 3. `encrypt_token()` encrypts the plaintext token before storing in DB
 4. `decrypt_token()` decrypts it at send time
 
-## Image upload
+## Media upload
 
-- Accepted types: JPEG, PNG, GIF, WebP
-- Max size: 5MB
-- Images are saved to `uploads/` with a unique timestamp-based filename
-- Image file is deleted when the associated job is deleted (or replaced on edit)
-- Sent as `multipart/form-data` to Whapi.Cloud's `/messages/image` endpoint
+- Accepted types: JPEG, PNG, GIF, WebP, MP4, MOV, AVI, MKV, WebM
+- Max size: 50MB, streamed in bounded chunks
+- File signatures and declared MIME types are checked before acceptance
+- Media uses random UUID filenames and is served only after job ownership verification
+- Shared clone media is deleted only after its final job reference is removed
 
 ## Group picker
 
@@ -349,7 +351,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ### Fly.io
 
-`fly.toml` configures a persistent volume at `/data` and sets `DATABASE_URL` to point there. The `release_command` runs `create_tables()` on every deploy to ensure the schema is up to date.
+`fly.toml` configures a persistent volume at `/data` and sets `DATABASE_URL` to point there. The release command runs `alembic upgrade head`, and `/health/ready` verifies the database and scheduler.
 
 `SECRET_KEY` must be set as a Fly secret:
 ```bash
@@ -358,4 +360,4 @@ fly secrets set SECRET_KEY="your-secret-key"
 
 ## Tests
 
-Located in `tests/test_crypto.py` — 6 pytest tests covering Fernet encryption/decryption round-trip, different outputs on each call (IV), wrong-key rejection, empty strings, long tokens, and special characters.
+The test suite covers crypto, API-key authentication, sender behavior, scheduling defaults, DST-safe schedule construction, CSRF checks, upload signatures, token ownership, feature flags, and the Meta adapter/webhook scaffold.

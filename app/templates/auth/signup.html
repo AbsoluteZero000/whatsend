@@ -3,39 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
-  <title>{{ _('Sign Up') }} — Zamzam</title>
-  <link rel="stylesheet" href="/static/css/app.css?v=8">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <script nonce="{{ csp_nonce }}">if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
+  <title>{{ _('Sign Up') }} — whatsend</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=17">
 </head>
 <body class="auth-page">
   <div class="auth-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <h1>📬 Zamzam</h1>
+        <h1>📬 whatsend</h1>
         <h2>{{ _('Sign up') }}</h2>
       </div>
       <button id="themeToggleAuth" class="theme-toggle" style="font-size:1.2rem;margin-top:0.25rem;"></button>
     </div>
     {% if error %}
-      <p class="error">{{ error }}</p>
+      <p class="error">{{ _(error) }}</p>
     {% endif %}
     <form method="POST" action="/auth/signup">
-      <input type="text" name="username" placeholder="{{ _('Username') }}" required autocomplete="username">
+      <label class="auth-label" for="username">{{ _('Username') }}</label>
+      <input id="username" type="text" name="username" value="{{ username|default('') }}" placeholder="{{ _('Username') }}" required autocomplete="username">
+      <label class="auth-label" for="password">{{ _('Password') }}</label>
       <input type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="new-password">
-      <select name="timezone">
+      <label class="auth-label" for="timezone">{{ _('Your timezone') }}</label>
+      <input id="timezone" class="timezone-picker" type="text" name="timezone" value="{{ selected_timezone|default('') }}" list="timezone-options" placeholder="{{ _('Search by city or region…') }}" required autocomplete="off" aria-describedby="timezone-help">
+      <datalist id="timezone-options">
         {% for tz in timezones %}
-        <option value="{{ tz }}">{{ tz }}</option>
+        <option value="{{ tz }}"></option>
         {% endfor %}
-      </select>
+      </datalist>
+      <small id="timezone-help" class="field-help">{{ _('Used to show and schedule messages in your local time.') }}</small>
       <button type="submit">{{ _('Sign up') }}</button>
     </form>
     <p class="alt-link">{{ _('Already have an account?') }} <a href="/auth/signin">{{ _('Sign in') }}</a></p>
   </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 const t = document.getElementById('themeToggleAuth');
+const timezone = document.getElementById('timezone');
 function u(){const d=document.documentElement.getAttribute('data-theme')==='dark';t.textContent=d?'\u2600\uFE0F':'\uD83C\uDF19'}
 t.addEventListener('click',function(){const d=document.documentElement.getAttribute('data-theme')==='dark';const n=d?'light':'dark';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('theme',n);u()});
+if (!timezone.value) {
+  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const supported = Array.from(document.getElementById('timezone-options').options, option => option.value);
+  timezone.value = supported.includes(detectedTimezone) ? detectedTimezone : 'UTC';
+}
 u();
 </script>
+<script src="/static/js/security.js?v=1"></script>
 </body>
 </html>

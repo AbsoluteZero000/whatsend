@@ -1,26 +1,13 @@
-from abc import ABC, abstractmethod
+import httpx
+import mimetypes
 from pathlib import Path
 
-import httpx
 
-from app.config import settings
-
-
-class BaseSender(ABC):
-    @abstractmethod
-    async def send(self, recipient_id: str, message: str, image_path: str | None = None) -> dict:
-        ...
-
-    @abstractmethod
-    async def get_recipients(self) -> list[dict]:
-        ...
-
-
-class WhatsAppSender(BaseSender):
-    def __init__(self, api_token: str, timeout: int = 30, base_url: str | None = None):
+class WhatsAppSender:
+    def __init__(self, api_token: str, timeout: int = 30, base_url: str = "https://gate.whapi.cloud"):
         self.token = api_token
         self.timeout = timeout
-        self.base_url = base_url or settings.whapi_base_url
+        self.base_url = base_url
         self.headers = {"accept": "application/json", "authorization": f"Bearer {api_token}"}
 
     async def send_text(self, chat_id: str, message: str) -> dict:
@@ -41,7 +28,7 @@ class WhatsAppSender(BaseSender):
                     f"{self.base_url}/messages/image",
                     headers={"authorization": f"Bearer {self.token}"},
                     data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, "image/jpeg")},
+                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
                 )
         response.raise_for_status()
         return response.json()
@@ -54,7 +41,7 @@ class WhatsAppSender(BaseSender):
                     f"{self.base_url}/messages/video",
                     headers={"authorization": f"Bearer {self.token}"},
                     data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, "video/mp4")},
+                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
                 )
         response.raise_for_status()
         return response.json()
@@ -70,60 +57,16 @@ class WhatsAppSender(BaseSender):
         data = response.json()
         return data.get("groups", [])
 
-    async def get_recipients(self) -> list[dict]:
-        return await self.get_groups()
-
-    async def send(self, recipient_id: str, message: str, image_path: str | None = None) -> dict:
+    async def send(self, chat_id: str, message: str, image_path: str | None = None) -> dict:
         if not image_path:
-            return await self.send_text(recipient_id, message)
+            return await self.send_text(chat_id, message)
         ext = Path(image_path).suffix.lower()
         if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
-            return await self.send_video(recipient_id, image_path, caption=message)
-        return await self.send_image(recipient_id, image_path, caption=message)
+            return await self.send_video(chat_id, image_path, caption=message)
+        return await self.send_image(chat_id, image_path, caption=message)
 
 
-class SignalSender(BaseSender):
-    def __init__(self, api_token: str, timeout: int = 30, base_url: str | None = None, number: str | None = None):
-        self.token = api_token
-        self.timeout = timeout
-        self.base_url = base_url or settings.signal_base_url
-        self.number = number or settings.signal_number
-        self.headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-        }
-        if api_token:
-            self.headers["authorization"] = f"Bearer {api_token}"
-
-    async def send(self, recipient_id: str, message: str, image_path: str | None = None) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            payload = {
-                "number": self.number,
-                "recipients": [recipient_id],
-                "message": message,
-            }
-            response = await client.post(
-                f"{self.base_url}/v2/send",
-                headers=self.headers,
-                json=payload,
-            )
-        response.raise_for_status()
-        return response.json()
-
-    async def get_recipients(self) -> list[dict]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/v1/groups/{self.number}",
-                headers=self.headers,
-            )
-        response.raise_for_status()
-        data = response.json()
-        if isinstance(data, list):
-            return [{"id": g.get("groupId", ""), "name": g.get("name", "")} for g in data]
-        return data.get("groups", [])
-
-
-def get_sender(provider: str, api_token: str) -> BaseSender:
-    if provider == "signal":
-        return SignalSender(api_token=api_token)
-    return WhatsAppSender(api_token=api_token)
+def get_sender(provider: str, api_token: str):
+    if provider == "whatsapp":
+        return WhatsAppSender(api_token=api_token)
+    raise ValueError(f"Unsupported provider: {provider}")

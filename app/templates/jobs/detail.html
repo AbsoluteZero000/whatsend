@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Job') }} #{{ job.id }} — Zamzam{% endblock %}
+{% block title %}{{ _('Job') }} #{{ job.id }} — whatsend{% endblock %}
 {% block content %}
 <div class="section-header header-row">
   <div>
@@ -50,7 +50,7 @@
           {% elif job.trigger_type == "trigger" %}
             {{ _('On Trigger') }}
           {% else %}
-            {{ cron_to_text(job.trigger_value, user_tz) }}
+            {{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}
           {% endif %}
         </span>
       </div>
@@ -85,10 +85,10 @@
       <div class="detail-image">
         {% if media_is_video %}
         <video controls class="detail-img">
-          <source src="/uploads/{{ media_filename }}">
+          <source src="/media/{{ media_filename }}">
         </video>
         {% else %}
-        <img src="/uploads/{{ media_filename }}" alt="{{ _('Message media') }}" class="detail-img">
+        <img src="/media/{{ media_filename }}" alt="{{ _('Message media') }}" class="detail-img">
         {% endif %}
       </div>
       {% endif %}
@@ -99,14 +99,14 @@
     <div class="detail-card-header">{{ _('Actions') }}</div>
     <div class="detail-body">
       <div class="detail-actions">
-        {% if job.status in ("pending", "active", "trigger") and job.trigger_type != "now" %}
+        {% if job.status in ("pending", "active", "trigger", "retry_scheduled") and job.trigger_type != "now" %}
         <a href="/jobs/{{ job.id }}/edit" class="btn btn-primary">{{ _('Edit') }}</a>
         {% endif %}
         <a href="/logs?job_id={{ job.id }}" class="btn btn-primary">{{ _('Logs') }}</a>
         <form method="POST" action="/jobs/{{ job.id }}/clone">
           <button class="btn btn-secondary">{{ _('Clone') }}</button>
         </form>
-        {% if job.status in ("pending", "active") and job.trigger_type not in ("trigger", "now") %}
+        {% if job.status in ("pending", "active", "retry_scheduled") and job.trigger_type not in ("trigger", "now") %}
         <form method="POST" action="/jobs/{{ job.id }}/pause">
           <button class="btn btn-warning">{{ _('Pause') }}</button>
         </form>
@@ -133,13 +133,34 @@
           <button class="btn btn-primary">{{ _('Resume') }}</button>
         </form>
         {% endif %}
-        <form method="POST" action="/jobs/{{ job.id }}/delete" onsubmit="customConfirm(event, '{{ _('Delete this job?') }}')">
+        <form method="POST" action="/jobs/{{ job.id }}/delete" data-confirm="{{ _('Delete this job?') }}">
           <button class="btn btn-danger">{{ _('Delete') }}</button>
         </form>
       </div>
     </div>
   </div>
 </div>
+
+{% if delivery_attempts %}
+<div class="section-header" style="margin-top:2rem;">
+  <h2>{{ _('Recipient delivery attempts') }}</h2>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>{{ _('Recipient') }}</th><th>{{ _('Attempt') }}</th><th>{{ _('Status') }}</th><th>{{ _('Sent At') }}</th></tr></thead>
+    <tbody>
+      {% for attempt in delivery_attempts %}
+      <tr>
+        <td>{{ attempt.group_name or attempt.group_id }}</td>
+        <td>#{{ attempt.attempt_number }}</td>
+        <td><span class="badge badge-{{ 'completed' if attempt.status == 'sent' else 'failed' }}">{{ _(attempt.status) }}</span></td>
+        <td>{{ tz(attempt.created_at, user_tz) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 <div class="section-header" style="margin-top:2rem;">
   <h2>{{ _('Recent Logs') }}</h2>

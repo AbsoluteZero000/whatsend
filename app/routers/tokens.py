@@ -1,16 +1,21 @@
 from urllib.parse import urlencode
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.token import Token
+from app.models.job import Job
+from app.models.apikey import ApiKey
 from app.routers.auth import require_user
 from app.services.crypto import encrypt_token, decrypt_token
+from app.services.csrf import csrf_protect
+from app.services.scheduler import remove_job
 
-router = APIRouter(prefix="/tokens", tags=["tokens"])
+router = APIRouter(prefix="/tokens", tags=["tokens"], dependencies=[Depends(csrf_protect)])
 
 def _flash(url: str, success: str = "") -> RedirectResponse:
     if success:
@@ -38,14 +43,13 @@ async def create_token_page(request: Request):
 async def create_token(
     request: Request,
     name: str = Form(default=""),
-    provider: str = Form(default="whatsapp"),
     api_token: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
     user_id = int(user["sub"])
 
-    token = Token(user_id=user_id, name=name or None, provider=provider, api_token=encrypt_token(api_token))
+    token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token))
     db.add(token)
     await db.commit()
     return _flash("/tokens", success="Token created")
@@ -82,7 +86,6 @@ async def edit_token(
     token_id: int,
     request: Request,
     name: str = Form(default=""),
-    provider: str = Form(default="whatsapp"),
     api_token: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
@@ -95,7 +98,6 @@ async def edit_token(
         return RedirectResponse(url="/tokens", status_code=303)
 
     token.name = name or None
-    token.provider = provider
     if api_token:
         token.api_token = encrypt_token(api_token)
     await db.commit()
@@ -110,6 +112,17 @@ async def delete_token(token_id: int, request: Request, db: AsyncSession = Depen
     result = await db.execute(select(Token).where(Token.id == token_id, Token.user_id == user_id))
     token = result.scalar_one_or_none()
     if token:
+        jobs_result = await db.execute(select(Job).where(Job.token_id == token.id, Job.user_id == user_id))
+        linked_jobs = jobs_result.scalars().all()
+        media_paths = {job.image_path for job in linked_jobs if job.image_path}
+        for job in linked_jobs:
+            await remove_job(job.id)
+        await db.execute(update(ApiKey).where(ApiKey.token_id == token.id).values(token_id=None))
         await db.delete(token)
+        await db.flush()
+        for media_path in media_paths:
+            references = await db.scalar(select(func.count(Job.id)).where(Job.image_path == media_path))
+            if not references:
+                Path(media_path).unlink(missing_ok=True)
         await db.commit()
     return _flash("/tokens", success="Token deleted")

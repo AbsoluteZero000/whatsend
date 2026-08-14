@@ -3,18 +3,31 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import TIMEZONE_CHOICES
+from app.config import TIMEZONE_CHOICES, settings
 from app.database import get_db
 from app.i18n import _
 from app.models.user import User
 from app.services.auth import create_jwt, decode_jwt, hash_password, verify_password
+from app.services.csrf import csrf_protect
+from app.services.rate_limit import check_rate_limit, clear_rate_limit
 
 
 class RedirectRequired(Exception):
     def __init__(self, url: str):
         self.url = url
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(csrf_protect)])
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key="session",
+        value=token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        max_age=86400,
+        samesite="lax",
+    )
 
 
 def get_current_user(request: Request) -> dict | None:
@@ -49,12 +62,39 @@ async def signup(
     timezone: str = Form("UTC"),
     db: AsyncSession = Depends(get_db),
 ):
+    username = username.strip()
+    check_rate_limit(request, "signup", username, limit=5, window_seconds=3600)
+    if len(username) < 3:
+        return request.app.state.render(
+            request, "auth/signup.html", error="Username must be at least 3 characters", timezones=TIMEZONE_CHOICES,
+            username=username, selected_timezone=timezone,
+        )
+    if len(password) < 10:
+        return request.app.state.render(
+            request, "auth/signup.html", error="Password must be at least 10 characters", timezones=TIMEZONE_CHOICES,
+            username=username, selected_timezone=timezone,
+        )
+    if timezone not in TIMEZONE_CHOICES:
+        return request.app.state.render(
+            request,
+            "auth/signup.html",
+            error="Choose a timezone from the list",
+            timezones=TIMEZONE_CHOICES,
+            username=username,
+            selected_timezone=timezone,
+        )
+
     result = await db.execute(select(User).where(User.username == username))
     if result.scalar_one_or_none():
-        return request.app.state.render(request, "auth/signup.html", error="Username already taken", timezones=TIMEZONE_CHOICES)
+        return request.app.state.render(
+            request,
+            "auth/signup.html",
+            error="Username already taken",
+            timezones=TIMEZONE_CHOICES,
+            username=username,
+            selected_timezone=timezone if timezone in TIMEZONE_CHOICES else "UTC",
+        )
 
-    if timezone not in TIMEZONE_CHOICES:
-        timezone = "UTC"
     user = User(username=username, password_hash=hash_password(password), timezone=timezone)
     db.add(user)
     await db.commit()
@@ -62,7 +102,7 @@ async def signup(
 
     token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
-    redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
@@ -81,19 +121,22 @@ async def signin(
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
+    username = username.strip()
+    check_rate_limit(request, "signin", username, limit=10, window_seconds=900)
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(password, user.password_hash):
+    if not user or not user.is_active or not verify_password(password, user.password_hash):
         return request.app.state.render(request, "auth/signin.html", error="Invalid credentials")
 
     token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
+    clear_rate_limit(request, "signin", username)
     redirect = RedirectResponse(url="/dashboard", status_code=303)
-    redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
 
-@router.get("/signout")
+@router.post("/signout")
 async def signout():
     redirect = RedirectResponse(url="/auth/signin", status_code=303)
     redirect.delete_cookie(key="session")
@@ -128,7 +171,13 @@ async def timezone_update(
     user_id = int(user_payload["sub"])
 
     if timezone not in TIMEZONE_CHOICES:
-        timezone = "UTC"
+        return request.app.state.render(
+            request,
+            "auth/timezone.html",
+            error="Choose a timezone from the list",
+            timezones=TIMEZONE_CHOICES,
+            current_tz=timezone,
+        )
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -140,7 +189,7 @@ async def timezone_update(
     onboarded = user_payload.get("onboarded", True)
     token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone, "lang": lang, "onboarded": onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
-    redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
@@ -182,6 +231,8 @@ async def profile_update(
             return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Current password is incorrect", user.lang))
         if new_password != confirm_password:
             return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Passwords do not match", user.lang))
+        if len(new_password) < 10:
+            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Password must be at least 10 characters", user.lang))
         user.password_hash = hash_password(new_password)
 
     await db.commit()
@@ -189,7 +240,7 @@ async def profile_update(
 
     token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
     redirect = RedirectResponse(url="/auth/profile", status_code=303)
-    redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+    _set_session_cookie(redirect, token)
     return redirect
 
 
@@ -221,7 +272,7 @@ async def lang_toggle(
             "onboarded": user_payload.get("onboarded", True),
         })
         redirect = RedirectResponse(url=referer, status_code=303)
-        redirect.set_cookie(key="session", value=token, httponly=True, max_age=86400, samesite="lax")
+        _set_session_cookie(redirect, token)
         redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
     else:
         redirect = RedirectResponse(url=referer, status_code=303)
