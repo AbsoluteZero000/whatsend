@@ -87,6 +87,8 @@
         <video controls class="detail-img">
           <source src="/media/{{ media_filename }}">
         </video>
+        {% elif media_is_document %}
+        <a href="/media/{{ media_filename }}" class="btn btn-secondary" target="_blank" rel="noopener">{{ _('Open attachment') }}</a>
         {% else %}
         <img src="/media/{{ media_filename }}" alt="{{ _('Message media') }}" class="detail-img">
         {% endif %}

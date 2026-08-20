@@ -35,15 +35,18 @@
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
 
-    <label for="image">{{ _('Media (optional, max 50MB)') }}</label>
-    <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm">
+    <label for="image">{{ _('Attachment (optional, max 50MB)') }}</label>
+    <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip">
     {% if edit_mode and job.image_path and image_available %}
     <div style="margin-bottom:0.5rem;">
       {% set is_video = job.image_path.lower().endswith(('.mp4','.mov','.avi','.mkv','.webm')) %}
+      {% set is_document = job.image_path.lower().endswith(('.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.csv','.rtf','.odt','.ods','.odp','.zip')) %}
       {% if is_video %}
       <video controls style="max-width:320px;max-height:320px;border-radius:8px;display:block;border:1px solid var(--border);">
         <source src="/media/{{ job.image_path.split('/')[-1] }}">
       </video>
+      {% elif is_document %}
+      <a href="/media/{{ job.image_path.split('/')[-1] }}" class="btn btn-secondary" target="_blank" rel="noopener">{{ _('Open current attachment') }}</a>
       {% else %}
       <img src="/media/{{ job.image_path.split('/')[-1] }}" style="max-width:240px;max-height:240px;border-radius:8px;display:block;border:1px solid var(--border);">
       {% endif %}
@@ -54,7 +57,7 @@
       {{ _('Could not find the file — please upload it again.') }}
     </div>
     {% endif %}
-    <small style="color:#888;">{{ _('Supported: JPEG, PNG, GIF, WebP, MP4, MOV, AVI, MKV, WebM — up to 50MB') }}</small>
+    <small style="color:#888;">{{ _('Supported: images, videos, PDF, Office, OpenDocument, text, CSV, RTF, and ZIP — up to 50MB') }}</small>
 
     <label for="trigger_type">{{ _('Trigger Type') }}</label>
     <select id="trigger_type" name="trigger_type" required {% if edit_mode and job.trigger_type == 'now' %}disabled{% endif %}>

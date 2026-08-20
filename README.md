@@ -21,7 +21,7 @@ And that's where we are today. whatsend is a full-featured WhatsApp scheduler yo
 - **One-time scheduling** — Pick a date & time with a native datetime picker
 - **Recurring scheduling** — User-friendly UI (Daily, Weekdays, Weekly with multi-day checkboxes, Monthly, Custom cron) — no cron syntax needed
 - **Group picker** — Fetches your WhatsApp groups via the API and shows them by name; manual entry also supported
-- **Media upload** — Attach validated JPEG/PNG/GIF/WebP images or MP4/MOV/AVI/MKV/WebM videos (max 50MB)
+- **File upload** — Attach validated images, videos, PDFs, Office/OpenDocument files, text/CSV/RTF, or ZIP archives (max 50MB)
 - **Clone jobs** — Duplicate any job with one click
 - **Skip jobs** — Skip the next scheduled execution (or multiple) without cancelling
 - **Search & filter** — Filter by status (Active/Paused/Completed/Failed/All) and search by label or group name

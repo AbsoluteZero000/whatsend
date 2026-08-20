@@ -55,6 +55,33 @@ def test_upload_rejects_spoofed_extension(tmp_path, monkeypatch):
     assert not list(tmp_path.iterdir())
 
 
+def test_upload_accepts_pdf(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
+    upload = make_upload(b"%PDF-1.7\n% test document", "report.pdf", "application/pdf")
+    saved = asyncio.run(jobs.save_upload(upload))
+    assert saved is not None
+    assert saved.endswith(".pdf")
+
+
+def test_upload_accepts_office_document(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
+    upload = make_upload(
+        b"PK\x03\x04" + b"office payload",
+        "report.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    saved = asyncio.run(jobs.save_upload(upload))
+    assert saved is not None
+    assert saved.endswith(".docx")
+
+
+def test_upload_rejects_executable(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
+    upload = make_upload(b"MZ" + b"payload", "program.exe", "application/octet-stream")
+    with pytest.raises(HTTPException, match="Unsupported file type"):
+        asyncio.run(jobs.save_upload(upload))
+
+
 def test_job_token_must_belong_to_user():
     class EmptyResult:
         def scalar_one_or_none(self):

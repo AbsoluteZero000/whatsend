@@ -46,6 +46,19 @@ class WhatsAppSender:
         response.raise_for_status()
         return response.json()
 
+    async def send_document(self, chat_id: str, document_path: str, caption: str = "") -> dict:
+        p = Path(document_path)
+        with p.open("rb") as fh:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/messages/document",
+                    headers={"authorization": f"Bearer {self.token}"},
+                    data={"to": chat_id, "caption": caption},
+                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
+                )
+        response.raise_for_status()
+        return response.json()
+
     async def get_groups(self) -> list[dict]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
@@ -63,6 +76,11 @@ class WhatsAppSender:
         ext = Path(image_path).suffix.lower()
         if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
             return await self.send_video(chat_id, image_path, caption=message)
+        if ext in {
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".txt", ".csv", ".rtf", ".odt", ".ods", ".odp", ".zip",
+        }:
+            return await self.send_document(chat_id, image_path, caption=message)
         return await self.send_image(chat_id, image_path, caption=message)
 
 

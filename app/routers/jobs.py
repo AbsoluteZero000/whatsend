@@ -38,7 +38,14 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50MB
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+DOCUMENT_EXTENSIONS = {
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".txt", ".csv", ".rtf", ".odt", ".ods", ".odp", ".zip",
+}
+ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | DOCUMENT_EXTENSIONS
+_is_zip = lambda h: h.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"))
+_is_ole = lambda h: h.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+_is_text = lambda h: b"\x00" not in h
 MEDIA_SIGNATURES = {
     ".jpg": ("image/jpeg", lambda h: h.startswith(b"\xff\xd8\xff")),
     ".png": ("image/png", lambda h: h.startswith(b"\x89PNG\r\n\x1a\n")),
@@ -49,6 +56,33 @@ MEDIA_SIGNATURES = {
     ".avi": ("video/x-msvideo", lambda h: h.startswith(b"RIFF") and h[8:12] == b"AVI "),
     ".mkv": ("video/x-matroska", lambda h: h.startswith(b"\x1aE\xdf\xa3")),
     ".webm": ("video/webm", lambda h: h.startswith(b"\x1aE\xdf\xa3")),
+    ".pdf": ("application/pdf", lambda h: h.startswith(b"%PDF-")),
+    ".doc": ("application/msword", _is_ole),
+    ".docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", _is_zip),
+    ".xls": ("application/vnd.ms-excel", _is_ole),
+    ".xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", _is_zip),
+    ".ppt": ("application/vnd.ms-powerpoint", _is_ole),
+    ".pptx": ("application/vnd.openxmlformats-officedocument.presentationml.presentation", _is_zip),
+    ".txt": ("text/plain", _is_text),
+    ".csv": ("text/csv", _is_text),
+    ".rtf": ("application/rtf", lambda h: h.lstrip().startswith(b"{\\rtf")),
+    ".odt": ("application/vnd.oasis.opendocument.text", _is_zip),
+    ".ods": ("application/vnd.oasis.opendocument.spreadsheet", _is_zip),
+    ".odp": ("application/vnd.oasis.opendocument.presentation", _is_zip),
+    ".zip": ("application/zip", _is_zip),
+}
+
+CONTENT_TYPE_ALIASES = {
+    ".docx": {"application/zip"},
+    ".xlsx": {"application/zip"},
+    ".pptx": {"application/zip"},
+    ".odt": {"application/zip"},
+    ".ods": {"application/zip"},
+    ".odp": {"application/zip"},
+    ".txt": {"text/csv"},
+    ".csv": {"text/plain", "application/vnd.ms-excel"},
+    ".rtf": {"text/rtf"},
+    ".zip": {"application/x-zip-compressed"},
 }
 
 
@@ -70,7 +104,7 @@ async def save_upload(file: UploadFile) -> str | None:
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
     expected_mime, signature_matches = MEDIA_SIGNATURES[ext]
-    allowed_content_types = {expected_mime, "application/octet-stream"}
+    allowed_content_types = {expected_mime, "application/octet-stream"} | CONTENT_TYPE_ALIASES.get(ext, set())
     if file.content_type and file.content_type not in allowed_content_types:
         raise HTTPException(status_code=400, detail="The uploaded file type does not match its extension")
 
@@ -578,11 +612,12 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     media_available = bool(job.image_path and Path(job.image_path).exists())
     media_filename = Path(job.image_path).name if media_available else ""
     media_is_video = bool(media_available and Path(job.image_path).suffix.lower() in VIDEO_EXTENSIONS)
+    media_is_document = bool(media_available and Path(job.image_path).suffix.lower() in DOCUMENT_EXTENSIONS)
 
     return request.app.state.render(request, "jobs/detail.html",
                                      job=job, logs=logs, delivery_attempts=delivery_attempts, next_run=next_run,
                                      media_available=media_available, media_filename=media_filename,
-                                     media_is_video=media_is_video)
+                                     media_is_video=media_is_video, media_is_document=media_is_document)
 
 
 @router.get("/{job_id}/edit")
