@@ -14,6 +14,7 @@ from sqlalchemy import select, text
 from app.database import async_session
 from app.i18n import _ as _translate
 from app.models.job import Job
+from app.models.user import User
 from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, media, tokens, webhooks
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
@@ -142,6 +143,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with async_session() as db:
+        await auth.ensure_default_admin(db)
         result = await db.execute(select(Job).where(Job.image_path.isnot(None)))
         for job in result.scalars().all():
             if job.image_path and not Path(job.image_path).exists():
@@ -169,6 +171,24 @@ async def security_headers(request: Request, call_next):
     if settings.cookie_secure:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+@app.middleware("http")
+async def active_account_guard(request: Request, call_next):
+    payload = auth.get_current_user(request)
+    if payload:
+        try:
+            user_id = int(payload["sub"])
+        except (KeyError, TypeError, ValueError):
+            user_id = None
+        if user_id is not None:
+            async with async_session() as db:
+                is_active = await db.scalar(select(User.is_active).where(User.id == user_id))
+            if is_active is not True:
+                response = RedirectResponse(url="/auth/signin", status_code=303)
+                response.delete_cookie(key="session")
+                return response
+    return await call_next(request)
 
 
 @app.exception_handler(RedirectRequired)

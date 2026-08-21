@@ -30,13 +30,14 @@
     </div>
     <div class="admin-table-wrap">
       <table class="admin-table">
-        <thead><tr><th>{{ _('User') }}</th><th>{{ _('Status') }}</th><th>{{ _('Jobs') }}</th><th>{{ _('Messages sent') }}</th><th>{{ _('Connections') }}</th><th>{{ _('Joined') }}</th></tr></thead>
+        <thead><tr><th>{{ _('User') }}</th><th>{{ _('Status') }}</th><th>{{ _('Jobs') }}</th><th>{{ _('Messages sent') }}</th><th>{{ _('Connections') }}</th><th>{{ _('Joined') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
         {% for row in users %}<tr>
           <td><div class="admin-user"><span>{{ row.user.username[0]|upper }}</span><div><strong>{{ row.user.username }}</strong><small>{{ row.user.timezone }}</small></div>{% if row.user.is_admin %}<em>{{ _('Admin') }}</em>{% endif %}</div></td>
           <td><span class="account-status {{ 'is-active' if row.user.is_active else 'is-inactive' }}"><i></i>{{ _('Active') if row.user.is_active else _('Inactive') }}</span></td>
           <td>{{ row.jobs_count }}</td><td>{{ row.sent_count }}</td><td>{{ row.tokens_count }}</td><td>{{ tz(row.user.created_at, user_tz) }}</td>
-        </tr>{% else %}<tr><td colspan="6" class="admin-empty">{{ _('No users match your search.') }}</td></tr>{% endfor %}
+          <td>{% if row.user.id != admin.id %}<form method="POST" action="/admin/users/{{ row.user.id }}/toggle-active" {% if row.user.is_active %}data-confirm="{{ _('Deactivate this user?') }}"{% endif %}><input type="hidden" name="q" value="{{ search }}"><input type="hidden" name="page" value="{{ page }}"><button class="btn btn-sm {{ 'btn-warning' if row.user.is_active else 'btn-secondary' }}" type="submit">{{ _('Deactivate') if row.user.is_active else _('Reactivate') }}</button></form>{% else %}<span class="admin-self-label">{{ _('You') }}</span>{% endif %}</td>
+        </tr>{% else %}<tr><td colspan="7" class="admin-empty">{{ _('No users match your search.') }}</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>

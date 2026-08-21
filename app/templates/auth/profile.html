@@ -4,10 +4,10 @@
 <div class="section-header">
   <h1>{{ _('Profile Settings') }}</h1>
 </div>
-{% if force_username_change %}
+{% if force_password_change %}
 <div class="setup-banner profile-required-banner">
-  <div class="setup-icon" aria-hidden="true">✎</div>
-  <div class="setup-copy"><strong>{{ _('Choose your administrator username') }}</strong><span>{{ _('For security, replace the default admin username before continuing.') }}</span></div>
+  <div class="setup-icon" aria-hidden="true">◆</div>
+  <div class="setup-copy"><strong>{{ _('Change the default administrator password') }}</strong><span>{{ _('Choose a private password of at least 10 characters before continuing.') }}</span></div>
 </div>
 {% endif %}
 {% if error %}
@@ -16,21 +16,21 @@
 <div class="form-card">
   <form method="POST" action="/auth/profile">
     <label for="username">{{ _('Change Username') }}</label>
-    <input type="text" id="username" name="username" value="{{ username }}" placeholder="{{ _('New Username') }}" minlength="3" required>
+    <input type="text" id="username" name="username" value="{{ username }}" placeholder="{{ _('New Username') }}" minlength="3">
 
     <hr class="form-divider">
 
     <label for="current_password">{{ _('Current Password') }}</label>
-    <input type="password" id="current_password" name="current_password" placeholder="{{ _('Current Password') }}">
+    <input type="password" id="current_password" name="current_password" placeholder="{{ _('Current Password') }}" {% if force_password_change %}required autofocus{% endif %}>
 
     <label for="new_password">{{ _('New Password') }}</label>
-    <input type="password" id="new_password" name="new_password" placeholder="{{ _('New Password') }}">
+    <input type="password" id="new_password" name="new_password" placeholder="{{ _('New Password') }}" minlength="10" {% if force_password_change %}required{% endif %}>
 
     <label for="confirm_password">{{ _('Confirm Password') }}</label>
-    <input type="password" id="confirm_password" name="confirm_password" placeholder="{{ _('Confirm Password') }}">
+    <input type="password" id="confirm_password" name="confirm_password" placeholder="{{ _('Confirm Password') }}" minlength="10" {% if force_password_change %}required{% endif %}>
 
     <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
-    {% if not force_username_change %}<a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>{% endif %}
+    {% if not force_password_change %}<a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>{% endif %}
   </form>
 </div>
 {% endblock %}

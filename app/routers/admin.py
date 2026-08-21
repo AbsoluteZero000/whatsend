@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from math import ceil
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +26,27 @@ async def require_admin(request: Request, db: AsyncSession) -> User:
     if user is None or not user.is_active or not user.is_admin:
         raise HTTPException(status_code=403, detail="Administrator access required")
     return user
+
+
+@router.post("/users/{user_id}/toggle-active")
+async def toggle_user_active(
+    user_id: int,
+    request: Request,
+    q: str = Form(""),
+    page: int = Form(1),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await require_admin(request, db)
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = not user.is_active
+    await db.commit()
+
+    query = urlencode({"page": max(1, page), "q": q.strip()})
+    return RedirectResponse(url=f"/admin?{query}", status_code=303)
 
 
 @router.get("")

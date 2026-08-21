@@ -292,9 +292,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Previous": "السابق",
         "Next": "التالي",
         "Page": "صفحة",
-        "Choose your administrator username": "اختر اسم مستخدم المسؤول",
-        "For security, replace the default admin username before continuing.": "للأمان، استبدل اسم المسؤول الافتراضي قبل المتابعة.",
-        "Choose a new username before continuing": "اختر اسم مستخدم جديدًا قبل المتابعة",
+        "Change the default administrator password": "غيّر كلمة مرور المسؤول الافتراضية",
+        "Choose a private password of at least 10 characters before continuing.": "اختر كلمة مرور خاصة لا تقل عن ١٠ أحرف قبل المتابعة.",
+        "Change the default password before continuing": "غيّر كلمة المرور الافتراضية قبل المتابعة",
+        "New password must be different from the current password": "يجب أن تختلف كلمة المرور الجديدة عن الحالية",
+        "Complete all password fields": "أكمل جميع حقول كلمة المرور",
+        "Deactivate this user?": "هل تريد تعطيل هذا المستخدم؟",
+        "Deactivate": "تعطيل",
+        "Reactivate": "إعادة تفعيل",
+        "You": "أنت",
     },
 }
 
