@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import TIMEZONE_CHOICES, settings
@@ -44,6 +44,60 @@ def require_user(request: Request) -> dict:
     user = get_current_user(request)
     if user is None:
         raise RedirectRequired("/auth/signin")
+    if user.get("force_password_change") and request.url.path not in {
+        "/auth/profile",
+        "/auth/signout",
+    }:
+        raise RedirectRequired("/auth/profile?first_login=1")
+    if user.get("is_admin") and not admin_path_allowed(request.url.path):
+        raise RedirectRequired("/admin")
+    return user
+
+
+def admin_path_allowed(path: str) -> bool:
+    return (
+        path == "/admin"
+        or path.startswith("/admin/")
+        or path in {"/auth/profile", "/auth/signout", "/auth/lang"}
+        or path.startswith("/static/")
+        or path.startswith("/health/")
+    )
+
+
+def _landing_page(user: User) -> str:
+    return "/admin" if user.is_admin else "/dashboard"
+
+
+def _session_payload(user: User) -> dict:
+    return {
+        "sub": str(user.id),
+        "username": user.username,
+        "tz": user.timezone,
+        "lang": user.lang,
+        "onboarded": user.onboarded,
+        "is_admin": user.is_admin,
+        "force_password_change": user.must_change_password,
+    }
+
+
+async def ensure_default_admin(db: AsyncSession) -> User:
+    username = "admin"
+    user = await db.scalar(select(User).where(User.username == username))
+    if user is None:
+        user = User(
+            username=username,
+            password_hash=hash_password(settings.default_admin_password),
+            timezone="UTC",
+            onboarded=True,
+            is_admin=True,
+            must_change_password=True,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    elif not user.is_admin:
+        user.is_admin = True
+        await db.commit()
     return user
 
 
@@ -95,13 +149,19 @@ async def signup(
             selected_timezone=timezone if timezone in TIMEZONE_CHOICES else "UTC",
         )
 
-    user = User(username=username, password_hash=hash_password(password), timezone=timezone)
+    user = User(
+        username=username,
+        password_hash=hash_password(password),
+        timezone=timezone,
+        is_admin=username in settings.admin_username_set,
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
-    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    token = create_jwt(_session_payload(user))
+    destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
+    redirect = RedirectResponse(url=destination, status_code=303)
     _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
@@ -128,9 +188,14 @@ async def signin(
     if not user or not user.is_active or not verify_password(password, user.password_hash):
         return request.app.state.render(request, "auth/signin.html", error="Invalid credentials")
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
+    if user.username in settings.admin_username_set and not user.is_admin:
+        user.is_admin = True
+        await db.commit()
+
+    token = create_jwt(_session_payload(user))
     clear_rate_limit(request, "signin", username)
-    redirect = RedirectResponse(url="/dashboard", status_code=303)
+    destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
+    redirect = RedirectResponse(url=destination, status_code=303)
     _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
@@ -187,7 +252,7 @@ async def timezone_update(
 
     lang = user_payload.get("lang", "en")
     onboarded = user_payload.get("onboarded", True)
-    token = create_jwt({"sub": str(user_id), "username": user_payload["username"], "tz": timezone, "lang": lang, "onboarded": onboarded})
+    token = create_jwt({**user_payload, "tz": timezone, "lang": lang, "onboarded": onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
     _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
@@ -200,7 +265,12 @@ async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = int(user_payload["sub"])
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    return request.app.state.render(request, "auth/profile.html", username=user.username if user else "")
+    return request.app.state.render(
+        request,
+        "auth/profile.html",
+        username=user.username if user else "",
+        force_password_change=bool(user and user.must_change_password),
+    )
 
 
 @router.post("/profile")
@@ -220,26 +290,73 @@ async def profile_update(
     if not user:
         return RedirectResponse(url="/auth/signin", status_code=303)
 
+    force_password_change = user.must_change_password
+    username = (username or "").strip()
+    if username and len(username) < 3:
+        return request.app.state.render(
+            request,
+            "auth/profile.html",
+            username=username,
+            force_password_change=force_password_change,
+            error="Username must be at least 3 characters",
+        )
     if username and username != user.username:
         existing = await db.execute(select(User).where(User.username == username))
         if existing.scalar_one_or_none():
-            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Username already taken", user.lang))
+            return request.app.state.render(
+                request,
+                "auth/profile.html",
+                username=user.username,
+                force_password_change=force_password_change,
+                error=_("Username already taken", user.lang),
+            )
         user.username = username
 
-    if current_password and new_password:
+    password_fields_present = bool(current_password or new_password or confirm_password)
+    if password_fields_present and not (current_password and new_password and confirm_password):
+        return request.app.state.render(
+            request, "auth/profile.html", username=user.username,
+            force_password_change=force_password_change,
+            error=(
+                "Change the default password before continuing"
+                if force_password_change
+                else "Complete all password fields"
+            ),
+        )
+    if password_fields_present:
         if not verify_password(current_password, user.password_hash):
-            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Current password is incorrect", user.lang))
+            return request.app.state.render(
+                request, "auth/profile.html", username=user.username,
+                force_password_change=force_password_change,
+                error=_("Current password is incorrect", user.lang),
+            )
         if new_password != confirm_password:
-            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Passwords do not match", user.lang))
+            return request.app.state.render(
+                request, "auth/profile.html", username=user.username,
+                force_password_change=force_password_change,
+                error=_("Passwords do not match", user.lang),
+            )
         if len(new_password) < 10:
-            return request.app.state.render(request, "auth/profile.html", username=user.username, error=_("Password must be at least 10 characters", user.lang))
+            return request.app.state.render(
+                request, "auth/profile.html", username=user.username,
+                force_password_change=force_password_change,
+                error=_("Password must be at least 10 characters", user.lang),
+            )
+        if verify_password(new_password, user.password_hash):
+            return request.app.state.render(
+                request, "auth/profile.html", username=user.username,
+                force_password_change=force_password_change,
+                error="New password must be different from the current password",
+            )
         user.password_hash = hash_password(new_password)
+        user.must_change_password = False
 
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt({"sub": str(user.id), "username": user.username, "tz": user.timezone, "lang": user.lang, "onboarded": user.onboarded})
-    redirect = RedirectResponse(url="/auth/profile", status_code=303)
+    token = create_jwt(_session_payload(user))
+    destination = _landing_page(user) if force_password_change else "/auth/profile"
+    redirect = RedirectResponse(url=destination, status_code=303)
     _set_session_cookie(redirect, token)
     return redirect
 
@@ -270,6 +387,8 @@ async def lang_toggle(
             "tz": user_payload.get("tz", "UTC"),
             "lang": lang,
             "onboarded": user_payload.get("onboarded", True),
+            "is_admin": user_payload.get("is_admin", False),
+            "force_password_change": user_payload.get("force_password_change", False),
         })
         redirect = RedirectResponse(url=referer, status_code=303)
         _set_session_cookie(redirect, token)

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Admin') }} — whatsend{% endblock %}
+{% block content %}
+<div class="dashboard dashboard-v2 admin-dashboard">
+  <header class="dashboard-hero admin-hero">
+    <div><span class="eyebrow">{{ _('PLATFORM OVERVIEW') }}</span><h1>{{ _('Admin dashboard') }}</h1><p>{{ _('Monitor delivery volume and manage your user base.') }}</p></div>
+    <span class="admin-badge"><span></span>{{ _('Administrator') }}</span>
+  </header>
+
+  <section class="metric-grid" aria-label="{{ _('Platform statistics') }}">
+    <div class="metric-card"><span class="metric-top"><span class="metric-label">{{ _('All-time messages') }}</span><span class="metric-symbol metric-green">✓</span></span><strong>{{ stats.all_time_sent }}</strong><span class="metric-caption">{{ _('successful deliveries') }}</span></div>
+    <div class="metric-card"><span class="metric-top"><span class="metric-label">{{ _('Sent this week') }}</span><span class="metric-symbol metric-blue">↗</span></span><strong>{{ stats.sent_this_week }}</strong><span class="metric-caption">{{ _('since Monday') }}</span></div>
+    <div class="metric-card"><span class="metric-top"><span class="metric-label">{{ _('Total users') }}</span><span class="metric-symbol metric-violet">◎</span></span><strong>{{ stats.total_users }}</strong><span class="metric-caption">{{ _('registered accounts') }}</span></div>
+    <div class="metric-card"><span class="metric-top"><span class="metric-label">{{ _('Active users') }}</span><span class="metric-symbol metric-green">●</span></span><strong>{{ stats.active_users }}</strong><span class="metric-caption">{{ _('accounts able to sign in') }}</span></div>
+  </section>
+
+  <section class="dashboard-panel admin-activity-panel">
+    <div class="panel-heading"><div><h2>{{ _('Sending activity') }}</h2><p>{{ _('Successful deliveries over the last 7 days') }}</p></div></div>
+    <div class="admin-chart" role="img" aria-label="{{ _('Seven-day successful delivery chart') }}">
+      {% for day in daily_activity %}<div class="admin-chart-column"><span class="admin-chart-value">{{ day.count }}</span><div class="admin-chart-track"><span style="height: {{ day.height }}%"></span></div><small>{{ _(day.label) }}</small></div>{% endfor %}
+    </div>
+  </section>
+
+  <section class="dashboard-panel admin-users-panel">
+    <div class="panel-heading admin-users-heading">
+      <div><h2>{{ _('Users') }}</h2><p>{{ filtered_total }} {{ _('accounts found') }}</p></div>
+      <form method="GET" action="/admin" class="admin-search" role="search">
+        <span aria-hidden="true">⌕</span><input name="q" value="{{ search }}" placeholder="{{ _('Search username or timezone') }}" aria-label="{{ _('Search users') }}"><button class="btn btn-secondary" type="submit">{{ _('Search') }}</button>
+      </form>
+    </div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>{{ _('User') }}</th><th>{{ _('Status') }}</th><th>{{ _('Jobs') }}</th><th>{{ _('Messages sent') }}</th><th>{{ _('Connections') }}</th><th>{{ _('Joined') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+        <tbody>
+        {% for row in users %}<tr>
+          <td><div class="admin-user"><span>{{ row.user.username[0]|upper }}</span><div><strong>{{ row.user.username }}</strong><small>{{ row.user.timezone }}</small></div>{% if row.user.is_admin %}<em>{{ _('Admin') }}</em>{% endif %}</div></td>
+          <td><span class="account-status {{ 'is-active' if row.user.is_active else 'is-inactive' }}"><i></i>{{ _('Active') if row.user.is_active else _('Inactive') }}</span></td>
+          <td>{{ row.jobs_count }}</td><td>{{ row.sent_count }}</td><td>{{ row.tokens_count }}</td><td>{{ tz(row.user.created_at, user_tz) }}</td>
+          <td>{% if row.user.id != admin.id %}<form method="POST" action="/admin/users/{{ row.user.id }}/toggle-active" {% if row.user.is_active %}data-confirm="{{ _('Deactivate this user?') }}"{% endif %}><input type="hidden" name="q" value="{{ search }}"><input type="hidden" name="page" value="{{ page }}"><button class="btn btn-sm {{ 'btn-warning' if row.user.is_active else 'btn-secondary' }}" type="submit">{{ _('Deactivate') if row.user.is_active else _('Reactivate') }}</button></form>{% else %}<span class="admin-self-label">{{ _('You') }}</span>{% endif %}</td>
+        </tr>{% else %}<tr><td colspan="7" class="admin-empty">{{ _('No users match your search.') }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pages > 1 %}<nav class="admin-pagination" aria-label="{{ _('User list pages') }}">
+      {% if page > 1 %}<a href="/admin?page={{ page - 1 }}&q={{ search|urlencode }}">← {{ _('Previous') }}</a>{% endif %}
+      <span>{{ _('Page') }} {{ page }} {{ _('of') }} {{ pages }}</span>
+      {% if page < pages %}<a href="/admin?page={{ page + 1 }}&q={{ search|urlencode }}">{{ _('Next') }} →</a>{% endif %}
+    </nav>{% endif %}
+  </section>
+</div>
+{% endblock %}

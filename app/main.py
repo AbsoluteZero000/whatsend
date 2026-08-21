@@ -14,7 +14,8 @@ from sqlalchemy import select, text
 from app.database import async_session
 from app.i18n import _ as _translate
 from app.models.job import Job
-from app.routers import about, api, api_keys, auth, dashboard, jobs, logs, media, tokens, webhooks
+from app.models.user import User
+from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, media, tokens, webhooks
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 from app.services.csrf import get_or_create_csrf_token
@@ -110,6 +111,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
     lang = request.cookies.get("lang", lang)
     context.setdefault("lang", lang)
     context.setdefault("api_keys_enabled", settings.api_keys_enabled)
+    context.setdefault("is_admin", bool(user and user.get("is_admin")))
     csrf_token, csrf_is_new = get_or_create_csrf_token(request)
     context.setdefault("csrf_token", csrf_token)
     csp_nonce = secrets.token_urlsafe(16)
@@ -141,6 +143,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with async_session() as db:
+        await auth.ensure_default_admin(db)
         result = await db.execute(select(Job).where(Job.image_path.isnot(None)))
         for job in result.scalars().all():
             if job.image_path and not Path(job.image_path).exists():
@@ -170,6 +173,32 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def active_account_guard(request: Request, call_next):
+    payload = auth.get_current_user(request)
+    if payload:
+        try:
+            user_id = int(payload["sub"])
+        except (KeyError, TypeError, ValueError):
+            user_id = None
+        if user_id is not None:
+            async with async_session() as db:
+                is_active = await db.scalar(select(User.is_active).where(User.id == user_id))
+            if is_active is not True:
+                response = RedirectResponse(url="/auth/signin", status_code=303)
+                response.delete_cookie(key="session")
+                return response
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def admin_scope_guard(request: Request, call_next):
+    payload = auth.get_current_user(request)
+    if payload and payload.get("is_admin") and not auth.admin_path_allowed(request.url.path):
+        return RedirectResponse(url="/admin", status_code=303)
+    return await call_next(request)
+
+
 @app.exception_handler(RedirectRequired)
 async def redirect_handler(request: Request, exc: RedirectRequired):
     return RedirectResponse(url=exc.url, status_code=303)
@@ -180,6 +209,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 app.include_router(about.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(admin.router)
 app.include_router(tokens.router)
 app.include_router(jobs.router)
 app.include_router(logs.router)

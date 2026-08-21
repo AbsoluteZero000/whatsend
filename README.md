@@ -37,6 +37,7 @@ And that's where we are today. whatsend is a full-featured WhatsApp scheduler yo
 - **Reliable scheduler** — Jobs survive restarts, retry transient failures, and retain local recurring times across DST changes
 - **Recipient attempts** — Multi-group sends track and retry failed recipients independently
 - **Security controls** — CSRF protection, CSP, secure production cookies, rate limits, and account-scoped resources
+- **Admin dashboard** — Platform-wide delivery statistics and a searchable user directory with account activation controls
 
 ## Stack
 
@@ -59,7 +60,7 @@ users ──1:N── tokens ──1:N── jobs ──1:N── logs
   └──1:N── api_keys
 ```
 
-- **user** — `id, username, password_hash, timezone, lang (en/ar), is_active`
+- **user** — `id, username, password_hash, timezone, lang (en/ar), is_active, is_admin`
 - **token** — `id, user_id, name, api_token (encrypted), is_active, last_used_at`
 - **api_key** — `id, user_id, name, key_prefix, key_hash, is_active, last_used_at`
 - **job** — includes the trigger, IANA schedule timezone, retry state, media path, and recipient groups
@@ -76,6 +77,8 @@ python run.py
 ```
 
 Open http://localhost:8000, sign up, add a Whapi.Cloud token, and create your first message.
+
+On first startup, the app creates an administrator with username `admin` and password `admin` if that username does not already exist. The first sign-in is restricted to the profile page until the default password is replaced with one of at least 10 characters. Set `DEFAULT_ADMIN_PASSWORD` before first startup to override the bootstrap password, and use `ADMIN_USERNAMES` for additional administrator usernames.
 
 ## Optional external API
 

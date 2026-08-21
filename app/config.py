@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     meta_webhook_verify_token: str = ""
     meta_app_secret: str = ""
     api_keys_enabled: bool = False
+    admin_usernames: str = "admin"
+    default_admin_password: str = "admin"
+
+    @property
+    def admin_username_set(self) -> set[str]:
+        return {name.strip() for name in self.admin_usernames.split(",") if name.strip()}
 
 
 settings = Settings()
