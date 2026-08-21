@@ -14,7 +14,7 @@ from sqlalchemy import select, text
 from app.database import async_session
 from app.i18n import _ as _translate
 from app.models.job import Job
-from app.routers import about, api, api_keys, auth, dashboard, jobs, logs, media, tokens, webhooks
+from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, media, tokens, webhooks
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 from app.services.csrf import get_or_create_csrf_token
@@ -110,6 +110,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
     lang = request.cookies.get("lang", lang)
     context.setdefault("lang", lang)
     context.setdefault("api_keys_enabled", settings.api_keys_enabled)
+    context.setdefault("is_admin", bool(user and user.get("is_admin")))
     csrf_token, csrf_is_new = get_or_create_csrf_token(request)
     context.setdefault("csrf_token", csrf_token)
     csp_nonce = secrets.token_urlsafe(16)
@@ -180,6 +181,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 app.include_router(about.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(admin.router)
 app.include_router(tokens.router)
 app.include_router(jobs.router)
 app.include_router(logs.router)

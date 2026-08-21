@@ -8,7 +8,7 @@
   <title>{% block title %}{{ _('whatsend') }}{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=17">
+  <link rel="stylesheet" href="/static/css/app.css?v=18">
 </head>
 <body>
   <nav>
@@ -16,6 +16,7 @@
       <a href="/dashboard" class="brand"><span class="brand-mark">📬</span><span>{{ _('whatsend') }}</span></a>
       <div class="nav-links">
         <a href="/dashboard">{{ _('Dashboard') }}</a>
+        {% if is_admin %}<a href="/admin">{{ _('Admin') }}</a>{% endif %}
         <a href="/tokens">{{ _('Tokens') }}</a>
         {% if api_keys_enabled %}<a href="/api-keys">{{ _('API Keys') }}</a>{% endif %}
         <a href="/jobs">{{ _('Jobs') }}</a>

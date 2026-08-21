@@ -4,13 +4,19 @@
 <div class="section-header">
   <h1>{{ _('Profile Settings') }}</h1>
 </div>
+{% if force_username_change %}
+<div class="setup-banner profile-required-banner">
+  <div class="setup-icon" aria-hidden="true">✎</div>
+  <div class="setup-copy"><strong>{{ _('Choose your administrator username') }}</strong><span>{{ _('For security, replace the default admin username before continuing.') }}</span></div>
+</div>
+{% endif %}
 {% if error %}
 <p class="flash flash-error">{{ error }}</p>
 {% endif %}
 <div class="form-card">
   <form method="POST" action="/auth/profile">
     <label for="username">{{ _('Change Username') }}</label>
-    <input type="text" id="username" name="username" value="{{ username }}" placeholder="{{ _('New Username') }}">
+    <input type="text" id="username" name="username" value="{{ username }}" placeholder="{{ _('New Username') }}" minlength="3" required>
 
     <hr class="form-divider">
 
@@ -24,7 +30,7 @@
     <input type="password" id="confirm_password" name="confirm_password" placeholder="{{ _('Confirm Password') }}">
 
     <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
-    <a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>
+    {% if not force_username_change %}<a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>{% endif %}
   </form>
 </div>
 {% endblock %}
