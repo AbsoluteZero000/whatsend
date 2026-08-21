@@ -49,7 +49,23 @@ def require_user(request: Request) -> dict:
         "/auth/signout",
     }:
         raise RedirectRequired("/auth/profile?first_login=1")
+    if user.get("is_admin") and not admin_path_allowed(request.url.path):
+        raise RedirectRequired("/admin")
     return user
+
+
+def admin_path_allowed(path: str) -> bool:
+    return (
+        path == "/admin"
+        or path.startswith("/admin/")
+        or path in {"/auth/profile", "/auth/signout", "/auth/lang"}
+        or path.startswith("/static/")
+        or path.startswith("/health/")
+    )
+
+
+def _landing_page(user: User) -> str:
+    return "/admin" if user.is_admin else "/dashboard"
 
 
 def _session_payload(user: User) -> dict:
@@ -144,7 +160,7 @@ async def signup(
     await db.refresh(user)
 
     token = create_jwt(_session_payload(user))
-    destination = "/auth/profile?first_login=1" if user.must_change_password else "/dashboard"
+    destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
     redirect = RedirectResponse(url=destination, status_code=303)
     _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
@@ -178,7 +194,7 @@ async def signin(
 
     token = create_jwt(_session_payload(user))
     clear_rate_limit(request, "signin", username)
-    destination = "/auth/profile?first_login=1" if user.must_change_password else "/dashboard"
+    destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
     redirect = RedirectResponse(url=destination, status_code=303)
     _set_session_cookie(redirect, token)
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
@@ -339,7 +355,8 @@ async def profile_update(
     await db.refresh(user)
 
     token = create_jwt(_session_payload(user))
-    redirect = RedirectResponse(url="/dashboard" if force_password_change else "/auth/profile", status_code=303)
+    destination = _landing_page(user) if force_password_change else "/auth/profile"
+    redirect = RedirectResponse(url=destination, status_code=303)
     _set_session_cookie(redirect, token)
     return redirect
 
