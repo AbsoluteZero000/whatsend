@@ -13,7 +13,7 @@
 <body>
   <nav>
     <div class="nav-inner">
-      <a href="/dashboard" class="brand" aria-label="EchoSend"><span class="brand-mark" aria-hidden="true"></span><span class="brand-word">Echo<span>Send</span></span></a>
+      <a href="{{ '/admin' if is_admin else '/dashboard' }}" class="brand" aria-label="EchoSend"><span class="brand-mark" aria-hidden="true"></span><span class="brand-word">Echo<span>Send</span></span></a>
       <div class="nav-links">
         {% if is_admin %}
         <a href="/admin">{{ _('Admin') }}</a>
