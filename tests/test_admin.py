@@ -99,6 +99,24 @@ def test_default_admin_can_access_profile_checkpoint():
     assert auth.require_user(request)["username"] == "admin"
 
 
+@pytest.mark.parametrize("path", ["/admin", "/admin/users/8", "/auth/profile", "/auth/signout"])
+def test_admin_scope_allows_only_management_and_account_paths(path):
+    assert auth.admin_path_allowed(path) is True
+
+
+@pytest.mark.parametrize("path", ["/dashboard", "/jobs", "/tokens", "/logs", "/about"])
+def test_admin_scope_blocks_member_features(path):
+    assert auth.admin_path_allowed(path) is False
+
+
+def test_admin_session_is_redirected_away_from_member_dashboard():
+    token = create_jwt({"sub": "7", "username": "admin", "is_admin": True})
+    request = SimpleNamespace(cookies={"session": token}, url=SimpleNamespace(path="/dashboard"))
+    with pytest.raises(auth.RedirectRequired) as exc:
+        auth.require_user(request)
+    assert exc.value.url == "/admin"
+
+
 def test_admin_cannot_deactivate_self(monkeypatch):
     current = User(id=7, username="admin", password_hash="hash", is_admin=True, is_active=True)
 

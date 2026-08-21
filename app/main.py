@@ -191,6 +191,14 @@ async def active_account_guard(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def admin_scope_guard(request: Request, call_next):
+    payload = auth.get_current_user(request)
+    if payload and payload.get("is_admin") and not auth.admin_path_allowed(request.url.path):
+        return RedirectResponse(url="/admin", status_code=303)
+    return await call_next(request)
+
+
 @app.exception_handler(RedirectRequired)
 async def redirect_handler(request: Request, exc: RedirectRequired):
     return RedirectResponse(url=exc.url, status_code=303)

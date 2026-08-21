@@ -15,14 +15,18 @@
     <div class="nav-inner">
       <a href="/dashboard" class="brand"><span class="brand-mark">📬</span><span>{{ _('whatsend') }}</span></a>
       <div class="nav-links">
+        {% if is_admin %}
+        <a href="/admin">{{ _('Admin') }}</a>
+        <a href="/auth/profile">{{ _('Profile') }}</a>
+        {% else %}
         <a href="/dashboard">{{ _('Dashboard') }}</a>
-        {% if is_admin %}<a href="/admin">{{ _('Admin') }}</a>{% endif %}
         <a href="/tokens">{{ _('Tokens') }}</a>
         {% if api_keys_enabled %}<a href="/api-keys">{{ _('API Keys') }}</a>{% endif %}
         <a href="/jobs">{{ _('Jobs') }}</a>
         <a href="/logs">{{ _('Logs') }}</a>
         <a href="/about">{{ _('Help') }}</a>
         <a href="/auth/profile">{{ _('Profile') }}</a>
+        {% endif %}
         <button id="themeToggle" class="theme-toggle"></button>
         <form method="POST" action="/auth/lang" class="lang-form">
           <input type="hidden" name="lang" value="{{ 'ar' if lang == 'en' else 'en' }}">
@@ -31,7 +35,7 @@
           </button>
         </form>
         <form method="POST" action="/auth/signout" class="nav-form"><button type="submit">{{ _('Sign out') }}</button></form>
-        {% if user_tz %}<a href="/auth/timezone" class="tz-badge">{{ user_tz }}</a>{% endif %}
+        {% if user_tz and not is_admin %}<a href="/auth/timezone" class="tz-badge">{{ user_tz }}</a>{% endif %}
         <span class="clock" id="clock"></span>
       </div>
     </div>
@@ -42,7 +46,7 @@
   <footer>
     <span>📬 {{ _('whatsend') }}</span>
     <span class="footer-links">
-      <a href="/about">{{ _('Help') }}</a>
+      {% if not is_admin %}<a href="/about">{{ _('Help') }}</a>{% endif %}
       <a href="https://github.com/absolutezero000/whatsend" target="_blank" rel="noopener">GitHub</a>
     </span>
   </footer>
