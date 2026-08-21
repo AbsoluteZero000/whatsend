@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — whatsend{% else %}{{ _('New Scheduled Job') }} — whatsend{% endif %}{% endblock %}
+{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — EchoSend{% else %}{{ _('New Scheduled Job') }} — EchoSend{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
   <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>

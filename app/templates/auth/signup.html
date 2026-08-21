@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <script nonce="{{ csp_nonce }}">if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
-  <title>{{ _('Sign Up') }} — whatsend</title>
-  <link rel="stylesheet" href="/static/css/app.css?v=17">
+  <title>{{ _('Sign Up') }} — EchoSend</title>
+  <link rel="stylesheet" href="/static/css/app.css?v=19">
 </head>
 <body class="auth-page">
   <div class="auth-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <h1>📬 whatsend</h1>
+        <h1 class="auth-brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-word">Echo<span>Send</span></span></h1>
         <h2>{{ _('Sign up') }}</h2>
       </div>
       <button id="themeToggleAuth" class="theme-toggle" style="font-size:1.2rem;margin-top:0.25rem;"></button>

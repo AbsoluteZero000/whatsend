@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Dashboard') }} — whatsend{% endblock %}
+{% block title %}{{ _('Dashboard') }} — EchoSend{% endblock %}
 {% block content %}
 {% if not onboarded %}
 <div id="onboarding-overlay" class="onboarding-overlay"><div class="onboarding-card">
-  <span class="eyebrow">{{ _('QUICK START') }}</span><h2>{{ _('Welcome to whatsend') }}</h2>
-  <p>{{ _('Connect WhatsApp, create a message, and whatsend will take care of the timing.') }}</p>
+  <span class="eyebrow">{{ _('QUICK START') }}</span><h2>{{ _('Welcome to EchoSend') }}</h2>
+  <p>{{ _('Connect WhatsApp, create a message, and EchoSend will take care of the timing.') }}</p>
   <div class="onboarding-steps">
     <div class="onboarding-step"><span class="step-number">1</span><span>{{ _('Add your Whapi.Cloud token') }}</span></div>
     <div class="onboarding-step"><span class="step-number">2</span><span>{{ _('Create a scheduled or instant message') }}</span></div>
