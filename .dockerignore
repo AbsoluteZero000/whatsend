@@ -6,3 +6,10 @@ __pycache__/
 whatsend.db
 *.log
 .env
+.aws/
+.agents/
+.codex/
+.understand-anything/
+uploads/
+whatsend.db-*
+docs/improvement-plan.html

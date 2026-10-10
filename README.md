@@ -98,6 +98,8 @@ curl -X POST https://your-app.example.com/api/send \
 
 Each API key is linked to one active token owned by the same user. The target `group_id` must be a WhatsApp group ID that connection can send to.
 
+The external API also supports **Relay** connections for text, supported image/video attachments, group lookup, and delivery status. Add a Relay token in the site with its backend URL and already-paired session UUID, then link your WhatSend API key to it. Relay sends require an `Idempotency-Key` and return **202 queued** until delivery is confirmed. See [Relay setup and API examples](docs/relay-api.md) for migration steps, endpoints, and response semantics. Relay is currently available through the external API; scheduled dashboard jobs use Whapi.
+
 ## Supported direct Meta integration spike
 
 The repository includes a `MetaCloudSender` and signature-verified webhook scaffold for evaluating Meta's supported WhatsApp Business Platform Cloud API. Keep it disabled until group eligibility and the account-specific event contract have been verified with a Meta test business account. Reverse-engineered WhatsApp Web protocols are intentionally not implemented because they are unsupported, fragile, and prohibited by WhatsApp's terms.

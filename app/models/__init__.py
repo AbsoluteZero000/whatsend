@@ -4,5 +4,6 @@ from app.models.job import Job
 from app.models.log import Log
 from app.models.apikey import ApiKey
 from app.models.delivery_attempt import DeliveryAttempt
+from app.models.relay_operation import RelayOperation
 
-__all__ = ["User", "Token", "Job", "Log", "ApiKey", "DeliveryAttempt"]
+__all__ = ["User", "Token", "Job", "Log", "ApiKey", "DeliveryAttempt", "RelayOperation"]

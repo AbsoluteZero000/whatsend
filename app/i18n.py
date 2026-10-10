@@ -1,6 +1,13 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        "Provider": "مزود الخدمة",
+        "Provider API Token": "رمز API لمزود الخدمة",
+        "External API only": "واجهة API الخارجية فقط",
+        "Relay session ID": "معرف جلسة Relay",
+        "Relay backend URL": "رابط خادم Relay",
+        "Enter the backend URL without /api/v1. It must be reachable from WhatSend.": "أدخل رابط الخادم بدون ‎/api/v1. يجب أن يكون متاحاً لخدمة WhatSend.",
+        "Pair your session in Relay first. Use an API key with sessions:read, chats:read, messages:read and messages:write.": "اربط جلستك في Relay أولاً. استخدم مفتاح API بصلاحيات sessions:read وchats:read وmessages:read وmessages:write.",
         "whatsend": "whatsend",
         "Dashboard": "لوحة التحكم",
         "Tokens": "الرموز",

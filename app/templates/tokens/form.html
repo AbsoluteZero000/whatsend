@@ -9,7 +9,25 @@
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}" {% if edit_mode and token.name %}value="{{ token.name }}"{% endif %}>
 
-    <label for="api_token">{{ _('Whapi.Cloud API Token') }}</label>
+    <label for="provider">{{ _('Provider') }}</label>
+    {% if edit_mode %}
+    <input type="hidden" name="provider" value="{{ token.provider }}">
+    <p>{{ 'Relay' if token.provider == 'relay' else 'Whapi.Cloud' }}</p>
+    {% else %}
+    <select id="provider" name="provider">
+      <option value="whatsapp">Whapi.Cloud</option>
+      <option value="relay">Relay ({{ _('External API only') }})</option>
+    </select>
+    {% endif %}
+    <div id="relay_fields" {% if not edit_mode or token.provider != 'relay' %}hidden{% endif %}>
+      <label for="relay_base_url">{{ _('Relay backend URL') }}</label>
+      <input type="url" id="relay_base_url" name="relay_base_url" placeholder="https://relay.example.com" {% if edit_mode %}value="{{ token.relay_base_url or '' }}" readonly{% endif %}>
+      <small>{{ _('Enter the backend URL without /api/v1. It must be reachable from WhatSend.') }}</small>
+      <label for="relay_session_id">{{ _('Relay session ID') }}</label>
+      <input type="text" id="relay_session_id" name="relay_session_id" {% if edit_mode %}value="{{ token.relay_session_id or '' }}" readonly{% endif %}>
+      <small>{{ _('Pair your session in Relay first. Use an API key with sessions:read, chats:read, messages:read and messages:write.') }}</small>
+    </div>
+    <label for="api_token">{{ _('Provider API Token') }}</label>
     {% if edit_mode %}
     <input type="text" id="api_token" name="api_token" placeholder="•••••••• ({{ _('leave blank to keep current') }})">
     <small style="color:var(--text-muted);">{{ _('Leave blank to keep the current token unchanged.') }}</small>
@@ -21,4 +39,17 @@
     <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>
 </div>
+<script nonce="{{ csp_nonce }}">
+  const provider = document.getElementById('provider');
+  if (provider) {
+    const syncProvider = () => {
+      const relay = provider.value === 'relay';
+      document.getElementById('relay_fields').hidden = !relay;
+      document.getElementById('relay_session_id').required = relay;
+      document.getElementById('relay_base_url').required = relay;
+    };
+    provider.addEventListener('change', syncProvider);
+    syncProvider();
+  }
+</script>
 {% endblock %}

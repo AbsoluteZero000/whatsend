@@ -48,6 +48,7 @@ _is_ole = lambda h: h.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
 _is_text = lambda h: b"\x00" not in h
 MEDIA_SIGNATURES = {
     ".jpg": ("image/jpeg", lambda h: h.startswith(b"\xff\xd8\xff")),
+    ".jpeg": ("image/jpeg", lambda h: h.startswith(b"\xff\xd8\xff")),
     ".png": ("image/png", lambda h: h.startswith(b"\x89PNG\r\n\x1a\n")),
     ".gif": ("image/gif", lambda h: h.startswith((b"GIF87a", b"GIF89a"))),
     ".webp": ("image/webp", lambda h: h.startswith(b"RIFF") and h[8:12] == b"WEBP"),
@@ -146,6 +147,8 @@ async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: i
     token = result.scalar_one_or_none()
     if not token:
         raise HTTPException(status_code=400, detail="Select an active token that belongs to your account")
+    if token.provider == "relay":
+        raise HTTPException(400, "Relay currently supports the external API. Select a Whapi token for scheduled jobs.")
     return token
 
 
@@ -224,7 +227,7 @@ async def list_jobs(
             if not jg.group_name:
                 missing_job_groups.append(jg)
     if missing_job_groups:
-        result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
+        result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True, Token.provider == "whatsapp"))
         tokens = result.scalars().all()
         group_map: dict[str, str] = {}
         for t in tokens:
@@ -263,7 +266,7 @@ async def create_job_page(request: Request, type: str = "now", db: AsyncSession 
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
+    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True, Token.provider == "whatsapp"))
     tokens = result.scalars().all()
 
     groups: list[dict] = []
@@ -631,7 +634,7 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
+    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True, Token.provider == "whatsapp"))
     tokens = result.scalars().all()
 
     groups: list[dict] = []

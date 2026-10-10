@@ -119,7 +119,7 @@ async def send_job(job_id: int, retry_only: bool = False):
             return
 
         token_result = await db.execute(
-            select(Token).where(Token.id == job.token_id, Token.user_id == job.user_id, Token.is_active.is_(True))
+            select(Token).where(Token.id == job.token_id, Token.user_id == job.user_id, Token.is_active.is_(True), Token.provider == "whatsapp")
         )
         token = token_result.scalar_one_or_none()
         run_id = str(uuid.uuid4())

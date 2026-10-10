@@ -1,7 +1,8 @@
 from urllib.parse import urlencode
 from pathlib import Path
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +15,29 @@ from app.routers.auth import require_user
 from app.services.crypto import encrypt_token, decrypt_token
 from app.services.csrf import csrf_protect
 from app.services.scheduler import remove_job
+from app.services.relay_sender import normalize_base_url
 
 router = APIRouter(prefix="/tokens", tags=["tokens"], dependencies=[Depends(csrf_protect)])
+
+
+def validate_connection(provider: str, session_id: str) -> str | None:
+    if provider not in {"whatsapp", "relay"}:
+        raise HTTPException(400, "Unsupported provider")
+    if provider == "whatsapp":
+        return None
+    try:
+        return str(UUID(session_id.strip()))
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(400, "Enter a valid Relay session UUID") from exc
+
+
+def validate_relay_url(provider: str, url: str) -> str | None:
+    if provider != "relay":
+        return None
+    try:
+        return normalize_base_url(url)
+    except ValueError as exc:
+        raise HTTPException(400, "Enter the Relay HTTP/HTTPS backend URL without /api/v1, credentials, query or fragment") from exc
 
 def _flash(url: str, success: str = "") -> RedirectResponse:
     if success:
@@ -44,12 +66,20 @@ async def create_token(
     request: Request,
     name: str = Form(default=""),
     api_token: str = Form(...),
+    provider: str = Form(default="whatsapp"),
+    relay_session_id: str = Form(default=""),
+    relay_base_url: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
     user_id = int(user["sub"])
 
-    token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token))
+    session_id = validate_connection(provider, relay_session_id)
+    relay_url = validate_relay_url(provider, relay_base_url)
+    if not api_token.strip():
+        raise HTTPException(400, "API token is required")
+    token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token.strip()),
+                  provider=provider, relay_session_id=session_id, relay_base_url=relay_url)
     db.add(token)
     await db.commit()
     return _flash("/tokens", success="Token created")
@@ -87,6 +117,9 @@ async def edit_token(
     request: Request,
     name: str = Form(default=""),
     api_token: str = Form(default=""),
+    provider: str = Form(default="whatsapp"),
+    relay_session_id: str = Form(default=""),
+    relay_base_url: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -97,9 +130,15 @@ async def edit_token(
     if not token:
         return RedirectResponse(url="/tokens", status_code=303)
 
+    session_id = validate_connection(provider, relay_session_id)
+    relay_url = validate_relay_url(provider, relay_base_url)
+    if provider != token.provider or session_id != token.relay_session_id or relay_url != token.relay_base_url:
+        raise HTTPException(400, "Create a new token to change its provider, Relay session or backend URL")
     token.name = name or None
     if api_token:
-        token.api_token = encrypt_token(api_token)
+        if not api_token.strip():
+            raise HTTPException(400, "API token cannot be whitespace")
+        token.api_token = encrypt_token(api_token.strip())
     await db.commit()
     return _flash("/tokens", success="Token updated")
 
