@@ -17,6 +17,7 @@ from app.models.token import Token
 from app.models.user import User
 from app.routers import api, jobs, tokens
 from app.services.crypto import encrypt_token
+from app.services.crypto import decrypt_token
 from app.services.relay_sender import RelaySender
 from app.services.relay_api import key_fingerprint
 from app.services.relay_sender import normalize_base_url
@@ -26,6 +27,95 @@ SESSION = str(uuid4())
 MESSAGE = str(uuid4())
 RECIPIENT = "120363123456789@g.us"
 CLIENT = httpx.AsyncClient
+
+
+@pytest.mark.parametrize("mode", ["register", "login"])
+def test_relay_ui_account_setup(tmp_path, monkeypatch, mode):
+    calls = []
+
+    def relay(request):
+        calls.append(request.url.path)
+        if request.url.path == f"/api/v1/auth/{mode}":
+            assert json.loads(request.content) == {"email": "user@example.com", "password": "long-test-password"}
+            return httpx.Response(200, json={"data": {"access_token": "temporary-jwt"}})
+        if request.url.path == "/api/v1/api-keys":
+            assert request.headers["authorization"] == "Bearer temporary-jwt"
+            assert set(json.loads(request.content)["scopes"]) == {
+                "sessions:read", "sessions:write", "chats:read", "messages:read", "messages:write"}
+            return httpx.Response(201, json={"data": {"key": "issued-relay-key"}})
+        assert request.url.path == "/api/v1/sessions"
+        assert request.headers["authorization"] == "Bearer issued-relay-key"
+        return httpx.Response(201, json={"data": {"id": MESSAGE}})
+
+    async def scenario(client, sessions, context):
+        page = await client.get("/tokens/relay/setup")
+        assert page.status_code == 200 and 'type="password"' in page.text
+        assert page.headers["cache-control"] == "no-store, private"
+        data = {"relay_base_url": "https://relay.test", "mode": mode, "email": "user@example.com",
+                "password": "long-test-password", "name": "UI account"}
+        assert (await client.post("/tokens/relay/setup", data=data)).status_code == 403
+        assert not calls
+        result = await client.post("/tokens/relay/setup", data=data,
+                                   headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
+        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
+        async with sessions() as db:
+            token = (await db.execute(select(Token).where(Token.name == "UI account"))).scalar_one()
+            assert token.user_id == 7 and token.relay_session_id == MESSAGE
+            assert token.api_token != "issued-relay-key" and decrypt_token(token.api_token) == "issued-relay-key"
+        assert "long-test-password" not in result.text and "temporary-jwt" not in result.text
+        assert len(calls) == 3
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+@pytest.mark.parametrize("code", [401, 409, 500])
+def test_relay_registration_error_safe_render(tmp_path, monkeypatch, code):
+    def relay(request):
+        return httpx.Response(code, json={"error": {"message": "long-test-password temporary-jwt"}})
+
+    async def scenario(client, sessions, context):
+        result = await client.post("/tokens/relay/setup", data={
+            "relay_base_url": "https://relay.test", "email": "user@example.com", "password": "long-test-password",
+        }, headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
+        assert result.status_code == 400
+        assert "long-test-password" not in result.text and "temporary-jwt" not in result.text
+        assert 'value="user@example.com"' in result.text
+        assert result.headers["cache-control"] == "no-store, private"
+        async with sessions() as db:
+            assert len((await db.execute(select(Token))).scalars().all()) == 1
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_relay_setup_retains_key_when_session_creation_fails(tmp_path, monkeypatch):
+    def relay(request):
+        if "/auth/" in request.url.path:
+            return httpx.Response(200, json={"data": {"access_token": "jwt"}})
+        if request.url.path.endswith("api-keys"):
+            return httpx.Response(201, json={"data": {"key": "retained-key"}})
+        return httpx.Response(409, json={"error": {"code": "active_session_exists"}})
+
+    async def scenario(client, sessions, context):
+        headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
+        result = await client.post("/tokens/relay/setup", data={
+            "relay_base_url": "https://relay.test", "email": "user@example.com", "password": "long-test-password",
+            "name": "Recoverable",
+        }, headers=headers)
+        assert result.status_code == 303 and "/edit" in result.headers["location"]
+        async with sessions() as db:
+            token = (await db.execute(select(Token).where(Token.name == "Recoverable"))).scalar_one()
+            assert token.relay_session_id is None and decrypt_token(token.api_token) == "retained-key"
+            token_id = token.id
+        page = await client.get(f"/tokens/{token_id}/edit")
+        assert 'id="relay_session_id" name="relay_session_id" value="" readonly' not in page.text
+        result = await client.post(f"/tokens/{token_id}/edit", data={
+            "provider": "relay", "relay_base_url": "https://relay.test", "relay_session_id": SESSION,
+        }, headers=headers)
+        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
+        async with sessions() as db:
+            assert (await db.get(Token, token_id)).relay_session_id == SESSION
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
 async def exercise(tmp_path, monkeypatch, handler, scenario):

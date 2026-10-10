@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Connect Relay') }} — EchoSend{% endblock %}
+{% block content %}
+<div class="section-header"><h1>{{ _('Connect Relay') }}</h1></div>
+<div class="form-card">
+  <p>{{ _('Register or log in to Relay, then scan your WhatsApp QR code. WhatSend creates and saves the API key automatically.') }}</p>
+  {% if error %}<div class="error" role="alert">{{ _(error) }}</div>{% endif %}
+  <form method="POST" action="/tokens/relay/setup">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="relay_base_url">{{ _('Relay backend URL') }}</label>
+    <input type="url" id="relay_base_url" name="relay_base_url" required placeholder="https://relay.example.com" value="{{ values.get('relay_base_url', '') }}">
+    <small>{{ _('Enter the backend URL without /api/v1. It must be reachable from WhatSend.') }}</small>
+    <label for="mode">{{ _('Relay account') }}</label>
+    <select id="mode" name="mode">
+      <option value="register" {% if values.get('mode') != 'login' %}selected{% endif %}>{{ _('Register a new account') }}</option>
+      <option value="login" {% if values.get('mode') == 'login' %}selected{% endif %}>{{ _('Log in to an existing account') }}</option>
+    </select>
+    <label for="email">{{ _('Email') }}</label>
+    <input type="email" id="email" name="email" required maxlength="254" autocomplete="username" value="{{ values.get('email', '') }}">
+    <label for="password">{{ _('Password') }}</label>
+    <input type="password" id="password" name="password" required autocomplete="new-password">
+    <small>{{ _('Use at least 12 characters when registering. Your Relay password is only used for this request and is not saved.') }}</small>
+    <label for="name">{{ _('Name (optional)') }}</label>
+    <input type="text" id="name" name="name" value="{{ values.get('name', '') }}">
+    <label for="relay_session_id">{{ _('Existing Relay session ID (optional)') }}</label>
+    <input type="text" id="relay_session_id" name="relay_session_id" value="{{ values.get('relay_session_id', '') }}">
+    <small>{{ _('Leave blank to create a session and scan its QR code here.') }}</small>
+    <button type="submit" class="btn btn-primary">{{ _('Continue to pairing') }}</button>
+    <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
+  </form>
+</div>
+<script nonce="{{ csp_nonce }}">
+  const mode = document.getElementById('mode');
+  const syncMode = () => {
+    const password = document.getElementById('password');
+    password.autocomplete = mode.value === 'register' ? 'new-password' : 'current-password';
+    password.minLength = mode.value === 'register' ? 12 : 1;
+  };
+  mode.addEventListener('change', syncMode);
+  syncMode();
+</script>
+{% endblock %}

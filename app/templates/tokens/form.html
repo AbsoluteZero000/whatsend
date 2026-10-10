@@ -5,6 +5,7 @@
   <h1>{% if edit_mode %}{{ _('Edit API Token') }}{% else %}{{ _('Add API Token') }}{% endif %}</h1>
 </div>
 <div class="form-card">
+  {% if edit_mode and token.provider == 'relay' and not token.relay_session_id %}<p class="error">{{ _('Your Relay API key is saved. Enter an existing session ID, or leave it blank and save to create a session.') }}</p>{% endif %}
   <form method="POST" action="{% if edit_mode %}/tokens/{{ token.id }}/edit{% else %}/tokens/create{% endif %}">
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}" {% if edit_mode and token.name %}value="{{ token.name }}"{% endif %}>
@@ -20,11 +21,12 @@
     </select>
     {% endif %}
     <div id="relay_fields" {% if not edit_mode or token.provider != 'relay' %}hidden{% endif %}>
+      {% if not edit_mode %}<p><a href="/tokens/relay/setup" class="btn btn-primary">{{ _('Register or log in to Relay') }}</a><br><small>{{ _('Create your Relay account here. WhatSend handles the API key for you.') }}</small></p>{% endif %}
       <label for="relay_base_url">{{ _('Relay backend URL') }}</label>
       <input type="url" id="relay_base_url" name="relay_base_url" placeholder="https://relay.example.com" {% if edit_mode %}value="{{ token.relay_base_url or '' }}" readonly{% endif %}>
       <small>{{ _('Enter the backend URL without /api/v1. It must be reachable from WhatSend.') }}</small>
       <label for="relay_session_id">{{ _('Relay session ID') }}</label>
-      <input type="text" id="relay_session_id" name="relay_session_id" {% if edit_mode %}value="{{ token.relay_session_id or '' }}" readonly{% endif %}>
+      <input type="text" id="relay_session_id" name="relay_session_id" {% if edit_mode %}value="{{ token.relay_session_id or '' }}" {% if token.relay_session_id %}readonly{% endif %}{% endif %}>
       {% if not edit_mode %}<small>{{ _('Leave blank to create a session and scan its QR code here.') }}</small>{% endif %}
       <small>{{ _('Use a Relay key with sessions:read, sessions:write, chats:read, messages:read and messages:write.') }}</small>
     </div>

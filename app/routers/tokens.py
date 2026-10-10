@@ -47,6 +47,8 @@ async def owned_relay_token(token_id: int, request: Request, db: AsyncSession) -
         raise HTTPException(404, "Token not found")
     if token.provider != "relay" or not token.is_active:
         raise HTTPException(400, "Select an active Relay token for pairing")
+    if not token.relay_session_id:
+        raise HTTPException(400, "Save a Relay session on the token edit page before pairing")
     return token
 
 
@@ -93,6 +95,61 @@ async def list_tokens(request: Request, db: AsyncSession = Depends(get_db)):
 async def create_token_page(request: Request):
     require_user(request)
     return request.app.state.render(request, "tokens/form.html")
+
+
+@router.get("/relay/setup")
+async def relay_setup_page(request: Request):
+    require_user(request)
+    response = request.app.state.render(request, "tokens/relay_setup.html", values={})
+    response.headers.update(PAIRING_HEADERS)
+    return response
+
+
+@router.post("/relay/setup")
+async def relay_setup(
+    request: Request, relay_base_url: str = Form(...), email: str = Form(...),
+    password: str = Form(...), mode: str = Form(default="register"),
+    name: str = Form(default=""), relay_session_id: str = Form(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    user = require_user(request)
+    values = {"relay_base_url": relay_base_url, "email": email, "mode": mode,
+              "name": name, "relay_session_id": relay_session_id}
+    try:
+        relay_url = validate_relay_url("relay", relay_base_url)
+        if mode not in {"register", "login"}:
+            raise HTTPException(400, "Choose Register or Log in.")
+        if not email.strip() or not password:
+            raise HTTPException(400, "Enter your Relay email and password.")
+        if mode == "register" and not 12 <= len(password.encode("utf-8")) <= 1024:
+            raise HTTPException(400, "Relay passwords must contain 12–1024 UTF-8 bytes.")
+        session_id = validate_connection("relay", relay_session_id) if relay_session_id.strip() else None
+        key = await RelaySender.provision_key(relay_url, email.strip(), password, mode)
+    except (HTTPException, httpx.HTTPError, ValueError) as exc:
+        if isinstance(exc, HTTPException):
+            message = exc.detail
+        elif isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 409:
+            message = "This email is already registered in Relay. Choose Log in instead."
+        elif isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 401:
+            message = "Relay rejected the email or password. Try again."
+        else:
+            message = "Could not set up your Relay account. Check the backend URL and credentials. If registration already succeeded, choose Log in to continue."
+        response = request.app.state.render(request, "tokens/relay_setup.html", values=values, error=message)
+        response.status_code = 400
+        response.headers.update(PAIRING_HEADERS)
+        return response
+    # Persist the issued key before session creation so a worker failure cannot lose it.
+    token = Token(user_id=int(user["sub"]), name=name.strip() or "Relay", provider="relay",
+                  api_token=encrypt_token(key), relay_session_id=session_id, relay_base_url=relay_url)
+    db.add(token)
+    await db.commit()
+    if not session_id:
+        try:
+            token.relay_session_id = await RelaySender.create_session(key, relay_url)
+            await db.commit()
+        except (httpx.HTTPError, ValueError):
+            return _flash(f"/tokens/{token.id}/edit", success="Relay account connected. Enter an existing session ID, or leave it blank and save to retry session creation.")
+    return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303, headers=PAIRING_HEADERS)
 
 
 @router.post("/create")
@@ -203,6 +260,18 @@ async def edit_token(
     if not token:
         return RedirectResponse(url="/tokens", status_code=303)
 
+    if token.provider == "relay" and token.relay_session_id is None and provider == "relay":
+        relay_url = validate_relay_url(provider, relay_base_url)
+        if relay_url != token.relay_base_url:
+            raise HTTPException(400, "Create a new token to change its backend URL")
+        try:
+            token.relay_session_id = (validate_connection(provider, relay_session_id) if relay_session_id.strip()
+                                      else await RelaySender.create_session(decrypt_token(token.api_token), relay_url))
+        except (httpx.HTTPError, ValueError) as exc:
+            raise pairing_error(exc) from exc
+        token.name = name or None
+        await db.commit()
+        return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303)
     session_id = validate_connection(provider, relay_session_id)
     relay_url = validate_relay_url(provider, relay_base_url)
     if provider != token.provider or session_id != token.relay_session_id or relay_url != token.relay_base_url:

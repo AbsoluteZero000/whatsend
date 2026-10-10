@@ -26,6 +26,30 @@ class RelayProtocolError(ValueError):
 
 
 class RelaySender:
+    @staticmethod
+    async def provision_key(base_url: str, email: str, password: str, mode: str) -> str:
+        """Exchange account credentials for a scoped key; never retain the password/JWT."""
+        if mode not in {"register", "login"}:
+            raise ValueError("Invalid account action")
+        origin = normalize_base_url(base_url) + "/api/v1"
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(f"{origin}/auth/{mode}", json={"email": email, "password": password})
+            response.raise_for_status()
+            access_token = RelaySender._data(response).get("access_token")
+            if not isinstance(access_token, str) or not access_token.strip():
+                raise RelayProtocolError("Relay returned an invalid access token")
+            response = await client.post(
+                f"{origin}/api-keys", headers={"authorization": f"Bearer {access_token}"},
+                json={"name": "WhatSend", "scopes": [
+                    "sessions:read", "sessions:write", "chats:read", "messages:read", "messages:write",
+                ]},
+            )
+            response.raise_for_status()
+            key = RelaySender._data(response).get("key")
+            if not isinstance(key, str) or not key.strip():
+                raise RelayProtocolError("Relay returned an invalid API key")
+            return key
+
     def __init__(self, api_token: str, session_id: str, base_url: str, timeout: int = 30):
         self.session_id = str(UUID(session_id))
         self.base_url = f"{normalize_base_url(base_url)}/api/v1/sessions/{self.session_id}"

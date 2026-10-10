@@ -3,7 +3,8 @@
 {% block content %}
 <div class="section-header header-row">
   <h1>{{ _('API Tokens') }}</h1>
-  <a href="/tokens/create" class="btn btn-primary">{{ _('+ Add Token') }}</a>
+  <div class="actions"><a href="/tokens/relay/setup" class="btn btn-primary">{{ _('Connect Relay') }}</a>
+  <a href="/tokens/create" class="btn btn-secondary">{{ _('+ Add Token') }}</a></div>
 </div>
 <div class="table-wrap">
   <table>
@@ -27,7 +28,7 @@
         <td>{{ tz(token.last_used_at, user_tz) }}</td>
         <td>
           <div class="actions">
-            {% if token.provider == 'relay' and token.is_active %}<a href="/tokens/{{ token.id }}/pair" class="btn btn-sm btn-primary">{{ _('Pair WhatsApp') }}</a>{% endif %}
+            {% if token.provider == 'relay' and token.is_active and token.relay_session_id %}<a href="/tokens/{{ token.id }}/pair" class="btn btn-sm btn-primary">{{ _('Pair WhatsApp') }}</a>{% endif %}
             <a href="/tokens/{{ token.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
             <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
               <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-warning' }}">
