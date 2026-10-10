@@ -1,9 +1,10 @@
 from urllib.parse import urlencode
 from pathlib import Path
 from uuid import UUID
+import httpx
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,9 +16,42 @@ from app.routers.auth import require_user
 from app.services.crypto import encrypt_token, decrypt_token
 from app.services.csrf import csrf_protect
 from app.services.scheduler import remove_job
-from app.services.relay_sender import normalize_base_url
+from app.services.relay_sender import RelaySender, normalize_base_url
+from app.services.relay_api import connection_base_url
 
 router = APIRouter(prefix="/tokens", tags=["tokens"], dependencies=[Depends(csrf_protect)])
+PAIRING_HEADERS = {"Cache-Control": "no-store, private", "Pragma": "no-cache"}
+
+
+def pairing_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, httpx.HTTPStatusError):
+        if exc.response.status_code == 403:
+            return HTTPException(502, "Relay key needs sessions:read and sessions:write permissions for pairing.")
+        if exc.response.status_code == 401:
+            return HTTPException(502, "Relay rejected the API key. Update the token and try again.")
+        if exc.response.status_code == 409:
+            return HTTPException(502, "Relay could not start this session. If your Relay account already has a session, enter its session ID when adding the token.")
+    if isinstance(exc, httpx.TimeoutException):
+        return HTTPException(502, "Relay timed out. Check connection status before trying again.")
+    if isinstance(exc, httpx.RequestError):
+        return HTTPException(502, "Could not reach the Relay backend. Check its URL and availability.")
+    return HTTPException(502, "Relay could not complete pairing. Check the session and Relay worker, then try again.")
+
+
+async def owned_relay_token(token_id: int, request: Request, db: AsyncSession) -> Token:
+    user = require_user(request)
+    token = (await db.execute(select(Token).where(
+        Token.id == token_id, Token.user_id == int(user["sub"]),
+    ))).scalar_one_or_none()
+    if not token:
+        raise HTTPException(404, "Token not found")
+    if token.provider != "relay" or not token.is_active:
+        raise HTTPException(400, "Select an active Relay token for pairing")
+    return token
+
+
+def relay_connection(token: Token) -> RelaySender:
+    return RelaySender(decrypt_token(token.api_token), token.relay_session_id, connection_base_url(token))
 
 
 def validate_connection(provider: str, session_id: str) -> str | None:
@@ -74,15 +108,54 @@ async def create_token(
     user = require_user(request)
     user_id = int(user["sub"])
 
-    session_id = validate_connection(provider, relay_session_id)
     relay_url = validate_relay_url(provider, relay_base_url)
     if not api_token.strip():
         raise HTTPException(400, "API token is required")
+    if provider == "relay" and not relay_session_id.strip():
+        try:
+            session_id = await RelaySender.create_session(api_token.strip(), relay_url)
+        except (httpx.HTTPError, ValueError) as exc:
+            raise pairing_error(exc) from exc
+    else:
+        session_id = validate_connection(provider, relay_session_id)
     token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token.strip()),
                   provider=provider, relay_session_id=session_id, relay_base_url=relay_url)
     db.add(token)
     await db.commit()
+    if provider == "relay":
+        return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303)
     return _flash("/tokens", success="Token created")
+
+
+@router.get("/{token_id}/pair")
+async def pair_relay_page(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_relay_token(token_id, request, db)
+    response = request.app.state.render(request, "tokens/pair.html", token=token)
+    response.headers.update(PAIRING_HEADERS)
+    return response
+
+
+@router.post("/{token_id}/relay/connect")
+async def connect_relay(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_relay_token(token_id, request, db)
+    try:
+        data = await relay_connection(token).connect()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise pairing_error(exc) from exc
+    return JSONResponse({"state": data["state"]}, headers=PAIRING_HEADERS)
+
+
+@router.get("/{token_id}/relay/state")
+async def relay_pairing_state(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_relay_token(token_id, request, db)
+    try:
+        client = relay_connection(token)
+        state = (await client.get_status())["state"]
+        qr = await client.get_qr() if state == "qr_required" else None
+    except (httpx.HTTPError, ValueError) as exc:
+        # Upstream QR responses are never stored in the database or execution logs.
+        return JSONResponse({"detail": pairing_error(exc).detail}, status_code=502, headers=PAIRING_HEADERS)
+    return JSONResponse({"state": state, "qr": qr}, headers=PAIRING_HEADERS)
 
 
 @router.post("/{token_id}/toggle")

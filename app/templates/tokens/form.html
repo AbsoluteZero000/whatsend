@@ -25,7 +25,8 @@
       <small>{{ _('Enter the backend URL without /api/v1. It must be reachable from WhatSend.') }}</small>
       <label for="relay_session_id">{{ _('Relay session ID') }}</label>
       <input type="text" id="relay_session_id" name="relay_session_id" {% if edit_mode %}value="{{ token.relay_session_id or '' }}" readonly{% endif %}>
-      <small>{{ _('Pair your session in Relay first. Use an API key with sessions:read, chats:read, messages:read and messages:write.') }}</small>
+      {% if not edit_mode %}<small>{{ _('Leave blank to create a session and scan its QR code here.') }}</small>{% endif %}
+      <small>{{ _('Use a Relay key with sessions:read, sessions:write, chats:read, messages:read and messages:write.') }}</small>
     </div>
     <label for="api_token">{{ _('Provider API Token') }}</label>
     {% if edit_mode %}
@@ -35,7 +36,7 @@
     <input type="text" id="api_token" name="api_token" required placeholder="{{ _('Paste your token here') }}">
     {% endif %}
 
-    <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
+    <button id="save_token" type="submit" class="btn btn-primary">{{ _('Save') }}</button>
     <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>
 </div>
@@ -45,8 +46,8 @@
     const syncProvider = () => {
       const relay = provider.value === 'relay';
       document.getElementById('relay_fields').hidden = !relay;
-      document.getElementById('relay_session_id').required = relay;
       document.getElementById('relay_base_url').required = relay;
+      document.getElementById('save_token').textContent = relay ? {{ _('Save and pair') | tojson }} : {{ _('Save') | tojson }};
     };
     provider.addEventListener('change', syncProvider);
     syncProvider();

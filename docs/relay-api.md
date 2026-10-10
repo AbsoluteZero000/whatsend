@@ -1,14 +1,18 @@
 # Relay API provider
 
-Relay is supported by WhatSend's optional external API. Scheduled/dashboard jobs continue to use Whapi. Session creation and QR pairing are performed in Relay.
+Relay is supported by WhatSend's optional external API. Scheduled/dashboard jobs continue to use Whapi. WhatSend can create a Relay session and display its QR code for pairing directly in the site.
 
 ## Setup
 
 1. Install this revision and run `alembic upgrade head` against the WhatSend database before starting the app. Existing tokens default to `whatsapp`.
 2. Set `API_KEYS_ENABLED=true` and restart WhatSend (enabled in the Fly configuration). The Relay URL is entered in the site, independently for each connection. It must be reachable from WhatSend's deployment; container `127.0.0.1` refers to the WhatSend container itself.
-3. Create/pair a Relay session and obtain its UUID and API key. Required scopes: `sessions:read`, `chats:read`, `messages:read`, `messages:write`.
-4. In WhatSend's Tokens page, add a token with provider **Relay**, its backend origin (such as `https://relay.example.com`, without `/api/v1`), that session UUID, and the Relay API key. The key is encrypted at rest. To change provider/session/backend URL, create a new connection; replacing its credential is allowed. Origins must use HTTP or HTTPS without embedded credentials, query strings or fragments. `RELAY_BASE_URL` remains a fallback for legacy connections that lack a stored URL.
+3. Obtain a Relay API key with `sessions:read`, `sessions:write`, `chats:read`, `messages:read`, `messages:write` scopes. `sessions:write` is needed to create/connect sessions; it was not required by the earlier already-paired-session integration.
+4. In WhatSend's Tokens page, add a token with provider **Relay**, its backend origin (such as `https://relay.example.com`, without `/api/v1`), and the Relay API key. Leave the session ID blank to create one, or enter an existing session UUID. Click **Save and pair**, then **Get QR code**. On your phone open WhatsApp → Linked devices → Link a device and scan the displayed QR. WhatSend automatically refreshes the code and checks until it reports connected. Existing tokens have a **Pair WhatsApp** action for reconnecting.
 5. Generate a WhatSend API key linked to that Relay token. Send the **WhatSend** key as your bearer credential on every request below.
+
+The Relay key remains encrypted at rest. To change provider/session/backend URL, create a new connection; replacing its credential is allowed. Origins must use HTTP or HTTPS without embedded credentials, query strings or fragments. `RELAY_BASE_URL` remains a fallback for legacy connections that lack a stored URL. Relay currently allows one active session per account: if session creation reports a conflict, enter your existing session ID. Session creation is not retried automatically after a timeout.
+
+Pairing uses authenticated, account-scoped token routes and CSRF-protected connect requests. Only the PNG and expiry are sent to the pairing page; the raw pairing value is not returned. QR responses are not cached, written to the database, or added to delivery logs. Expired codes are hidden and refreshed. Connecting the WhatsApp account requires you to scan the code on your phone; WhatSend does not scan it for you.
 
 ## Endpoints
 

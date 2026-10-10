@@ -27,6 +27,7 @@
         <td>{{ tz(token.last_used_at, user_tz) }}</td>
         <td>
           <div class="actions">
+            {% if token.provider == 'relay' and token.is_active %}<a href="/tokens/{{ token.id }}/pair" class="btn btn-sm btn-primary">{{ _('Pair WhatsApp') }}</a>{% endif %}
             <a href="/tokens/{{ token.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
             <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
               <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-warning' }}">

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import base64
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -52,6 +53,10 @@ async def exercise(tmp_path, monkeypatch, handler, scenario):
 
     app = FastAPI()
     app.include_router(api.router)
+    app.include_router(tokens.router)
+    from app.main import render
+    app.state.render = render
+    monkeypatch.setattr(tokens, "require_user", lambda request: {"sub": str(context.user.id)})
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[api.get_api_key_user] = lambda: context
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: CLIENT(transport=httpx.MockTransport(handler), **kwargs))
@@ -308,5 +313,143 @@ def test_relay_connection_status_uses_site_url(tmp_path, monkeypatch):
     async def scenario(client, sessions, context):
         result = await client.get("/api/connection")
         assert result.status_code == 200 and result.json()["data"]["state"] == "connected"
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_pairing_page_connect_qr_and_connected_state(tmp_path, monkeypatch):
+    state = {"value": "disconnected"}
+    calls = []
+    encoded = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"test-qr").decode()
+
+    def relay(request):
+        calls.append(request)
+        assert request.url.host == "relay.test"
+        assert request.headers["authorization"] == "Bearer relay-secret"
+        if request.url.path.endswith("/connect"):
+            assert request.method == "POST"
+            state["value"] = "qr_required"
+            return httpx.Response(200, json={"data": {"id": SESSION, "state": "qr_required"}})
+        if request.url.path.endswith("/qr"):
+            return httpx.Response(200, json={"data": {
+                "png_base64": encoded, "value": "private-pairing-string",
+                "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat(),
+            }})
+        return httpx.Response(200, json={"data": {"id": SESSION, "state": state["value"]}})
+
+    async def scenario(client, sessions, context):
+        page = await client.get("/tokens/3/pair")
+        assert page.status_code == 200
+        assert "relay-pairing.js" in page.text and "Get QR code" in page.text
+        assert page.headers["cache-control"] == "no-store, private"
+        assert "relay-secret" not in page.text and calls == []
+        assert (await client.post("/tokens/3/relay/connect")).status_code == 403
+        result = await client.post("/tokens/3/relay/connect", headers={"X-CSRF-Token": "safe", "Cookie": "csrf_token=safe"})
+        assert result.status_code == 200 and result.json() == {"state": "qr_required"}
+        qr = await client.get("/tokens/3/relay/state")
+        assert qr.json()["qr"]["png_base64"] == encoded
+        assert "private-pairing-string" not in qr.text
+        assert qr.headers["cache-control"] == "no-store, private"
+        state["value"] = "connected"
+        result = await client.get("/tokens/3/relay/state")
+        assert result.json() == {"state": "connected", "qr": None}
+        assert sum(request.url.path.endswith("/qr") for request in calls) == 1
+        assert sum(request.method == "POST" for request in calls) == 1
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_pairing_is_owned_and_requires_active_relay_token(tmp_path, monkeypatch):
+    def relay(request):
+        pytest.fail("Invalid pairing connection contacted Relay")
+
+    async def scenario(client, sessions, context):
+        context.user.id = 8
+        assert (await client.get("/tokens/3/pair")).status_code == 404
+        assert (await client.get("/tokens/3/relay/state")).status_code == 404
+        context.user.id = 7
+        async with sessions() as db:
+            token = await db.get(Token, 3)
+            token.is_active = False
+            await db.commit()
+        assert (await client.get("/tokens/3/relay/state")).status_code == 400
+        async with sessions() as db:
+            token = await db.get(Token, 3)
+            token.is_active = True
+            token.provider = "whatsapp"
+            await db.commit()
+        assert (await client.get("/tokens/3/pair")).status_code == 400
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_new_relay_token_creates_session_and_redirects_to_pairing(tmp_path, monkeypatch):
+    def relay(request):
+        assert request.method == "POST" and request.url.path == "/api/v1/sessions"
+        assert request.headers["authorization"] == "Bearer new-relay-key"
+        return httpx.Response(201, json={"data": {"id": MESSAGE, "state": "disconnected"}})
+
+    async def scenario(client, sessions, context):
+        result = await client.post("/tokens/create", data={
+            "provider": "relay", "name": "New connection", "api_token": "new-relay-key",
+            "relay_base_url": "https://relay.test", "csrf_token": "safe",
+        }, headers={"Cookie": "csrf_token=safe"})
+        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
+        async with sessions() as db:
+            token = (await db.execute(select(Token).where(Token.name == "New connection"))).scalar_one()
+            assert token.relay_session_id == MESSAGE and token.relay_base_url == "https://relay.test"
+            assert token.api_token != "new-relay-key"
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_existing_session_skips_creation(tmp_path, monkeypatch):
+    def relay(request):
+        pytest.fail("Existing session was recreated")
+
+    async def scenario(client, sessions, context):
+        result = await client.post("/tokens/create", data={
+            "provider": "relay", "api_token": "relay-key", "relay_base_url": "https://relay.test",
+            "relay_session_id": SESSION, "csrf_token": "safe",
+        }, headers={"Cookie": "csrf_token=safe"})
+        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+@pytest.mark.parametrize("bad_qr", [
+    {"png_base64": "not-base64!", "expires_at": "2026-01-01T00:00:00Z"},
+    {"png_base64": base64.b64encode(b"not a PNG").decode(), "expires_at": "2026-01-01T00:00:00Z"},
+    {"png_base64": base64.b64encode(b"\x89PNG\r\n\x1a\n").decode(), "expires_at": "not a date"},
+])
+def test_invalid_qr_is_not_exposed(tmp_path, monkeypatch, bad_qr):
+    def relay(request):
+        if request.url.path.endswith("/status"):
+            return httpx.Response(200, json={"data": {"id": SESSION, "state": "qr_required"}})
+        return httpx.Response(200, json={"data": bad_qr})
+
+    async def scenario(client, sessions, context):
+        result = await client.get("/tokens/3/relay/state")
+        assert result.status_code == 502
+        assert "png_base64" not in result.text
+        assert result.headers["cache-control"] == "no-store, private"
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_pairing_permission_error_does_not_save_token(tmp_path, monkeypatch):
+    def relay(request):
+        return httpx.Response(403, json={"error": {"code": "insufficient_scope", "message": "Forbidden"}})
+
+    async def scenario(client, sessions, context):
+        headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
+        result = await client.post("/tokens/3/relay/connect", headers=headers)
+        assert result.status_code == 502 and "sessions:write" in result.json()["detail"]
+        result = await client.post("/tokens/create", data={
+            "provider": "relay", "api_token": "relay-key", "relay_base_url": "https://relay.test",
+        }, headers=headers)
+        assert result.status_code == 502
+        async with sessions() as db:
+            assert len((await db.execute(select(Token))).scalars().all()) == 1
 
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))

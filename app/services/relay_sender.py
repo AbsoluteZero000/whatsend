@@ -2,6 +2,9 @@
 from pathlib import Path
 from uuid import UUID
 from urllib.parse import urlsplit
+import base64
+import binascii
+from datetime import datetime
 
 import httpx
 from pydantic import HttpUrl
@@ -28,6 +31,42 @@ class RelaySender:
         self.base_url = f"{normalize_base_url(base_url)}/api/v1/sessions/{self.session_id}"
         self.timeout = timeout
         self.headers = {"accept": "application/json", "authorization": f"Bearer {api_token}"}
+
+    @staticmethod
+    async def create_session(api_token: str, base_url: str, timeout: int = 30) -> str:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{normalize_base_url(base_url)}/api/v1/sessions",
+                headers={"authorization": f"Bearer {api_token}", "accept": "application/json"},
+            )
+        response.raise_for_status()
+        return RelaySender._message_id(RelaySender._data(response))
+
+    async def connect(self) -> dict:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(f"{self.base_url}/connect", headers=self.headers)
+        response.raise_for_status()
+        return self._session_data(response)
+
+    async def get_qr(self) -> dict:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.get(f"{self.base_url}/qr", headers=self.headers)
+        response.raise_for_status()
+        data = self._data(response)
+        try:
+            encoded = data["png_base64"]
+            if not isinstance(encoded, str) or len(encoded) > 1024 * 1024:
+                raise ValueError("invalid image size")
+            png = base64.b64decode(encoded, validate=True)
+            if not png.startswith(b"\x89PNG\r\n\x1a\n"):
+                raise ValueError("invalid PNG")
+            expires_at = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00"))
+            if expires_at.tzinfo is None:
+                raise ValueError("missing timezone")
+        except (KeyError, ValueError, TypeError, AttributeError, binascii.Error) as exc:
+            raise RelayProtocolError("Relay returned an invalid QR code") from exc
+        # The raw pairing value is unnecessary for display and stays server-side.
+        return {"png_base64": encoded, "expires_at": expires_at.isoformat()}
 
     @staticmethod
     def validate_text(recipient: str, text: str):
@@ -126,7 +165,15 @@ class RelaySender:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(f"{self.base_url}/status", headers=self.headers)
         response.raise_for_status()
-        return self._data(response)
+        return self._session_data(response)
+
+    def _session_data(self, response: httpx.Response) -> dict:
+        data = self._data(response)
+        if self._message_id(data) != self.session_id or data.get("state") not in {
+            "disconnected", "connecting", "qr_required", "connected", "reconnecting", "failed",
+        }:
+            raise RelayProtocolError("Relay returned an invalid session state")
+        return data
 
     @staticmethod
     def _data(response: httpx.Response) -> dict:
