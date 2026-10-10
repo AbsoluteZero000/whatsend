@@ -29,6 +29,27 @@ RECIPIENT = "120363123456789@g.us"
 CLIENT = httpx.AsyncClient
 
 
+@pytest.mark.parametrize("code,phrase", [
+    ("session_unavailable", "no healthy WhatsApp worker"),
+    ("active_session_exists", "already has an active session"),
+    ("other_conflict", "could not complete this session operation"),
+])
+def test_pairing_distinguishes_relay_conflicts(tmp_path, monkeypatch, code, phrase):
+    def relay(request):
+        return httpx.Response(409, json={"error": {"code": code, "message": "upstream-private-detail"}})
+
+    async def scenario(client, sessions, context):
+        headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
+        for result in [await client.get("/tokens/3/relay/state"),
+                       await client.post("/tokens/3/relay/connect", headers=headers)]:
+            assert result.status_code == 502 and phrase in result.json()["detail"]
+            assert "upstream-private-detail" not in result.text
+            if code == "session_unavailable":
+                assert "already has" not in result.text
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
 @pytest.mark.parametrize("mode", ["register", "login"])
 def test_relay_ui_account_setup(tmp_path, monkeypatch, mode):
     calls = []

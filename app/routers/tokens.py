@@ -30,7 +30,16 @@ def pairing_error(exc: Exception) -> HTTPException:
         if exc.response.status_code == 401:
             return HTTPException(502, "Relay rejected the API key. Update the token and try again.")
         if exc.response.status_code == 409:
-            return HTTPException(502, "Relay could not start this session. If your Relay account already has a session, enter its session ID when adding the token.")
+            try:
+                error = exc.response.json().get("error", {})
+                code = error.get("code") if isinstance(error, dict) else None
+            except (ValueError, AttributeError):
+                code = None
+            if code == "session_unavailable":
+                return HTTPException(502, "Relay has no healthy WhatsApp worker for this session. Wait for the Relay worker to recover, then try again.")
+            if code == "active_session_exists":
+                return HTTPException(502, "Your Relay account already has an active session. Enter its session ID when adding the token.")
+            return HTTPException(502, "Relay could not complete this session operation. Check the Relay session and worker, then try again.")
     if isinstance(exc, httpx.TimeoutException):
         return HTTPException(502, "Relay timed out. Check connection status before trying again.")
     if isinstance(exc, httpx.RequestError):
