@@ -1,6 +1,12 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        "queued": "في قائمة الانتظار",
+        "processing": "قيد الإرسال",
+        "submitting": "جارٍ تقديم الطلب",
+        "unknown": "النتيجة غير مؤكدة",
+        "Relay supports JPEG, PNG and WebP up to 16MB, and MP4 up to 50MB. Connect WhatsApp before sending.": "يدعم Relay صور JPEG وPNG وWebP حتى 16 ميجابايت وMP4 حتى 50 ميجابايت. اربط واتساب قبل الإرسال.",
+        "Could not load groups. Connect WhatsApp and try again, or enter the recipient manually.": "تعذر تحميل المجموعات. اربط واتساب وحاول مجدداً أو أدخل المستلم يدوياً.",
         "Connect Relay": "توصيل Relay",
         "Register or log in to Relay": "التسجيل أو تسجيل الدخول إلى Relay",
         "Create your Relay account here. WhatSend handles the API key for you.": "أنشئ حساب Relay هنا. يتولى WhatSend إعداد مفتاح API لك.",

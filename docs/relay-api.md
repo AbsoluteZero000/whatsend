@@ -1,6 +1,6 @@
 # Relay API provider
 
-Relay is supported by WhatSend's optional external API. Scheduled/dashboard jobs continue to use Whapi. WhatSend can create a Relay session and display its QR code for pairing directly in the site.
+Relay is supported by WhatSend's external API and dashboard jobs, including Send Now, dates, recurring schedules, and manual triggers. WhatSend can create a Relay session and display its QR code for pairing directly in the site.
 
 ## Setup
 
@@ -81,3 +81,9 @@ curl https://whatsend.example.com/api/send/media \
 Supported: JPEG, PNG, WebP up to 16 MiB; MP4 up to WhatSend's 50 MiB limit. Documents, GIF, and other video formats are rejected. Uploads receive extension/content-type/signature validation and temporary local files are removed after submission/replay. Media idempotency includes recipient, caption, original filename, and content hash. Text is limited to 4096 UTF-8 bytes, captions to 1024 bytes, recipients to 128 bytes, and original filenames to 255 bytes. Invalid payloads are rejected before contacting Relay.
 
 Tests use mock HTTP responses and temporary databases; no live WhatsApp sends were performed.
+
+## Dashboard jobs
+
+Choose a Relay token in Jobs. Its groups load from its own WhatsApp session; manual recipient entry is also available. Text is limited to 4096 UTF-8 bytes, media captions to 1024 bytes. Supported attachments are JPEG/PNG/WebP (16MiB) and MP4 (50MiB).
+
+Each recipient has a durable delivery attempt recorded before enqueueing. Relay acceptance is shown as queued; WhatSend polls the stored message ID until sent or failed, including after a restart. Relay handles delivery retries. Lost acknowledgements are shown as unknown and are never automatically resubmitted. Check Relay before manually sending again. Terminal Relay failures are not retried by WhatSend. The Fly app stays running to execute schedules and poll delivery status without an open browser.

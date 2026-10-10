@@ -155,7 +155,7 @@
       <tr>
         <td>{{ attempt.group_name or attempt.group_id }}</td>
         <td>#{{ attempt.attempt_number }}</td>
-        <td><span class="badge badge-{{ 'completed' if attempt.status == 'sent' else 'failed' }}">{{ _(attempt.status) }}</span></td>
+        <td><span class="badge badge-{{ 'completed' if attempt.status == 'sent' else attempt.status }}">{{ _(attempt.status) }}</span></td>
         <td>{{ tz(attempt.created_at, user_tz) }}</td>
       </tr>
       {% endfor %}
@@ -182,7 +182,7 @@
       {% for log in logs %}
       <tr>
         <td><a href="/logs/{{ log.id }}" class="job-id-link">#{{ log.id }}</a></td>
-        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ _(log.status) }}</span></td>
+        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else log.status }}">{{ _(log.status) }}</span></td>
         <td><details><summary style="cursor:pointer;color:var(--primary);">{{ _('Show response') }}</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>

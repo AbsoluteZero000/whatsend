@@ -165,9 +165,14 @@ async def exercise(tmp_path, monkeypatch, handler, scenario):
     app = FastAPI()
     app.include_router(api.router)
     app.include_router(tokens.router)
+    app.include_router(jobs.router)
     from app.main import render
     app.state.render = render
     monkeypatch.setattr(tokens, "require_user", lambda request: {"sub": str(context.user.id)})
+    monkeypatch.setattr(jobs, "require_user", lambda request: {"sub": str(context.user.id)})
+    from app.services import scheduler as scheduling, relay_jobs
+    monkeypatch.setattr(scheduling, "async_session", sessions)
+    monkeypatch.setattr(relay_jobs, "async_session", sessions)
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[api.get_api_key_user] = lambda: context
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: CLIENT(transport=httpx.MockTransport(handler), **kwargs))

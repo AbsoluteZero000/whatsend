@@ -119,9 +119,13 @@ async def send_job(job_id: int, retry_only: bool = False):
             return
 
         token_result = await db.execute(
-            select(Token).where(Token.id == job.token_id, Token.user_id == job.user_id, Token.is_active.is_(True), Token.provider == "whatsapp")
+            select(Token).where(Token.id == job.token_id, Token.user_id == job.user_id, Token.is_active.is_(True))
         )
         token = token_result.scalar_one_or_none()
+        if token and token.provider == "relay":
+            from app.services.relay_jobs import submit_job
+            await submit_job(db, job, token, groups)
+            return
         run_id = str(uuid.uuid4())
         attempt_number = job.retry_count + 1 if retry_only else 1
         results: list[str] = []
@@ -214,6 +218,8 @@ async def remove_job(job_id: int):
 
 
 async def load_all_jobs():
+    from app.services.relay_jobs import poll_deliveries
+    scheduler.add_job(poll_deliveries, "interval", seconds=10, id="relay:delivery-status", replace_existing=True)
     async with async_session() as db:
         result = await db.execute(select(Job).where(Job.status.in_(["pending", "active", "retry_scheduled"])))
         jobs = result.scalars().all()

@@ -1,13 +1,14 @@
 import os
 import zoneinfo
 import uuid
+import httpx
 from datetime import datetime
 from pathlib import Path
 
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func as sqlfunc, select
 from sqlalchemy import asc, desc
@@ -24,7 +25,9 @@ from app.services.crypto import decrypt_token
 from app.services.csrf import csrf_protect
 from app.services.scheduler import register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
-from app.services.sender import WhatsAppSender
+from app.services.sender import WhatsAppSender, get_sender
+from app.services.relay_sender import RelaySender
+from app.services.relay_api import connection_base_url
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
 
@@ -140,6 +143,37 @@ async def delete_media_if_unreferenced(db: AsyncSession, image_path: str, exclud
 ALLOWED_SORT_COLS = {"id", "label", "group_name", "trigger_type", "status", "created_at"}
 
 
+def job_sender(token):
+    if token.provider == "whatsapp":
+        return WhatsAppSender(api_token=decrypt_token(token.api_token))
+    return get_sender(token.provider, decrypt_token(token.api_token), session_id=token.relay_session_id,
+                      base_url=connection_base_url(token))
+
+
+def validate_job_payload(token, recipients, message, image_path):
+    if token.provider != "relay":
+        return
+    try:
+        for recipient in recipients:
+            if image_path:
+                RelaySender.validate_media(recipient, image_path, message)
+            else:
+                RelaySender.validate_text(recipient, message)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/groups")
+async def token_groups(request: Request, token_id: int, db: AsyncSession = Depends(get_db)):
+    user = require_user(request)
+    token = await require_owned_active_token(db, int(user["sub"]), token_id)
+    try:
+        groups = await job_sender(token).get_groups()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(502, "Could not load groups. Check that this token's WhatsApp session is connected.") from exc
+    return JSONResponse({"groups": groups})
+
+
 async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: int) -> Token:
     result = await db.execute(
         select(Token).where(Token.id == token_id, Token.user_id == user_id, Token.is_active.is_(True))
@@ -147,8 +181,8 @@ async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: i
     token = result.scalar_one_or_none()
     if not token:
         raise HTTPException(status_code=400, detail="Select an active token that belongs to your account")
-    if token.provider == "relay":
-        raise HTTPException(400, "Relay currently supports the external API. Select a Whapi token for scheduled jobs.")
+    if token.provider == "relay" and not token.relay_session_id:
+        raise HTTPException(400, "Finish setting up your Relay session before creating a job")
     return token
 
 
@@ -196,13 +230,13 @@ async def list_jobs(
 
     base_query = select(Job).where(Job.user_id == user_id)
     if status == "active":
-        base_query = base_query.where(Job.status.in_(["pending", "active", "trigger", "retry_scheduled"]))
+        base_query = base_query.where(Job.status.in_(["pending", "active", "trigger", "retry_scheduled", "queued", "processing"]))
     elif status == "completed":
         base_query = base_query.where(Job.status.in_(["completed", "cancelled"]))
     elif status == "paused":
         base_query = base_query.where(Job.status == "paused")
     elif status == "failed":
-        base_query = base_query.where(Job.status == "failed")
+        base_query = base_query.where(Job.status.in_(["failed", "unknown"]))
     if q:
         like = f"%{q}%"
         base_query = base_query.where(
@@ -227,12 +261,12 @@ async def list_jobs(
             if not jg.group_name:
                 missing_job_groups.append(jg)
     if missing_job_groups:
-        result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True, Token.provider == "whatsapp"))
+        result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
         tokens = result.scalars().all()
         group_map: dict[str, str] = {}
         for t in tokens:
             try:
-                sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
+                sender = job_sender(t)
                 groups = await sender.get_groups()
                 group_map = {g["id"]: g.get("name") or g["id"] for g in groups}
                 if group_map:
@@ -266,18 +300,10 @@ async def create_job_page(request: Request, type: str = "now", db: AsyncSession 
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True, Token.provider == "whatsapp"))
+    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
     groups: list[dict] = []
-    for t in tokens:
-        try:
-            sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
-            groups = await sender.get_groups()
-            if groups:
-                break
-        except Exception:
-            continue
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     initial_trigger_type = type if type in {"now", "date", "cron", "trigger"} else "now"
@@ -352,7 +378,7 @@ async def create_job(
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    await require_owned_active_token(db, user_id, token_id)
+    token = await require_owned_active_token(db, user_id, token_id)
 
     if group_id_manual:
         group_ids.append(group_id_manual)
@@ -378,6 +404,12 @@ async def create_job(
         raise HTTPException(status_code=400, detail=str(exc))
 
     image_path = await save_upload(image) if image else None
+    try:
+        validate_job_payload(token, group_ids, message, image_path)
+    except HTTPException:
+        if image_path:
+            Path(image_path).unlink(missing_ok=True)
+        raise
 
     job = Job(
         user_id=user_id,
@@ -482,7 +514,7 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
         job.retry_group_ids = None
         await db.commit()
         await send_job(job_id)
-    return redirect_with_flash("/jobs", success="Job sent")
+    return redirect_with_flash("/jobs", success="Job submitted. Check delivery status in the job details.")
 
 
 @router.post("/{job_id}/cancel")
@@ -634,18 +666,10 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True, Token.provider == "whatsapp"))
+    result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
     groups: list[dict] = []
-    for t in tokens:
-        try:
-            sender = WhatsAppSender(api_token=decrypt_token(t.api_token))
-            groups = await sender.get_groups()
-            if groups:
-                break
-        except Exception:
-            continue
 
     form_data = {}
     if job.trigger_type == "date":
@@ -700,7 +724,7 @@ async def edit_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    await require_owned_active_token(db, user_id, token_id)
+    token = await require_owned_active_token(db, user_id, token_id)
 
     if group_id_manual:
         group_ids.append(group_id_manual)
@@ -713,14 +737,14 @@ async def edit_job(
         return redirect_with_flash(f"/jobs/{job_id}/edit", success="Select at least one day.")
 
     image_path = job.image_path
+    new_path = None
     if image and image.filename:
         new_path = await save_upload(image)
         if new_path:
-            if job.image_path:
-                await delete_media_if_unreferenced(db, job.image_path, job.id)
             image_path = new_path
 
     try:
+        validate_job_payload(token, group_ids, message, image_path)
         trigger_value = build_trigger_value(
             trigger_type, user_tz,
             trigger_value_date=trigger_value_date,
@@ -730,9 +754,15 @@ async def edit_job(
             cron_days=cron_days,
             cron_raw=cron_raw,
         )
-    except (ValueError, zoneinfo.ZoneInfoNotFoundError) as exc:
+    except (ValueError, zoneinfo.ZoneInfoNotFoundError, HTTPException) as exc:
+        if new_path:
+            Path(new_path).unlink(missing_ok=True)
+        if isinstance(exc, HTTPException):
+            raise
         raise HTTPException(status_code=400, detail=str(exc))
 
+    if new_path and job.image_path:
+        await delete_media_if_unreferenced(db, job.image_path, job.id)
     job.token_id = token_id
     job.label = label or None
     job.group_id = group_ids[0] if group_ids else ""

@@ -17,7 +17,7 @@
     {% else %}
     <select id="provider" name="provider">
       <option value="whatsapp">Whapi.Cloud</option>
-      <option value="relay">Relay ({{ _('External API only') }})</option>
+      <option value="relay">Relay</option>
     </select>
     {% endif %}
     <div id="relay_fields" {% if not edit_mode or token.provider != 'relay' %}hidden{% endif %}>

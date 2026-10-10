@@ -33,7 +33,7 @@ def test_complete_migration_chain_on_fresh_database(tmp_path, monkeypatch):
     command.upgrade(configuration, "head")
     engine = create_engine(url.replace("+aiosqlite", ""))
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261010_0004"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261010_0005"
         assert {"provider", "relay_session_id"} <= {column["name"] for column in inspect(connection).get_columns("tokens")}
         assert "relay_operations" in inspect(connection).get_table_names()
     engine.dispose()

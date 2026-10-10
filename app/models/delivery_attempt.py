@@ -17,6 +17,10 @@ class DeliveryAttempt(Base):
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relay_message_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    relay_token_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    relay_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    relay_base_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
     job: Mapped["Job"] = relationship("Job", back_populates="delivery_attempts")

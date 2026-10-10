@@ -10,9 +10,10 @@
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or token.api_token[:20] }}</option>
+      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('API Token') }} ({{ 'Relay' if token.provider == 'relay' else 'Whapi.Cloud' }})</option>
       {% endfor %}
     </select>
+    <p id="token_help" role="status"></p>
 
     <label for="label">{{ _('Label (optional)') }}</label>
     <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if edit_mode and job.label %}value="{{ job.label }}"{% endif %}>
@@ -214,6 +215,34 @@
   updateCronDayPicker();
 
   var _selectedGroups = {{ selected_groups | tojson }};
+  const tokenPicker = document.getElementById('token_id');
+  let groupRequest = 0;
+  async function loadTokenGroups(clearSelection) {
+    const requestId = ++groupRequest;
+    if (clearSelection) { _selectedGroups = []; renderChips(); }
+    const picker = document.getElementById('group_picker_select');
+    picker.replaceChildren(new Option({{ _('-- Select a group --') | tojson }}, ''), new Option({{ _('Manual entry…') | tojson }}, '__manual__'));
+    const help = document.getElementById('token_help');
+    help.textContent = '';
+    if (!tokenPicker.value) return;
+    const relay = tokenPicker.selectedOptions[0].dataset.provider === 'relay';
+    document.getElementById('image').accept = relay ? '.jpg,.jpeg,.png,.webp,.mp4' : '.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip';
+    help.textContent = relay ? {{ _('Relay supports JPEG, PNG and WebP up to 16MB, and MP4 up to 50MB. Connect WhatsApp before sending.') | tojson }} : '';
+    try {
+      const response = await fetch('/jobs/groups?token_id=' + encodeURIComponent(tokenPicker.value), {cache: 'no-store'});
+      if (!response.ok || response.redirected) throw new Error();
+      const data = await response.json();
+      if (requestId !== groupRequest) return;
+      for (const group of data.groups) {
+        const option = new Option(group.name || group.id, group.id);
+        option.dataset.name = group.name || group.id;
+        picker.insertBefore(option, picker.lastElementChild);
+      }
+    } catch (error) {
+      if (requestId === groupRequest) help.textContent = {{ _('Could not load groups. Connect WhatsApp and try again, or enter the recipient manually.') | tojson }};
+    }
+  }
+  tokenPicker.addEventListener('change', () => loadTokenGroups(true));
 
   function renderChips() {
     var container = document.getElementById('group_chips');
@@ -280,6 +309,8 @@
   });
 
   renderChips();
+  if (!tokenPicker.value && tokenPicker.options.length === 2) tokenPicker.selectedIndex = 1;
+  loadTokenGroups(false);
 
   document.querySelector('form').addEventListener('submit', function(e) {
     if (_selectedGroups.length === 0) {
