@@ -55,6 +55,14 @@ def test_upload_rejects_spoofed_extension(tmp_path, monkeypatch):
     assert not list(tmp_path.iterdir())
 
 
+def test_upload_rejects_empty_jpeg_with_actionable_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
+    upload = make_upload(b"", "20260709111911292797.jpeg", "image/jpeg")
+    with pytest.raises(HTTPException, match="file is empty"):
+        asyncio.run(jobs.save_upload(upload))
+    assert not list(tmp_path.iterdir())
+
+
 def test_upload_accepts_pdf(tmp_path, monkeypatch):
     monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
     upload = make_upload(b"%PDF-1.7\n% test document", "report.pdf", "application/pdf")

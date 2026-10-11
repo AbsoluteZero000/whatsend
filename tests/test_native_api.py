@@ -15,6 +15,7 @@ from app.models.apikey import ApiKey
 from app.models.relay_operation import RelayOperation
 from app.models.token import Token
 from app.models.user import User
+from app.models.job import Job
 from app.routers import api, jobs, tokens
 from app.services.crypto import encrypt_token
 from app.services.crypto import decrypt_token
@@ -27,6 +28,36 @@ SESSION = str(uuid4())
 MESSAGE = str(uuid4())
 RECIPIENT = "120363123456789@g.us"
 CLIENT = httpx.AsyncClient
+
+
+@pytest.mark.parametrize("content,error", [(b"", "The uploaded file is empty"),
+                                           (b"not a JPEG", "file content does not match .jpeg")])
+def test_invalid_job_upload_preserves_draft_without_creating_or_sending(tmp_path, monkeypatch, content, error):
+    monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
+
+    def worker(request):
+        pytest.fail("An invalid upload must not send a message")
+
+    async def scenario(client, sessions, context):
+        response = await client.post('/jobs/create',
+            headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"},
+            data={"token_id": "3", "label": "My draft", "message": "Keep this message",
+                  "group_ids": RECIPIENT, "group_names": "My group", "trigger_type": "cron",
+                  "cron_freq": "monthly", "cron_dom": "12", "cron_time": "17:45"},
+            files={"image": ("20260709111911292797.jpeg", content, "image/jpeg")})
+        assert response.status_code == 400
+        assert response.headers['content-type'].startswith('text/html')
+        assert error in response.text
+        assert 'Keep this message' in response.text and 'value="My draft"' in response.text
+        assert 'data-provider="native" selected' in response.text
+        assert RECIPIENT in response.text and 'My group' in response.text
+        assert 'value="monthly" selected' in response.text and 'value="17:45"' in response.text
+        assert 'value="12"' in response.text
+        async with sessions() as db:
+            assert not (await db.execute(select(Job))).scalars().all()
+        assert not list(tmp_path.glob('*.jpeg'))
+
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
 
 
 def test_native_connection_creation_needs_no_provider_credentials(tmp_path, monkeypatch):

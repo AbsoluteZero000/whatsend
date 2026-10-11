@@ -2,6 +2,7 @@ import os
 import zoneinfo
 import uuid
 import httpx
+from types import SimpleNamespace
 from datetime import datetime
 from pathlib import Path
 
@@ -124,12 +125,34 @@ async def save_upload(file: UploadFile) -> str | None:
                 if len(header) < 32:
                     header += chunk[:32 - len(header)]
                 output.write(chunk)
+        if total == 0:
+            raise HTTPException(status_code=400, detail="The uploaded file is empty. Choose the file again and retry.")
         if not signature_matches(header):
-            raise HTTPException(status_code=400, detail="The uploaded file content is not a supported media format")
+            raise HTTPException(status_code=400, detail=f"The uploaded file content does not match {ext}. Re-export the file in that format and upload it again.")
         return str(dest.resolve())
     except Exception:
         dest.unlink(missing_ok=True)
         raise
+
+
+async def upload_error_form(request, db, user, error, group_ids, group_names, job=None):
+    form = await request.form()
+    result = await db.execute(select(Token).where(Token.user_id == int(user["sub"]), Token.is_active.is_(True)))
+    draft = SimpleNamespace(id=job.id if job else None, token_id=int(form["token_id"]),
+                            label=form.get("label", ""), message=form.get("message", ""),
+                            trigger_type=form.get("trigger_type", "now"), image_path=job.image_path if job else None)
+    response = request.app.state.render(
+        request, "jobs/form.html", job=draft, edit_mode=job is not None, upload_error=str(error.detail),
+        tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
+        selected_groups=[{"id": gid, "name": (group_names[i] or gid) if i < len(group_names) else gid}
+                         for i, gid in enumerate(group_ids)],
+        initial_trigger_type=draft.trigger_type, trigger_value_date=form.get("trigger_value_date", ""),
+        cron_freq=form.get("cron_freq", "daily"), cron_time=form.get("cron_time", "09:00"),
+        cron_dom=form.get("cron_dom", "1"), cron_days=form.getlist("cron_days"), cron_raw=form.get("cron_raw", ""),
+        image_available=bool(draft.image_path and Path(draft.image_path).exists()),
+    )
+    response.status_code = error.status_code
+    return response
 
 
 async def delete_media_if_unreferenced(db: AsyncSession, image_path: str, excluding_job_id: int) -> None:
@@ -403,7 +426,10 @@ async def create_job(
     except (ValueError, zoneinfo.ZoneInfoNotFoundError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    image_path = await save_upload(image) if image else None
+    try:
+        image_path = await save_upload(image) if image else None
+    except HTTPException as exc:
+        return await upload_error_form(request, db, user, exc, group_ids, group_names)
     try:
         validate_job_payload(token, group_ids, message, image_path)
     except HTTPException:
@@ -739,7 +765,10 @@ async def edit_job(
     image_path = job.image_path
     new_path = None
     if image and image.filename:
-        new_path = await save_upload(image)
+        try:
+            new_path = await save_upload(image)
+        except HTTPException as exc:
+            return await upload_error_form(request, db, user, exc, group_ids, group_names, job)
         if new_path:
             image_path = new_path
 

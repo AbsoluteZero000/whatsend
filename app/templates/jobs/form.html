@@ -5,18 +5,19 @@
   <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>
 </div>
 <div class="form-card">
+  {% if upload_error %}<p role="alert" style="color:var(--danger, #c62828);">{{ upload_error }}</p>{% endif %}
   <form method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
     <label for="token_id">{{ _('API Token') }}</label>
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('API Token') }} ({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</option>
+      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if job is defined and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('API Token') }} ({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</option>
       {% endfor %}
     </select>
     <p id="token_help" role="status"></p>
 
     <label for="label">{{ _('Label (optional)') }}</label>
-    <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if edit_mode and job.label %}value="{{ job.label }}"{% endif %}>
+    <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if job is defined and job.label %}value="{{ job.label }}"{% endif %}>
 
     <label>{{ _('Groups') }}</label>
     <div class="group-picker">
@@ -34,10 +35,11 @@
     </div>
 
     <label for="message">{{ _('Message') }}</label>
-    <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if edit_mode %}{{ job.message }}{% endif %}</textarea>
+    <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
 
     <label for="image">{{ _('Attachment (optional, max 50MB)') }}</label>
     <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip">
+    <p id="upload_error" role="alert" style="display:none;color:var(--danger, #c62828);"></p>
     {% if edit_mode and job.image_path and image_available %}
     <div style="margin-bottom:0.5rem;">
       {% set is_video = job.image_path.lower().endswith(('.mp4','.mov','.avi','.mkv','.webm')) %}
@@ -313,6 +315,16 @@
   loadTokenGroups(false);
 
   document.querySelector('form').addEventListener('submit', function(e) {
+    const attachment = document.getElementById('image').files[0];
+    const uploadError = document.getElementById('upload_error');
+    uploadError.style.display = 'none';
+    if (attachment && attachment.size === 0) {
+      e.preventDefault();
+      uploadError.textContent = 'The selected file is empty. Choose the file again and retry.';
+      uploadError.style.display = 'block';
+      document.getElementById('image').focus();
+      return;
+    }
     const manual = document.getElementById('group_id_manual').value.trim();
     if (manual && !_selectedGroups.some(g => g.id === manual)) {
       _selectedGroups.push({id: manual, name: manual}); renderChips();
