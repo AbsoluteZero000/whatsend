@@ -61,7 +61,7 @@ export class WhatsAppManager {
   async open(s) {
     s.stopped = false;
     clearTimeout(s.reconnectTimer);
-    s.state = s.auth.creds.registered ? 'reconnecting' : 'connecting';
+    s.state = s.auth.creds.me?.id ? 'reconnecting' : 'connecting';
     const generation = ++s.generation;
     s.socket?.end(new Error('Replacing WhatsApp connection'));
     const save = () => this.saveAuth(s);
@@ -214,7 +214,8 @@ export class WhatsAppManager {
   async restore() {
     for (const id of readdirSync(this.root).filter(isSessionId)) {
       const s = this.session(id);
-      if (s.auth.creds.registered) void this.connect(id).catch(() => { s.state = 'failed'; });
+      // QR pairing stores `me`; `registered` is set by the pairing-code flow.
+      if (s.auth.creds.me?.id) void this.connect(id).catch(() => { s.state = 'failed'; });
     }
   }
   async close() {

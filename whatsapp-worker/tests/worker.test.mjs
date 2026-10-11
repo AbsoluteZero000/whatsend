@@ -78,7 +78,7 @@ test('idempotency persists; server acknowledgements distinguish queued and sent'
 test('restart does not resend processing messages; reconnect restores saved authentication', async t => {
   const {manager, sockets, root} = setup(t);
   const id = randomUUID();
-  await manager.connect(id); sockets[0].ev.emit('creds.update', {registered: true});
+  await manager.connect(id); sockets[0].ev.emit('creds.update', {me: {id: '201234567890:1@s.whatsapp.net'}});
   sockets[0].ev.emit('connection.update', {connection: 'open'});
   const operation = manager.enqueue(id, 'interrupted', {recipient: '123456789@g.us', text: 'Hello'});
   await tick();
@@ -90,7 +90,9 @@ test('restart does not resend processing messages; reconnect restores saved auth
   await restored.restore();
   assert.equal(restoredSockets.length, 1);
   assert.equal(restored.message(id,operation.id).status, 'unknown');
-  assert.equal(restoredSockets[0].options.auth.creds.registered, true);
+  assert.equal(restoredSockets[0].options.auth.creds.registered, false);
+  assert.equal(restoredSockets[0].options.auth.creds.me.id, '201234567890:1@s.whatsapp.net');
+  assert.equal(restored.status(id).state, 'reconnecting');
   await restored.close();
 });
 
