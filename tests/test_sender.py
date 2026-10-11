@@ -40,4 +40,40 @@ def test_send_routes_pdf_to_document_endpoint(tmp_path):
     result = asyncio.run(sender.send("group@g.us", "Quarterly report", str(document)))
 
     assert result == {"sent": True}
-    sender.send_document.assert_awaited_once_with("group@g.us", str(document), caption="Quarterly report")
+    sender.send_document.assert_awaited_once_with("group@g.us", str(document), caption="Quarterly report", filename=None)
+
+
+@pytest.mark.parametrize("filename", ["Quarterly Report.pdf", "تقرير الربع الأول.pdf"])
+def test_send_document_uses_original_filename(tmp_path, monkeypatch, filename):
+    document = tmp_path / "3f2a9c.pdf"
+    document.write_bytes(b"%PDF-1.7")
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"sent": True}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, url, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.sender.httpx.AsyncClient", FakeClient)
+    sender = WhatsAppSender("token")
+
+    asyncio.run(sender.send("group@g.us", "Report", str(document), filename))
+
+    assert captured["data"]["filename"] == filename
+    assert captured["files"]["media"][0] == filename

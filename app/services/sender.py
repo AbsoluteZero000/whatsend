@@ -46,15 +46,16 @@ class WhatsAppSender:
         response.raise_for_status()
         return response.json()
 
-    async def send_document(self, chat_id: str, document_path: str, caption: str = "") -> dict:
+    async def send_document(self, chat_id: str, document_path: str, caption: str = "", filename: str | None = None) -> dict:
         p = Path(document_path)
+        name = filename or p.name
         with p.open("rb") as fh:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
                     f"{self.base_url}/messages/document",
                     headers={"authorization": f"Bearer {self.token}"},
-                    data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
+                    data={"to": chat_id, "caption": caption, "filename": name},
+                    files={"media": (name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
                 )
         response.raise_for_status()
         return response.json()
@@ -70,7 +71,7 @@ class WhatsAppSender:
         data = response.json()
         return data.get("groups", [])
 
-    async def send(self, chat_id: str, message: str, image_path: str | None = None) -> dict:
+    async def send(self, chat_id: str, message: str, image_path: str | None = None, filename: str | None = None) -> dict:
         if not image_path:
             return await self.send_text(chat_id, message)
         ext = Path(image_path).suffix.lower()
@@ -80,7 +81,7 @@ class WhatsAppSender:
             ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
             ".txt", ".csv", ".rtf", ".odt", ".ods", ".odp", ".zip",
         }:
-            return await self.send_document(chat_id, image_path, caption=message)
+            return await self.send_document(chat_id, image_path, caption=message, filename=filename)
         return await self.send_image(chat_id, image_path, caption=message)
 
 

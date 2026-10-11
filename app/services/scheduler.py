@@ -143,7 +143,7 @@ async def send_job(job_id: int, retry_only: bool = False):
             sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
             for group in groups:
                 try:
-                    response = await sender.send(group.group_id, job.message, job.image_path)
+                    response = await sender.send(group.group_id, job.message, job.image_path, job.image_filename)
                     results.append(f"{group.group_id}: sent")
                     db.add(DeliveryAttempt(
                         job_id=job.id, run_id=run_id, group_id=group.group_id, group_name=group.group_name,
