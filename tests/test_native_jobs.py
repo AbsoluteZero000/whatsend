@@ -19,7 +19,7 @@ async def no_schedule(job):
     pass
 
 
-@pytest.mark.parametrize("media", [False, True])
+@pytest.mark.parametrize("media", ["text", "png", "pdf", "docx"])
 def test_native_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
     calls = []
     upstream_state = ["processing"]
@@ -34,8 +34,9 @@ def test_native_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
         if request.method == "POST":
             assert request.url.path == f"/api/v1/sessions/{SESSION}/messages"
             assert request.headers["Idempotency-Key"].startswith("echosend-job:")
-            if media:
+            if media != "text":
                 assert b'name="file"' in request.content and b'name="caption"' in request.content
+                assert ('filename="attachment.' + media + '"').encode() in request.content
             else:
                 assert json.loads(request.content) == {"recipient": RECIPIENT, "text": "Scheduled message"}
             return httpx.Response(202, json={"data": {"id": MESSAGE, "status": "pending"}})
@@ -49,7 +50,9 @@ def test_native_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
         assert groups.json()["groups"] == [{"id": RECIPIENT, "name": "My Relay group"}]
         assert (await client.get("/jobs/groups?token_id=999")).status_code == 400
         fields = {"token_id": "3", "group_ids": RECIPIENT, "message": "Scheduled message", "trigger_type": "now"}
-        files = {"image": ("picture.png", b"\x89PNG\r\n\x1a\nimage", "image/png")} if media else None
+        attachments = {"png": (b"\x89PNG\r\n\x1a\nimage", "image/png"), "pdf": (b"%PDF-1.7", "application/pdf"),
+                       "docx": (b"PK\x03\x04office", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        files = {"image": ("attachment." + media, *attachments[media])} if media != "text" else None
         result = await client.post("/jobs/create", data=fields, files=files,
                                    headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
         assert result.status_code == 303
@@ -189,9 +192,9 @@ def test_relay_job_validates_media_and_text_before_scheduling(tmp_path, monkeypa
         assert (await client.post("/jobs/create", data=fields, headers=headers)).status_code == 400
         fields["message"] = "Caption"
         result = await client.post("/jobs/create", data=fields, headers=headers,
-                                   files={"image": ("report.pdf", b"%PDF-test", "application/pdf")})
+                                   files={"image": ("report.gif", b"GIF89aimage", "image/gif")})
         assert result.status_code == 400 and "JPEG" in result.text
-        assert not list(tmp_path.glob("*.pdf"))
+        assert not list(tmp_path.glob("*.gif"))
         async with sessions() as db:
             assert not (await db.execute(select(Job))).scalars().all()
 

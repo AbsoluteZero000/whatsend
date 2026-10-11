@@ -53,7 +53,7 @@
       {% else %}
       <img src="/media/{{ job.image_path.split('/')[-1] }}" style="max-width:240px;max-height:240px;border-radius:8px;display:block;border:1px solid var(--border);">
       {% endif %}
-      <small style="color:var(--text-muted);margin-top:0.25rem;display:block;">{{ _('Current file:') }} {{ job.image_path.split('/')[-1] }}</small>
+      <small style="color:var(--text-muted);margin-top:0.25rem;display:block;">{{ _('Current file:') }} {{ job.image_filename or job.image_path.split('/')[-1] }}</small>
     </div>
     {% elif edit_mode and job.image_path and not image_available %}
     <div style="margin-bottom:0.5rem;padding:0.6rem 0.8rem;background:var(--bg-flash-error);border-radius:6px;font-size:0.85rem;">
@@ -229,8 +229,8 @@
     help.textContent = '';
     if (!tokenPicker.value) return;
     const relay = tokenPicker.selectedOptions[0].dataset.provider === 'native';
-    document.getElementById('image').accept = relay ? '.jpg,.jpeg,.png,.webp,.mp4' : '.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip';
-    help.textContent = relay ? {{ _('WhatsApp supports JPEG, PNG and WebP up to 16MB, and MP4 up to 50MB. Connect WhatsApp before sending.') | tojson }} : '';
+    document.getElementById('image').accept = relay ? '.jpg,.jpeg,.png,.webp,.mp4,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip' : '.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip';
+    help.textContent = relay ? {{ _('WhatsApp supports JPEG, PNG and WebP up to 16MB; MP4, PDF, Office, OpenDocument, text, CSV, RTF and ZIP up to 50MB. Connect WhatsApp before sending.') | tojson }} : '';
     try {
       const response = await fetch('/jobs/groups?token_id=' + encodeURIComponent(tokenPicker.value), {cache: 'no-store'});
       if (!response.ok || response.redirected) throw new Error();

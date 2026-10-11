@@ -16,6 +16,7 @@ from app.models.relay_operation import RelayOperation
 from app.models.token import Token
 from app.models.user import User
 from app.models.job import Job
+from app.services.media_types import DOCUMENT_MIMES
 from app.routers import api, jobs, tokens
 from app.services.crypto import encrypt_token
 from app.services.crypto import decrypt_token
@@ -28,6 +29,33 @@ SESSION = str(uuid4())
 MESSAGE = str(uuid4())
 RECIPIENT = "120363123456789@g.us"
 CLIENT = httpx.AsyncClient
+
+
+@pytest.mark.parametrize("extension,mime", list(DOCUMENT_MIMES.items()))
+def test_document_api_preserves_filename_mime_caption_and_idempotency(tmp_path, monkeypatch, extension, mime):
+    monkeypatch.setattr(jobs, "UPLOAD_DIR", tmp_path)
+    header = (b'%PDF-1.7' if extension == '.pdf' else
+              b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1' if extension in {'.doc', '.xls', '.ppt'} else
+              b'{\\rtf1 document}' if extension == '.rtf' else
+              b'document,text' if extension in {'.txt', '.csv'} else b'PK\x03\x04document')
+    calls = []
+    filename = 'Quarterly report' + extension
+    def worker(request):
+        calls.append(request)
+        assert ('filename="' + filename + '"').encode() in request.content
+        assert ('Content-Type: ' + mime).encode() in request.content
+        assert header in request.content and b'Document caption' in request.content
+        return httpx.Response(202, json={"data": {"id": MESSAGE, "status": "pending"}})
+
+    async def scenario(client, sessions, context):
+        for _ in range(2):
+            response = await client.post('/api/send/media', data={"group_id": RECIPIENT, "caption": "Document caption"},
+                headers={"Idempotency-Key": "document-1"}, files={"file": (filename, header, mime)})
+            assert response.status_code == 202
+        assert len(calls) == 1
+        assert not list(tmp_path.glob('*' + extension))
+
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
 
 
 def test_scheduled_job_requires_date_and_preserves_form(tmp_path, monkeypatch):
@@ -368,7 +396,7 @@ def test_media_upload_mapping_validation_and_cleanup(tmp_path, monkeypatch):
         assert not list(tmp_path.glob("*.png"))
         bad = await client.post("/api/send/media", data=fields, files={"file": ("photo.png", b"fake", "image/png")}, headers=headers)
         assert bad.status_code == 400
-        pdf = await client.post("/api/send/media", data=fields, files={"file": ("report.pdf", b"%PDF", "application/pdf")}, headers=headers)
+        pdf = await client.post("/api/send/media", data=fields, files={"file": ("report.pdf", b"fake pdf", "application/pdf")}, headers=headers)
         assert pdf.status_code == 400
 
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))

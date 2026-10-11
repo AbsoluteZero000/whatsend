@@ -104,6 +104,8 @@ def local_to_utc(date_str: str, tz_name: str = "UTC") -> str:
 async def save_upload(file: UploadFile) -> str | None:
     if not file.filename:
         return None
+    if len(Path(file.filename.replace("\\", "/")).name.encode("utf-8")) > 255:
+        raise HTTPException(400, "Attachment filename exceeds 255 UTF-8 bytes")
 
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -140,7 +142,8 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
     result = await db.execute(select(Token).where(Token.user_id == int(user["sub"]), Token.is_active.is_(True)))
     draft = SimpleNamespace(id=job.id if job else None, token_id=int(form["token_id"]),
                             label=form.get("label", ""), message=form.get("message", ""),
-                            trigger_type=form.get("trigger_type", "now"), image_path=job.image_path if job else None)
+                            trigger_type=form.get("trigger_type", "now"), image_path=job.image_path if job else None,
+                            image_filename=job.image_filename if job else None)
     response = request.app.state.render(
         request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail),
         tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
@@ -445,6 +448,7 @@ async def create_job(
         group_name=group_names[0] if group_names else None,
         message=message,
         image_path=image_path,
+        image_filename=Path(image.filename.replace("\\", "/")).name if image_path and image else None,
         trigger_type=trigger_type,
         trigger_value=trigger_value,
         schedule_timezone=user_tz,
@@ -591,6 +595,7 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         group_name=job.group_name,
         message=job.message,
         image_path=job.image_path,
+        image_filename=job.image_filename,
         trigger_type=job.trigger_type,
         trigger_value=job.trigger_value,
         schedule_timezone=job.schedule_timezone,
@@ -671,7 +676,7 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     delivery_attempts = attempt_result.scalars().all()
 
     media_available = bool(job.image_path and Path(job.image_path).exists())
-    media_filename = Path(job.image_path).name if media_available else ""
+    media_filename = (job.image_filename or Path(job.image_path).name) if media_available else ""
     media_is_video = bool(media_available and Path(job.image_path).suffix.lower() in VIDEO_EXTENSIONS)
     media_is_document = bool(media_available and Path(job.image_path).suffix.lower() in DOCUMENT_EXTENSIONS)
 
@@ -797,6 +802,8 @@ async def edit_job(
     job.group_name = group_names[0] if group_names else None
     job.message = message
     job.image_path = image_path
+    if new_path:
+        job.image_filename = Path(image.filename.replace("\\", "/")).name
     job.trigger_type = trigger_type
     job.trigger_value = trigger_value
     job.schedule_timezone = user_tz

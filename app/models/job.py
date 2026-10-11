@@ -28,6 +28,7 @@ class Job(Base):
     group_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     image_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     trigger_type: Mapped[str] = mapped_column(String(10), nullable=False)
     trigger_value: Mapped[str] = mapped_column(String(100), nullable=False)
     schedule_timezone: Mapped[str] = mapped_column(String(64), default="UTC")

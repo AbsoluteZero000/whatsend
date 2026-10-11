@@ -8,6 +8,7 @@ from datetime import datetime
 
 import httpx
 from pydantic import HttpUrl
+from app.services.media_types import NATIVE_MEDIA_MIMES
 
 
 def normalize_base_url(value: str) -> str:
@@ -99,11 +100,10 @@ class NativeSender:
         if len(caption.encode("utf-8")) > 1024:
             raise ValueError("WhatsApp caption exceeds 1024 UTF-8 bytes")
         file = Path(path)
-        types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".mp4": "video/mp4"}
-        mime = types.get(file.suffix.lower())
+        mime = NATIVE_MEDIA_MIMES.get(file.suffix.lower())
         if not mime:
-            raise ValueError("WhatsApp supports JPEG, PNG, WebP and MP4 attachments")
-        limit = 50 * 1024 * 1024 if mime == "video/mp4" else 16 * 1024 * 1024
+            raise ValueError("WhatsApp supports JPEG, PNG, WebP, MP4, PDF, Office, OpenDocument, text, CSV, RTF and ZIP attachments")
+        limit = 16 * 1024 * 1024 if mime.startswith("image/") else 50 * 1024 * 1024
         if not 0 < file.stat().st_size <= limit:
             raise ValueError("Attachment exceeds the WhatsApp/WhatSend upload limit or is empty")
         return mime

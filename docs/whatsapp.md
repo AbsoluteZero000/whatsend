@@ -13,7 +13,7 @@ Saved sessions reconnect after a restart. The pairing page offers **Log out of W
 
 ## Jobs and delivery
 
-Send Now, dates, recurring schedules, and manual triggers work with built-in connections. Text is limited to 4096 UTF-8 bytes, captions to 1024 bytes. JPEG/PNG/WebP attachments can be up to 16MiB, MP4 up to 50MiB.
+Send Now, dates, recurring schedules, and manual triggers work with built-in connections. Text is limited to 4096 UTF-8 bytes, captions to 1024 bytes. JPEG/PNG/WebP attachments can be up to 16MiB. MP4 and documents can be up to 50MiB. Documents include PDF, Word (DOC/DOCX), Excel (XLS/XLSX), PowerPoint (PPT/PPTX), OpenDocument (ODT/ODS/ODP), TXT, CSV, RTF, and ZIP. Jobs preserve the uploaded filename, including for scheduled and recurring deliveries. Document captions and delivery status follow the same rules as other attachments.
 
 Accepted sends show queued/processing until a WhatsApp server acknowledgement marks them sent. Sent means WhatsApp accepted the message, not that the recipient read it. Interrupted or uncertain sends show unknown and are never automatically resubmitted; check WhatsApp before manually sending again. Pending messages that have not yet been attempted survive restarts. Session keys, pending payloads, and operation records are encrypted on the persistent volume.
 

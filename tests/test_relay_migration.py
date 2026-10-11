@@ -9,6 +9,21 @@ from sqlalchemy import create_engine, inspect, text
 from app.config import settings
 
 
+def test_attachment_filename_migration_preserves_existing_jobs(tmp_path, monkeypatch):
+    revision = importlib.import_module("migrations.versions.20261011_0007_attachment_filename")
+    engine = create_engine(f"sqlite:///{tmp_path / 'attachment-upgrade.db'}")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE jobs (id INTEGER PRIMARY KEY, image_path TEXT)"))
+        connection.execute(text("INSERT INTO jobs VALUES (1, '/data/uploads/old.pdf')"))
+        monkeypatch.setattr(revision, "op", Operations(MigrationContext.configure(connection)))
+        revision.upgrade()
+        revision.upgrade()  # Fresh baselines may already contain the new column.
+        assert connection.execute(text("SELECT image_path,image_filename FROM jobs WHERE id=1")).one() == ('/data/uploads/old.pdf', None)
+        revision.downgrade()
+        assert connection.scalar(text("SELECT image_path FROM jobs WHERE id=1")) == '/data/uploads/old.pdf'
+    engine.dispose()
+
+
 def test_native_migration_preserves_links_and_retires_external_credentials(tmp_path, monkeypatch):
     revision = importlib.import_module("migrations.versions.20261011_0006_native_whatsapp")
     engine = create_engine(f"sqlite:///{tmp_path / 'native-upgrade.db'}")
@@ -60,7 +75,8 @@ def test_complete_migration_chain_on_fresh_database(tmp_path, monkeypatch):
     command.upgrade(configuration, "head")
     engine = create_engine(url.replace("+aiosqlite", ""))
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261011_0006"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261011_0007"
+        assert "image_filename" in {column["name"] for column in inspect(connection).get_columns("jobs")}
         assert {"provider", "relay_session_id"} <= {column["name"] for column in inspect(connection).get_columns("tokens")}
         assert "relay_operations" in inspect(connection).get_table_names()
         assert "relay_message_id" in {column["name"] for column in inspect(connection).get_columns("delivery_attempts")}

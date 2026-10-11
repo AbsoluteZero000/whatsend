@@ -13,7 +13,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Reconnecting to WhatsApp…": "جارٍ إعادة الاتصال بواتساب…",
         "Could not check WhatsApp. Try refreshing the status.": "تعذر التحقق من واتساب. حاول تحديث الحالة.",
         "WhatsApp request failed. Try again.": "فشل طلب واتساب. حاول مجدداً.",
-        "WhatsApp supports JPEG, PNG and WebP up to 16MB, and MP4 up to 50MB. Connect WhatsApp before sending.": "يدعم واتساب صور JPEG وPNG وWebP حتى 16 ميجابايت وMP4 حتى 50 ميجابايت. اربط واتساب قبل الإرسال.",
+        "WhatsApp supports JPEG, PNG and WebP up to 16MB; MP4, PDF, Office, OpenDocument, text, CSV, RTF and ZIP up to 50MB. Connect WhatsApp before sending.": "يدعم واتساب صور JPEG وPNG وWebP حتى 16 ميجابايت، وMP4 وPDF وملفات Office وOpenDocument والنصوص وCSV وRTF وZIP حتى 50 ميجابايت. اربط واتساب قبل الإرسال.",
         "queued": "في قائمة الانتظار",
         "processing": "قيد الإرسال",
         "submitting": "جارٍ تقديم الطلب",

@@ -8,8 +8,49 @@ import {randomUUID} from 'node:crypto';
 import {WhatsAppManager, recipientJid} from '../manager.mjs';
 import {EncryptedStore} from '../store.mjs';
 import {workerServer} from '../server.mjs';
+import {mediaKind} from '../media.mjs';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 25));
+
+test('all supported document formats validate; spoofed documents and oversize bodies fail', () => {
+  const zip = Buffer.from([80,75,3,4]), ole = Buffer.from([208,207,17,224,161,177,26,225]);
+  const cases = [
+    ['pdf','application/pdf',Buffer.from('%PDF-1.7')], ['doc','application/msword',ole],
+    ['docx','application/vnd.openxmlformats-officedocument.wordprocessingml.document',zip],
+    ['xls','application/vnd.ms-excel',ole], ['xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',zip],
+    ['ppt','application/vnd.ms-powerpoint',ole], ['pptx','application/vnd.openxmlformats-officedocument.presentationml.presentation',zip],
+    ['odt','application/vnd.oasis.opendocument.text',zip], ['ods','application/vnd.oasis.opendocument.spreadsheet',zip],
+    ['odp','application/vnd.oasis.opendocument.presentation',zip], ['zip','application/zip',zip],
+    ['txt','text/plain',Buffer.from('hello')], ['csv','text/csv',Buffer.from('a,b')], ['rtf','application/rtf',Buffer.from('{\\rtf1 text}')],
+  ];
+  for (const [ext,mime,bytes] of cases) assert.equal(mediaKind({filename:'Report.'+ext,mime,bytes}),'document',ext);
+  assert.equal(mediaKind({filename:'bad.pdf',mime:'application/pdf',bytes:Buffer.from('MZexecutable')}),null);
+  assert.equal(mediaKind({filename:'bad.docx',mime:'application/msword',bytes:ole}),null);
+  assert.equal(mediaKind({filename:'empty.txt',mime:'text/plain',bytes:Buffer.alloc(0)}),null);
+  const big = Buffer.alloc(50*1024*1024+1, 65);
+  assert.equal(mediaKind({filename:'huge.txt',mime:'text/plain',bytes:big}),null);
+});
+
+test('document uploads reach Baileys with original filename, caption and bytes', async t => {
+  const {manager,sockets,sends} = setup(t);
+  const server = workerServer(manager,'document-secret');
+  await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const id=randomUUID(); await manager.connect(id);
+  sockets[0].ev.emit('connection.update',{connection:'open'});
+  const bytes=Buffer.from('%PDF-1.7 document');
+  const form=new FormData(); form.set('recipient','123456789@g.us'); form.set('caption','Quarterly report');
+  form.set('file',new Blob([bytes],{type:'application/pdf'}),'Report.pdf');
+  const response=await fetch('http://127.0.0.1:'+server.address().port+'/api/v1/sessions/'+id+'/messages',{
+    method:'POST',headers:{Authorization:'Bearer document-secret','Idempotency-Key':'document-1'},body:form});
+  assert.equal(response.status,202); await tick();
+  assert.equal(sends.length,1);
+  assert.deepEqual(sends[0].content.document,bytes);
+  assert.equal(sends[0].content.fileName,'Report.pdf');
+  assert.equal(sends[0].content.mimetype,'application/pdf');
+  assert.equal(sends[0].content.caption,'Quarterly report');
+  assert.equal(sends[0].content.image,undefined);
+});
 function setup(t) {
   const root = mkdtempSync(join(tmpdir(), 'whatsend-worker-'));
   const sockets = [], sends = [];

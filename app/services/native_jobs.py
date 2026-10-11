@@ -81,7 +81,8 @@ async def submit_job(db, job, token, groups):
             try:
                 key = f"echosend-job:{run_id}:{attempt.id}"
                 if job.image_path:
-                    data = await sender.enqueue_media(attempt.group_id, job.image_path, job.message, key)
+                    data = await sender.enqueue_media(attempt.group_id, job.image_path, job.message, key,
+                                                      filename=job.image_filename)
                 else:
                     data = await sender.enqueue_text(attempt.group_id, job.message, key)
                 attempt.relay_message_id = data["id"]

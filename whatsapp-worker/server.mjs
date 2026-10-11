@@ -3,6 +3,7 @@ import {timingSafeEqual} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import Busboy from 'busboy';
 import {WhatsAppManager, ClientError, isSessionId} from './manager.mjs';
+import {mediaKind} from './media.mjs';
 
 async function parseBody(request) {
   if (request.headers['content-type']?.startsWith('multipart/form-data')) {
@@ -23,15 +24,8 @@ async function parseBody(request) {
       parser.on('close', () => {
         if (failed) return;
         if (!media?.bytes.length) return fail();
-        const types = {'image/jpeg': 'image', 'image/png': 'image', 'image/webp': 'image', 'video/mp4': 'video'};
-        media.kind = types[media.mime];
-        if (!media.kind || (media.kind === 'image' && media.bytes.length > 16 * 1024 * 1024)) return fail();
-        const b = media.bytes;
-        const valid = media.mime === 'image/png' ? b.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) :
-          media.mime === 'image/jpeg' ? b[0] === 255 && b[1] === 216 && b[2] === 255 :
-          media.mime === 'image/webp' ? b.subarray(0,4).toString() === 'RIFF' && b.subarray(8,12).toString() === 'WEBP' :
-          b.subarray(4,8).toString() === 'ftyp';
-        if (!valid) return fail();
+        media.kind = mediaKind(media);
+        if (!media.kind) return fail();
         if (Buffer.byteLength(fields.caption || '') > 1024) return fail();
         resolve({recipient: fields.recipient, caption: fields.caption || '', media});
       });

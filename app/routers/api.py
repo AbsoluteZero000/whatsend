@@ -22,6 +22,7 @@ from app.services.crypto import decrypt_token
 from app.services.sender import get_sender
 from app.services.native_api import connection_base_url, key_fingerprint, operation_response, submit_native
 from app.routers.jobs import save_upload
+from app.services.media_types import NATIVE_MEDIA_MIMES
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -213,8 +214,8 @@ async def api_send_media(
     token = await get_linked_token(context, db, "native")
     sender = connection_sender(token)
     filename = Path(file.filename or "").name
-    if Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".mp4"}:
-        raise HTTPException(400, "WhatsApp supports JPEG, PNG, WebP and MP4 attachments")
+    if Path(filename).suffix.lower() not in NATIVE_MEDIA_MIMES:
+        raise HTTPException(400, "Unsupported WhatsApp attachment type")
     if len(filename.encode()) > 255 or len(caption.encode()) > 1024:
         raise HTTPException(400, "WhatsApp filename exceeds 255 bytes or caption exceeds 1024 bytes")
     path = await save_upload(file)
