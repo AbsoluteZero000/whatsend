@@ -1,12 +1,13 @@
 (function () {
   const script = document.querySelector('script[data-token-id][data-messages]');
   const messages = JSON.parse(script.dataset.messages);
-  const root = '/tokens/' + script.dataset.tokenId + '/relay';
+  const root = '/tokens/' + script.dataset.tokenId + '/whatsapp';
   const status = document.getElementById('pair_status');
   const error = document.getElementById('pair_error');
   const qr = document.getElementById('pair_qr');
   const image = document.getElementById('pair_qr_image');
   const connect = document.getElementById('pair_connect');
+  const logout = document.getElementById('pair_logout');
   const refresh = document.getElementById('pair_refresh');
   let pollTimer, expiryTimer, controller;
   let closed = false;
@@ -26,6 +27,7 @@
     error.hidden = !actionError;
     status.textContent = messages[data.state] || messages.checking;
     connect.hidden = data.state === 'connected';
+    if (logout) logout.hidden = data.state !== 'connected';
     clearQr();
     if (data.qr) {
       const expiry = new Date(data.qr.expires_at);
@@ -63,7 +65,7 @@
       const data = await response.json();
       if (!response.ok) {
         const detail = data.detail;
-        throw new Error(detail === 'Relay key needs sessions:read and sessions:write permissions for pairing.'
+        throw new Error(detail === 'WhatsApp service is unavailable. Try again shortly.'
           ? messages.permissions : detail || messages.request_failed);
       }
       return data;
@@ -115,6 +117,13 @@
       refresh.disabled = false;
       if (!closed) poll();
     }
+  });
+  if (logout) logout.addEventListener('click', async function () {
+    if (closed || busy) return;
+    busy = true; logout.disabled = true; clearTimeout(pollTimer); clearQr();
+    try { display(await request('/logout', 'POST')); actionError = ''; }
+    catch (exc) { actionError = exc.message; error.textContent = actionError; error.hidden = false; }
+    finally { busy = false; logout.disabled = false; if (!closed) poll(); }
   });
   refresh.addEventListener('click', poll);
   window.addEventListener('pagehide', function () {

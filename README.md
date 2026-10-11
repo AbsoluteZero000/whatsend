@@ -1,6 +1,6 @@
 # EchoSend — Automated & Scheduled Messaging
 
-Schedule and send WhatsApp messages from a browser dashboard, powered by [Whapi.Cloud](https://whapi.cloud).
+Schedule and send WhatsApp messages from a browser dashboard, with built-in WhatsApp QR pairing and optional [Whapi.Cloud](https://whapi.cloud) tokens.
 
 ## The story
 
@@ -76,7 +76,7 @@ pip install -r requirements-dev.txt
 python run.py
 ```
 
-Open http://localhost:8000, sign up, add a Whapi.Cloud token, and create your first message.
+Install the WhatsApp worker dependencies with `cd whatsapp-worker && npm ci`, then start both services with `python run.py` (Node 22+ required). Open http://localhost:8000, sign up, choose **Tokens → Connect WhatsApp**, scan the QR code from Linked devices on your phone, and create your first message. Optional Whapi.Cloud tokens remain supported.
 
 On first startup, the app creates an administrator with username `admin` and password `admin` if that username does not already exist. The first sign-in is restricted to the profile page until the default password is replaced with one of at least 10 characters. Set `DEFAULT_ADMIN_PASSWORD` before first startup to override the bootstrap password, and use `ADMIN_USERNAMES` for additional administrator usernames.
 
@@ -98,7 +98,7 @@ curl -X POST https://your-app.example.com/api/send \
 
 Each API key is linked to one active token owned by the same user. The target `group_id` must be a WhatsApp group ID that connection can send to.
 
-The external API also supports **Relay** connections for text, supported image/video attachments, group lookup, and delivery status. Add a Relay token in the site with its backend URL and key, then scan the QR code from **Save and pair → Get QR code**. You can leave the session ID blank to create one or reuse an existing session. Link your WhatSend API key to that token. Relay sends require an `Idempotency-Key` and return **202 queued** until delivery is confirmed. See [Relay setup and API examples](docs/relay-api.md) for migration steps, endpoints, and response semantics. Relay also supports dashboard jobs, Send Now, and scheduled text/image/video sends. Delivery attempts show queued/processing until Relay confirms delivery; Relay owns delivery retries. The Fly machine stays running so schedules and delivery polling work when no browser is open.
+Built-in **WhatsApp QR** connections support personal/group text messages, JPEG/PNG/WebP images, MP4 video, group lookup, delivery status, and dashboard jobs. Choose **Tokens → Connect WhatsApp → Get QR code**, scan it on your phone, and link a WhatSend API key to that connection if you need the external API. No Relay service, provider registration, backend URL, or provider token is needed. Native sends require an `Idempotency-Key` and return **202 queued** until WhatsApp acknowledges them. See [WhatsApp setup and API examples](docs/whatsapp.md).
 
 ## Supported direct Meta integration spike
 
@@ -115,7 +115,7 @@ whatsend/
 │   ├── i18n.py               # Translation dictionary (en/ar)
 │   ├── models/               # User, Token, Job, Log (SQLAlchemy 2.0)
 │   ├── routers/              # auth, dashboard, tokens, jobs, logs, about
-│   ├── services/             # auth (JWT/bcrypt), crypto (Fernet), sender (Whapi.Cloud), scheduler (APScheduler)
+│   ├── services/             # auth (JWT/bcrypt), crypto (Fernet), sender (built-in WhatsApp/Whapi.Cloud), scheduler (APScheduler)
 │   ├── templates/            # Jinja2 (base, auth, dashboard, jobs, tokens, logs, about)
 │   └── static/css/           # app.css (light + dark themes, 270 lines)
 ├── migrations/               # Alembic versioned database migrations

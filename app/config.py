@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     whapi_base_url: str = "https://gate.whapi.cloud"
-    relay_base_url: str = "http://127.0.0.1:8080"
+    whatsapp_worker_url: str = "http://127.0.0.1:3001"
+    whatsapp_worker_secret: str = ""
     cookie_secure: bool = False
     token_encryption_key: str = ""
     meta_graph_base_url: str = "https://graph.facebook.com"

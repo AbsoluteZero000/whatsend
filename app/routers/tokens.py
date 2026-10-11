@@ -1,6 +1,6 @@
 from urllib.parse import urlencode
 from pathlib import Path
-from uuid import UUID
+from uuid import uuid4
 import httpx
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -16,8 +16,7 @@ from app.routers.auth import require_user
 from app.services.crypto import encrypt_token, decrypt_token
 from app.services.csrf import csrf_protect
 from app.services.scheduler import remove_job
-from app.services.relay_sender import RelaySender, normalize_base_url
-from app.services.relay_api import connection_base_url
+from app.services.native_sender import NativeSender
 
 router = APIRouter(prefix="/tokens", tags=["tokens"], dependencies=[Depends(csrf_protect)])
 PAIRING_HEADERS = {"Cache-Control": "no-store, private", "Pragma": "no-cache"}
@@ -25,64 +24,30 @@ PAIRING_HEADERS = {"Cache-Control": "no-store, private", "Pragma": "no-cache"}
 
 def pairing_error(exc: Exception) -> HTTPException:
     if isinstance(exc, httpx.HTTPStatusError):
-        if exc.response.status_code == 403:
-            return HTTPException(502, "Relay key needs sessions:read and sessions:write permissions for pairing.")
-        if exc.response.status_code == 401:
-            return HTTPException(502, "Relay rejected the API key. Update the token and try again.")
-        if exc.response.status_code == 409:
-            try:
-                error = exc.response.json().get("error", {})
-                code = error.get("code") if isinstance(error, dict) else None
-            except (ValueError, AttributeError):
-                code = None
-            if code == "session_unavailable":
-                return HTTPException(502, "Relay has no healthy WhatsApp worker for this session. Wait for the Relay worker to recover, then try again.")
-            if code == "active_session_exists":
-                return HTTPException(502, "Your Relay account already has an active session. Enter its session ID when adding the token.")
-            return HTTPException(502, "Relay could not complete this session operation. Check the Relay session and worker, then try again.")
-    if isinstance(exc, httpx.TimeoutException):
-        return HTTPException(502, "Relay timed out. Check connection status before trying again.")
-    if isinstance(exc, httpx.RequestError):
-        return HTTPException(502, "Could not reach the Relay backend. Check its URL and availability.")
-    return HTTPException(502, "Relay could not complete pairing. Check the session and Relay worker, then try again.")
+        try:
+            detail = exc.response.json().get("error", {}).get("message")
+        except (ValueError, AttributeError):
+            detail = None
+        if detail and exc.response.status_code in {400, 409}:
+            return HTTPException(502, detail)
+    return HTTPException(502, "The built-in WhatsApp service is unavailable. Try reconnecting shortly.")
 
 
-async def owned_relay_token(token_id: int, request: Request, db: AsyncSession) -> Token:
+async def owned_native_token(token_id: int, request: Request, db: AsyncSession) -> Token:
     user = require_user(request)
     token = (await db.execute(select(Token).where(
         Token.id == token_id, Token.user_id == int(user["sub"]),
     ))).scalar_one_or_none()
     if not token:
-        raise HTTPException(404, "Token not found")
-    if token.provider != "relay" or not token.is_active:
-        raise HTTPException(400, "Select an active Relay token for pairing")
-    if not token.relay_session_id:
-        raise HTTPException(400, "Save a Relay session on the token edit page before pairing")
+        raise HTTPException(404, "Connection not found")
+    if token.provider != "native" or not token.is_active:
+        raise HTTPException(400, "Select an active built-in WhatsApp connection")
     return token
 
 
-def relay_connection(token: Token) -> RelaySender:
-    return RelaySender(decrypt_token(token.api_token), token.relay_session_id, connection_base_url(token))
+def native_connection(token: Token) -> NativeSender:
+    return NativeSender(session_id=token.relay_session_id)
 
-
-def validate_connection(provider: str, session_id: str) -> str | None:
-    if provider not in {"whatsapp", "relay"}:
-        raise HTTPException(400, "Unsupported provider")
-    if provider == "whatsapp":
-        return None
-    try:
-        return str(UUID(session_id.strip()))
-    except (ValueError, AttributeError) as exc:
-        raise HTTPException(400, "Enter a valid Relay session UUID") from exc
-
-
-def validate_relay_url(provider: str, url: str) -> str | None:
-    if provider != "relay":
-        return None
-    try:
-        return normalize_base_url(url)
-    except ValueError as exc:
-        raise HTTPException(400, "Enter the Relay HTTP/HTTPS backend URL without /api/v1, credentials, query or fragment") from exc
 
 def _flash(url: str, success: str = "") -> RedirectResponse:
     if success:
@@ -106,116 +71,64 @@ async def create_token_page(request: Request):
     return request.app.state.render(request, "tokens/form.html")
 
 
-@router.get("/relay/setup")
-async def relay_setup_page(request: Request):
+@router.get("/connect")
+async def connect_page(request: Request):
     require_user(request)
-    response = request.app.state.render(request, "tokens/relay_setup.html", values={})
-    response.headers.update(PAIRING_HEADERS)
-    return response
+    return request.app.state.render(request, "tokens/connect.html")
 
 
-@router.post("/relay/setup")
-async def relay_setup(
-    request: Request, relay_base_url: str = Form(...), email: str = Form(...),
-    password: str = Form(...), mode: str = Form(default="register"),
-    name: str = Form(default=""), relay_session_id: str = Form(default=""),
-    db: AsyncSession = Depends(get_db),
-):
+@router.get("/relay/setup", include_in_schema=False)
+async def retired_relay_setup(request: Request):
+    require_user(request)
+    return RedirectResponse("/tokens/connect", status_code=303)
+
+
+@router.post("/connect")
+async def create_native_connection(request: Request, name: str = Form(default=""), db: AsyncSession = Depends(get_db)):
     user = require_user(request)
-    values = {"relay_base_url": relay_base_url, "email": email, "mode": mode,
-              "name": name, "relay_session_id": relay_session_id}
-    try:
-        relay_url = validate_relay_url("relay", relay_base_url)
-        if mode not in {"register", "login"}:
-            raise HTTPException(400, "Choose Register or Log in.")
-        if not email.strip() or not password:
-            raise HTTPException(400, "Enter your Relay email and password.")
-        if mode == "register" and not 12 <= len(password.encode("utf-8")) <= 1024:
-            raise HTTPException(400, "Relay passwords must contain 12–1024 UTF-8 bytes.")
-        session_id = validate_connection("relay", relay_session_id) if relay_session_id.strip() else None
-        key = await RelaySender.provision_key(relay_url, email.strip(), password, mode)
-    except (HTTPException, httpx.HTTPError, ValueError) as exc:
-        if isinstance(exc, HTTPException):
-            message = exc.detail
-        elif isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 409:
-            message = "This email is already registered in Relay. Choose Log in instead."
-        elif isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 401:
-            message = "Relay rejected the email or password. Try again."
-        else:
-            message = "Could not set up your Relay account. Check the backend URL and credentials. If registration already succeeded, choose Log in to continue."
-        response = request.app.state.render(request, "tokens/relay_setup.html", values=values, error=message)
-        response.status_code = 400
-        response.headers.update(PAIRING_HEADERS)
-        return response
-    # Persist the issued key before session creation so a worker failure cannot lose it.
-    token = Token(user_id=int(user["sub"]), name=name.strip() or "Relay", provider="relay",
-                  api_token=encrypt_token(key), relay_session_id=session_id, relay_base_url=relay_url)
+    token = Token(user_id=int(user["sub"]), name=name.strip()[:120] or "WhatsApp",
+                  provider="native", api_token="", relay_session_id=str(uuid4()))
     db.add(token)
     await db.commit()
-    if not session_id:
-        try:
-            token.relay_session_id = await RelaySender.create_session(key, relay_url)
-            await db.commit()
-        except (httpx.HTTPError, ValueError):
-            return _flash(f"/tokens/{token.id}/edit", success="Relay account connected. Enter an existing session ID, or leave it blank and save to retry session creation.")
-    return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303, headers=PAIRING_HEADERS)
+    return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303)
 
 
 @router.post("/create")
-async def create_token(
-    request: Request,
-    name: str = Form(default=""),
-    api_token: str = Form(...),
-    provider: str = Form(default="whatsapp"),
-    relay_session_id: str = Form(default=""),
-    relay_base_url: str = Form(default=""),
-    db: AsyncSession = Depends(get_db),
-):
+async def create_token(request: Request, name: str = Form(default=""), api_token: str = Form(...),
+                       provider: str = Form(default="whatsapp"), db: AsyncSession = Depends(get_db)):
     user = require_user(request)
-    user_id = int(user["sub"])
-
-    relay_url = validate_relay_url(provider, relay_base_url)
+    if provider != "whatsapp":
+        raise HTTPException(400, "Use Connect WhatsApp for QR pairing")
     if not api_token.strip():
         raise HTTPException(400, "API token is required")
-    if provider == "relay" and not relay_session_id.strip():
-        try:
-            session_id = await RelaySender.create_session(api_token.strip(), relay_url)
-        except (httpx.HTTPError, ValueError) as exc:
-            raise pairing_error(exc) from exc
-    else:
-        session_id = validate_connection(provider, relay_session_id)
-    token = Token(user_id=user_id, name=name or None, api_token=encrypt_token(api_token.strip()),
-                  provider=provider, relay_session_id=session_id, relay_base_url=relay_url)
-    db.add(token)
+    db.add(Token(user_id=int(user["sub"]), name=name or None, provider="whatsapp", api_token=encrypt_token(api_token.strip())))
     await db.commit()
-    if provider == "relay":
-        return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303)
     return _flash("/tokens", success="Token created")
 
 
 @router.get("/{token_id}/pair")
-async def pair_relay_page(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    token = await owned_relay_token(token_id, request, db)
+async def pair_native_page(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_native_token(token_id, request, db)
     response = request.app.state.render(request, "tokens/pair.html", token=token)
     response.headers.update(PAIRING_HEADERS)
     return response
 
 
-@router.post("/{token_id}/relay/connect")
-async def connect_relay(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    token = await owned_relay_token(token_id, request, db)
+@router.post("/{token_id}/whatsapp/connect")
+async def connect_native(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_native_token(token_id, request, db)
     try:
-        data = await relay_connection(token).connect()
+        data = await native_connection(token).connect()
     except (httpx.HTTPError, ValueError) as exc:
         raise pairing_error(exc) from exc
     return JSONResponse({"state": data["state"]}, headers=PAIRING_HEADERS)
 
 
-@router.get("/{token_id}/relay/state")
-async def relay_pairing_state(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
-    token = await owned_relay_token(token_id, request, db)
+@router.get("/{token_id}/whatsapp/state")
+async def native_pairing_state(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_native_token(token_id, request, db)
     try:
-        client = relay_connection(token)
+        client = native_connection(token)
         state = (await client.get_status())["state"]
         qr = await client.get_qr() if state == "qr_required" else None
     except (httpx.HTTPError, ValueError) as exc:
@@ -257,8 +170,6 @@ async def edit_token(
     name: str = Form(default=""),
     api_token: str = Form(default=""),
     provider: str = Form(default="whatsapp"),
-    relay_session_id: str = Form(default=""),
-    relay_base_url: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -269,29 +180,25 @@ async def edit_token(
     if not token:
         return RedirectResponse(url="/tokens", status_code=303)
 
-    if token.provider == "relay" and token.relay_session_id is None and provider == "relay":
-        relay_url = validate_relay_url(provider, relay_base_url)
-        if relay_url != token.relay_base_url:
-            raise HTTPException(400, "Create a new token to change its backend URL")
-        try:
-            token.relay_session_id = (validate_connection(provider, relay_session_id) if relay_session_id.strip()
-                                      else await RelaySender.create_session(decrypt_token(token.api_token), relay_url))
-        except (httpx.HTTPError, ValueError) as exc:
-            raise pairing_error(exc) from exc
-        token.name = name or None
-        await db.commit()
-        return RedirectResponse(f"/tokens/{token.id}/pair", status_code=303)
-    session_id = validate_connection(provider, relay_session_id)
-    relay_url = validate_relay_url(provider, relay_base_url)
-    if provider != token.provider or session_id != token.relay_session_id or relay_url != token.relay_base_url:
-        raise HTTPException(400, "Create a new token to change its provider, Relay session or backend URL")
+    if provider != token.provider:
+        raise HTTPException(400, "Create a new connection to change its provider")
     token.name = name or None
-    if api_token:
+    if api_token and token.provider == "whatsapp":
         if not api_token.strip():
             raise HTTPException(400, "API token cannot be whitespace")
         token.api_token = encrypt_token(api_token.strip())
     await db.commit()
     return _flash("/tokens", success="Token updated")
+
+
+@router.post("/{token_id}/whatsapp/logout")
+async def logout_native(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_native_token(token_id, request, db)
+    try:
+        data = await native_connection(token).disconnect()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise pairing_error(exc) from exc
+    return JSONResponse({"state": data["state"]}, headers=PAIRING_HEADERS)
 
 
 @router.post("/{token_id}/delete")
@@ -302,6 +209,11 @@ async def delete_token(token_id: int, request: Request, db: AsyncSession = Depen
     result = await db.execute(select(Token).where(Token.id == token_id, Token.user_id == user_id))
     token = result.scalar_one_or_none()
     if token:
+        if token.provider == "native":
+            try:
+                await native_connection(token).delete()
+            except (httpx.HTTPError, ValueError) as exc:
+                raise pairing_error(exc) from exc
         jobs_result = await db.execute(select(Job).where(Job.token_id == token.id, Job.user_id == user_id))
         linked_jobs = jobs_result.scalars().all()
         media_paths = {job.image_path for job in linked_jobs if job.image_path}

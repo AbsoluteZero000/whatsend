@@ -20,7 +20,7 @@ from app.models.relay_operation import RelayOperation
 from app.services.auth import verify_password
 from app.services.crypto import decrypt_token
 from app.services.sender import get_sender
-from app.services.relay_api import connection_base_url, key_fingerprint, operation_response, submit_relay
+from app.services.native_api import connection_base_url, key_fingerprint, operation_response, submit_native
 from app.routers.jobs import save_upload
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -40,7 +40,7 @@ class ApiKeyContext:
 
 
 def _upstream_error(exc: Exception, provider: str = "whatsapp") -> str:
-    label = "Relay" if provider == "relay" else "Whapi"
+    label = "WhatsApp" if provider == "native" else "Whapi"
     if isinstance(exc, httpx.HTTPStatusError):
         response = exc.response
         try:
@@ -61,8 +61,8 @@ def _upstream_error(exc: Exception, provider: str = "whatsapp") -> str:
 
 
 async def get_linked_token(context: ApiKeyContext, db: AsyncSession, provider: str | None = None) -> Token:
-    if provider is not None and provider not in {"whatsapp", "relay"}:
-        raise HTTPException(status_code=400, detail="provider must be 'whatsapp' or 'relay'")
+    if provider is not None and provider not in {"whatsapp", "native"}:
+        raise HTTPException(status_code=400, detail="provider must be 'whatsapp' or 'native'")
 
     user = context.user
     api_key = context.api_key
@@ -91,12 +91,12 @@ async def get_linked_token(context: ApiKeyContext, db: AsyncSession, provider: s
 def connection_sender(token: Token):
     provider = token.provider or "whatsapp"
     try:
-        if provider == "relay":
-            return get_sender(provider, decrypt_token(token.api_token), session_id=token.relay_session_id,
+        if provider == "native":
+            return get_sender(provider, "", session_id=token.relay_session_id,
                               base_url=connection_base_url(token))
         return get_sender(provider, decrypt_token(token.api_token))
     except ValueError as exc:
-        raise HTTPException(400, "Invalid provider or Relay session configuration") from exc
+        raise HTTPException(400, "Invalid provider or WhatsApp session configuration") from exc
 
 
 async def get_api_key_user(
@@ -156,13 +156,13 @@ async def api_send(
 
     sender = connection_sender(token)
     provider = token.provider or "whatsapp"
-    if provider == "relay":
+    if provider == "native":
         try:
             sender.validate_text(group_id, message)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         token.last_used_at = datetime.now(timezone.utc)
-        return await submit_relay(
+        return await submit_native(
             db, context, token, group_id, {"recipient": group_id, "text": message}, idempotency_key,
             lambda key: sender.enqueue_text(group_id, message, key),
         )
@@ -210,13 +210,13 @@ async def api_send_media(
     db: AsyncSession = Depends(get_db),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ):
-    token = await get_linked_token(context, db, "relay")
+    token = await get_linked_token(context, db, "native")
     sender = connection_sender(token)
     filename = Path(file.filename or "").name
     if Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".mp4"}:
-        raise HTTPException(400, "Relay supports JPEG, PNG, WebP and MP4 attachments")
+        raise HTTPException(400, "WhatsApp supports JPEG, PNG, WebP and MP4 attachments")
     if len(filename.encode()) > 255 or len(caption.encode()) > 1024:
-        raise HTTPException(400, "Relay filename exceeds 255 bytes or caption exceeds 1024 bytes")
+        raise HTTPException(400, "WhatsApp filename exceeds 255 bytes or caption exceeds 1024 bytes")
     path = await save_upload(file)
     if not path:
         raise HTTPException(400, "A media file is required")
@@ -230,7 +230,7 @@ async def api_send_media(
             while chunk := stream.read(1024 * 1024):
                 digest.update(chunk)
         token.last_used_at = datetime.now(timezone.utc)
-        return await submit_relay(
+        return await submit_native(
             db, context, token, group_id,
             {"recipient": group_id, "caption": caption, "filename": filename, "sha256": digest.hexdigest()},
             idempotency_key,
@@ -248,7 +248,7 @@ async def api_connection(
     token = await get_linked_token(context, db)
     provider = token.provider or "whatsapp"
     result = {"provider": provider, "token_id": token.id, "name": token.name}
-    if provider == "relay":
+    if provider == "native":
         try:
             result["data"] = await connection_sender(token).get_status()
         except (httpx.HTTPError, ValueError) as exc:
@@ -277,14 +277,14 @@ async def api_operation(
     ))).scalar_one_or_none()
     if not token:
         raise HTTPException(409, "The operation's connection is missing or inactive")
-    if (token.provider != "relay" or token.relay_session_id != operation.session_id
+    if (token.provider != "native" or token.relay_session_id != operation.session_id
             or connection_base_url(token) != operation.relay_base_url):
         raise HTTPException(409, "The operation's connection was changed")
     try:
         data = await connection_sender(token).get_message(operation.upstream_message_id)
     except (httpx.HTTPError, ValueError) as exc:
         # Leave accepted sends untouched when polling fails.
-        raise HTTPException(502, _upstream_error(exc, "relay")) from exc
+        raise HTTPException(502, _upstream_error(exc, "native")) from exc
     await db.execute(update(RelayOperation).where(
         RelayOperation.id == operation.id,
         RelayOperation.status.not_in(["sent", "failed"]),

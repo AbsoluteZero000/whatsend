@@ -1,4 +1,4 @@
-"""Durable Relay job submissions. Relay owns delivery retries after acceptance."""
+"""Durable WhatsApp job submissions. WhatsApp owns delivery retries after acceptance."""
 import json
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -12,8 +12,8 @@ from app.models.job import Job
 from app.models.log import Log
 from app.models.token import Token
 from app.services.crypto import decrypt_token
-from app.services.relay_api import connection_base_url
-from app.services.relay_sender import RelaySender
+from app.services.native_api import connection_base_url
+from app.services.native_sender import NativeSender
 
 PENDING = {"submitting", "queued", "processing"}
 ACTIVE_RUNS = set()
@@ -50,7 +50,7 @@ async def submit_job(db, job, token, groups):
         ).values(status="queued"))
         if not claimed.rowcount:
             return
-    sender = RelaySender(decrypt_token(token.api_token), token.relay_session_id, connection_base_url(token))
+    sender = NativeSender(session_id=token.relay_session_id)
     attempts = []
     for group in {g.group_id: g for g in groups}.values():
         attempt = DeliveryAttempt(
@@ -89,18 +89,23 @@ async def submit_job(db, job, token, groups):
                 attempt.response = json.dumps(data)
             except httpx.HTTPStatusError as exc:
                 definitive = 400 <= exc.response.status_code < 500 and exc.response.status_code not in {408, 409}
+                if exc.response.status_code == 409:
+                    try:
+                        definitive = exc.response.json().get("error", {}).get("code") == "not_connected"
+                    except (ValueError, AttributeError):
+                        pass
                 attempt.status = "failed" if definitive else "unknown"
-                attempt.response = (f"Relay rejected the request ({exc.response.status_code})." if definitive else
-                                    "Relay acknowledgement is uncertain. Check Relay before sending again; this recipient will not be retried automatically.")
+                attempt.response = (f"WhatsApp rejected the request ({exc.response.status_code})." if definitive else
+                                    "WhatsApp acknowledgement is uncertain. Check WhatsApp before sending again; this recipient will not be retried automatically.")
             except (httpx.RequestError, ValueError, OSError):
                 attempt.status = "unknown"
-                attempt.response = "Relay acknowledgement is uncertain. Check Relay before sending again; this recipient will not be retried automatically."
+                attempt.response = "WhatsApp acknowledgement is uncertain. Check WhatsApp before sending again; this recipient will not be retried automatically."
             await db.commit()
     finally:
         ACTIVE_RUNS.discard(run_id)
     token.last_used_at = datetime.now(timezone.utc)
     if any(a.status in PENDING for a in attempts):
-        db.add(Log(job_id=job.id, status="queued", response="Relay accepted messages; awaiting delivery confirmation."))
+        db.add(Log(job_id=job.id, status="queued", response="WhatsApp accepted messages; awaiting delivery confirmation."))
     await finish_run(db, job, run_id)
     await db.commit()
 
@@ -119,20 +124,20 @@ async def poll_deliveries():
                 if (datetime.now(timezone.utc) - created).total_seconds() < 120:
                     continue
                 attempt.status = "unknown"
-                attempt.response = "Submission interrupted before acknowledgement. Check Relay before sending again."
+                attempt.response = "Submission interrupted before acknowledgement. Check WhatsApp before sending again."
             else:
                 job = await db.get(Job, attempt.job_id)
                 token = await db.get(Token, attempt.relay_token_id)
                 if not job:
                     continue
-                if (not token or not token.is_active or token.user_id != job.user_id or token.provider != "relay"
+                if (not token or not token.is_active or token.user_id != job.user_id or token.provider != "native"
                         or token.relay_session_id != attempt.relay_session_id
                         or connection_base_url(token) != attempt.relay_base_url):
                     attempt.status = "unknown"
-                    attempt.response = "The original Relay connection is unavailable. Restore it and check Relay before sending again."
+                    attempt.response = "The original WhatsApp connection is unavailable. Restore it and check WhatsApp before sending again."
                 else:
                     try:
-                        sender = RelaySender(decrypt_token(token.api_token), attempt.relay_session_id, attempt.relay_base_url)
+                        sender = NativeSender(session_id=attempt.relay_session_id)
                         data = await sender.get_message(attempt.relay_message_id)
                     except (httpx.HTTPError, ValueError):
                         # A polling failure says nothing about delivery; retain the acknowledged ID.

@@ -18,9 +18,9 @@ from app.models.user import User
 from app.routers import api, jobs, tokens
 from app.services.crypto import encrypt_token
 from app.services.crypto import decrypt_token
-from app.services.relay_sender import RelaySender
-from app.services.relay_api import key_fingerprint
-from app.services.relay_sender import normalize_base_url
+from app.services.native_sender import NativeSender
+from app.services.native_api import key_fingerprint
+from app.services.native_sender import normalize_base_url
 
 
 SESSION = str(uuid4())
@@ -29,117 +29,60 @@ RECIPIENT = "120363123456789@g.us"
 CLIENT = httpx.AsyncClient
 
 
-@pytest.mark.parametrize("code,phrase", [
-    ("session_unavailable", "no healthy WhatsApp worker"),
-    ("active_session_exists", "already has an active session"),
-    ("other_conflict", "could not complete this session operation"),
-])
-def test_pairing_distinguishes_relay_conflicts(tmp_path, monkeypatch, code, phrase):
-    def relay(request):
-        return httpx.Response(409, json={"error": {"code": code, "message": "upstream-private-detail"}})
+def test_native_connection_creation_needs_no_provider_credentials(tmp_path, monkeypatch):
+    def worker(request):
+        pytest.fail("Creating a connection should not initiate pairing or contact an external provider")
 
     async def scenario(client, sessions, context):
-        headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
-        for result in [await client.get("/tokens/3/relay/state"),
-                       await client.post("/tokens/3/relay/connect", headers=headers)]:
-            assert result.status_code == 502 and phrase in result.json()["detail"]
-            assert "upstream-private-detail" not in result.text
-            if code == "session_unavailable":
-                assert "already has" not in result.text
-
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
-
-
-@pytest.mark.parametrize("mode", ["register", "login"])
-def test_relay_ui_account_setup(tmp_path, monkeypatch, mode):
-    calls = []
-
-    def relay(request):
-        calls.append(request.url.path)
-        if request.url.path == f"/api/v1/auth/{mode}":
-            assert json.loads(request.content) == {"email": "user@example.com", "password": "long-test-password"}
-            return httpx.Response(200, json={"data": {"access_token": "temporary-jwt"}})
-        if request.url.path == "/api/v1/api-keys":
-            assert request.headers["authorization"] == "Bearer temporary-jwt"
-            assert set(json.loads(request.content)["scopes"]) == {
-                "sessions:read", "sessions:write", "chats:read", "messages:read", "messages:write"}
-            return httpx.Response(201, json={"data": {"key": "issued-relay-key"}})
-        assert request.url.path == "/api/v1/sessions"
-        assert request.headers["authorization"] == "Bearer issued-relay-key"
-        return httpx.Response(201, json={"data": {"id": MESSAGE}})
-
-    async def scenario(client, sessions, context):
-        page = await client.get("/tokens/relay/setup")
-        assert page.status_code == 200 and 'type="password"' in page.text
-        assert page.headers["cache-control"] == "no-store, private"
-        data = {"relay_base_url": "https://relay.test", "mode": mode, "email": "user@example.com",
-                "password": "long-test-password", "name": "UI account"}
-        assert (await client.post("/tokens/relay/setup", data=data)).status_code == 403
-        assert not calls
-        result = await client.post("/tokens/relay/setup", data=data,
+        page = await client.get("/tokens/connect")
+        assert page.status_code == 200 and "No provider account or API token" in page.text
+        assert 'name="api_token"' not in page.text and 'name="password"' not in page.text
+        assert (await client.post("/tokens/connect", data={"name": "My phone"})).status_code == 403
+        result = await client.post("/tokens/connect", data={"name": "My phone"},
                                    headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
         assert result.status_code == 303 and result.headers["location"].endswith("/pair")
         async with sessions() as db:
-            token = (await db.execute(select(Token).where(Token.name == "UI account"))).scalar_one()
-            assert token.user_id == 7 and token.relay_session_id == MESSAGE
-            assert token.api_token != "issued-relay-key" and decrypt_token(token.api_token) == "issued-relay-key"
-        assert "long-test-password" not in result.text and "temporary-jwt" not in result.text
-        assert len(calls) == 3
+            token = (await db.execute(select(Token).where(Token.name == "My phone"))).scalar_one()
+            assert token.provider == "native" and token.user_id == 7 and token.api_token == ""
+            assert token.relay_session_id and token.relay_base_url is None
+        retired = await client.get("/tokens/relay/setup")
+        assert retired.status_code == 303 and retired.headers["location"] == "/tokens/connect"
 
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
 
 
-@pytest.mark.parametrize("code", [401, 409, 500])
-def test_relay_registration_error_safe_render(tmp_path, monkeypatch, code):
-    def relay(request):
-        return httpx.Response(code, json={"error": {"message": "long-test-password temporary-jwt"}})
+def test_native_logout_is_csrf_protected_and_uses_private_service(tmp_path, monkeypatch):
+    calls = []
+
+    def worker(request):
+        calls.append(request)
+        assert request.url.host == "native.test" and request.headers["authorization"] == "Bearer relay-secret"
+        assert request.url.path == f"/api/v1/sessions/{SESSION}/disconnect"
+        return httpx.Response(200, json={"data": {"id": SESSION, "state": "disconnected"}})
 
     async def scenario(client, sessions, context):
-        result = await client.post("/tokens/relay/setup", data={
-            "relay_base_url": "https://relay.test", "email": "user@example.com", "password": "long-test-password",
-        }, headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
-        assert result.status_code == 400
-        assert "long-test-password" not in result.text and "temporary-jwt" not in result.text
-        assert 'value="user@example.com"' in result.text
+        assert (await client.post("/tokens/3/whatsapp/logout")).status_code == 403
+        assert not calls
+        result = await client.post("/tokens/3/whatsapp/logout", headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
+        assert result.status_code == 200 and result.json() == {"state": "disconnected"}
         assert result.headers["cache-control"] == "no-store, private"
-        async with sessions() as db:
-            assert len((await db.execute(select(Token))).scalars().all()) == 1
+        assert len(calls) == 1
 
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
 
 
-def test_relay_setup_retains_key_when_session_creation_fails(tmp_path, monkeypatch):
-    def relay(request):
-        if "/auth/" in request.url.path:
-            return httpx.Response(200, json={"data": {"access_token": "jwt"}})
-        if request.url.path.endswith("api-keys"):
-            return httpx.Response(201, json={"data": {"key": "retained-key"}})
-        return httpx.Response(409, json={"error": {"code": "active_session_exists"}})
 
-    async def scenario(client, sessions, context):
-        headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
-        result = await client.post("/tokens/relay/setup", data={
-            "relay_base_url": "https://relay.test", "email": "user@example.com", "password": "long-test-password",
-            "name": "Recoverable",
-        }, headers=headers)
-        assert result.status_code == 303 and "/edit" in result.headers["location"]
-        async with sessions() as db:
-            token = (await db.execute(select(Token).where(Token.name == "Recoverable"))).scalar_one()
-            assert token.relay_session_id is None and decrypt_token(token.api_token) == "retained-key"
-            token_id = token.id
-        page = await client.get(f"/tokens/{token_id}/edit")
-        assert 'id="relay_session_id" name="relay_session_id" value="" readonly' not in page.text
-        result = await client.post(f"/tokens/{token_id}/edit", data={
-            "provider": "relay", "relay_base_url": "https://relay.test", "relay_session_id": SESSION,
-        }, headers=headers)
-        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
-        async with sessions() as db:
-            assert (await db.get(Token, token_id)).relay_session_id == SESSION
 
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+
+
 
 
 async def exercise(tmp_path, monkeypatch, handler, scenario):
+    from app.config import settings
+    monkeypatch.setattr(settings, "whatsapp_worker_url", "https://native.test")
+    monkeypatch.setattr(settings, "whatsapp_worker_secret", "relay-secret")
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -151,8 +94,8 @@ async def exercise(tmp_path, monkeypatch, handler, scenario):
     async with sessions() as db:
         db.add(context.user)
         await db.flush()
-        db.add(Token(id=3, user_id=7, name="Relay", provider="relay", relay_session_id=SESSION,
-                     relay_base_url="https://relay.test",
+        db.add(Token(id=3, user_id=7, name="Relay", provider="native", relay_session_id=SESSION,
+                     relay_base_url="https://native.test",
                      api_token=encrypt_token("relay-secret"), is_active=True))
         await db.flush()
         db.add(context.api_key)
@@ -170,9 +113,9 @@ async def exercise(tmp_path, monkeypatch, handler, scenario):
     app.state.render = render
     monkeypatch.setattr(tokens, "require_user", lambda request: {"sub": str(context.user.id)})
     monkeypatch.setattr(jobs, "require_user", lambda request: {"sub": str(context.user.id)})
-    from app.services import scheduler as scheduling, relay_jobs
+    from app.services import scheduler as scheduling, native_jobs
     monkeypatch.setattr(scheduling, "async_session", sessions)
-    monkeypatch.setattr(relay_jobs, "async_session", sessions)
+    monkeypatch.setattr(native_jobs, "async_session", sessions)
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[api.get_api_key_user] = lambda: context
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: CLIENT(transport=httpx.MockTransport(handler), **kwargs))
@@ -193,7 +136,7 @@ def test_relay_enqueue_replay_and_delivery_status(tmp_path, monkeypatch):
     def relay(request):
         calls.append(request)
         assert request.headers["authorization"] == "Bearer relay-secret"
-        assert request.url.host == "relay.test"
+        assert request.url.host == "native.test"
         if request.method == "POST":
             assert json.loads(request.content) == {"recipient": RECIPIENT, "text": "Hello"}
             assert request.headers["Idempotency-Key"].startswith("echosend:")
@@ -372,17 +315,12 @@ def test_media_upload_mapping_validation_and_cleanup(tmp_path, monkeypatch):
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
-def test_relay_connection_configuration():
-    assert tokens.validate_connection("relay", SESSION.upper()) == SESSION
-    assert tokens.validate_connection("whatsapp", "") is None
-    with pytest.raises(Exception, match="valid Relay"):
-        tokens.validate_connection("relay", "invalid")
 
 
 def test_relay_limits_are_utf8_bytes():
-    RelaySender.validate_text(RECIPIENT, "ع" * 2048)
+    NativeSender.validate_text(RECIPIENT, "ع" * 2048)
     with pytest.raises(ValueError, match="4096"):
-        RelaySender.validate_text(RECIPIENT, "ع" * 2049)
+        NativeSender.validate_text(RECIPIENT, "ع" * 2049)
 
 
 def test_interrupted_submission_survives_restart_without_resend(tmp_path, monkeypatch):
@@ -398,7 +336,7 @@ def test_interrupted_submission_survives_restart_without_resend(tmp_path, monkey
             db.add(RelayOperation(
                 id=identifier, user_id=7, api_key_id=1, key_fingerprint=key_fingerprint(context.api_key),
                 token_id=3, session_id=SESSION, caller_key="interrupted", payload_hash=payload_hash,
-                relay_base_url="https://relay.test",
+                relay_base_url="https://native.test",
                 recipient=RECIPIENT, status="submitting", created_at=datetime.now(timezone.utc) - timedelta(minutes=2),
             ))
             await db.commit()
@@ -409,20 +347,19 @@ def test_interrupted_submission_survives_restart_without_resend(tmp_path, monkey
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
-@pytest.mark.parametrize("value", ["", "file:///etc/passwd", "https://relay.test/api/v1", "https://user:password@relay.test", "https://relay.test?token=x", "https://relay.test#fragment", "https://relay.test\n/api"])
+@pytest.mark.parametrize("value", ["", "file:///etc/passwd", "https://native.test/api/v1", "https://user:password@native.test", "https://native.test?token=x", "https://native.test#fragment", "https://native.test\n/api"])
 def test_relay_backend_url_rejects_invalid_origins(value):
     with pytest.raises(ValueError):
         normalize_base_url(value)
 
 
 def test_relay_backend_url_normalizes_origin():
-    assert tokens.validate_relay_url("relay", " https://Relay.Test:8080/ ") == "https://relay.test:8080"
-    assert tokens.validate_relay_url("whatsapp", "") is None
+    assert normalize_base_url(" https://Native.Test:8080/ ") == "https://native.test:8080"
 
 
 def test_relay_connection_status_uses_site_url(tmp_path, monkeypatch):
     def relay(request):
-        assert request.url.host == "relay.test"
+        assert request.url.host == "native.test"
         assert request.url.path == f"/api/v1/sessions/{SESSION}/status"
         return httpx.Response(200, json={"data": {"id": SESSION, "state": "connected"}})
 
@@ -440,7 +377,7 @@ def test_pairing_page_connect_qr_and_connected_state(tmp_path, monkeypatch):
 
     def relay(request):
         calls.append(request)
-        assert request.url.host == "relay.test"
+        assert request.url.host == "native.test"
         assert request.headers["authorization"] == "Bearer relay-secret"
         if request.url.path.endswith("/connect"):
             assert request.method == "POST"
@@ -456,18 +393,18 @@ def test_pairing_page_connect_qr_and_connected_state(tmp_path, monkeypatch):
     async def scenario(client, sessions, context):
         page = await client.get("/tokens/3/pair")
         assert page.status_code == 200
-        assert "relay-pairing.js" in page.text and "Get QR code" in page.text
+        assert "whatsapp-pairing.js" in page.text and "Get QR code" in page.text
         assert page.headers["cache-control"] == "no-store, private"
         assert "relay-secret" not in page.text and calls == []
-        assert (await client.post("/tokens/3/relay/connect")).status_code == 403
-        result = await client.post("/tokens/3/relay/connect", headers={"X-CSRF-Token": "safe", "Cookie": "csrf_token=safe"})
+        assert (await client.post("/tokens/3/whatsapp/connect")).status_code == 403
+        result = await client.post("/tokens/3/whatsapp/connect", headers={"X-CSRF-Token": "safe", "Cookie": "csrf_token=safe"})
         assert result.status_code == 200 and result.json() == {"state": "qr_required"}
-        qr = await client.get("/tokens/3/relay/state")
+        qr = await client.get("/tokens/3/whatsapp/state")
         assert qr.json()["qr"]["png_base64"] == encoded
         assert "private-pairing-string" not in qr.text
         assert qr.headers["cache-control"] == "no-store, private"
         state["value"] = "connected"
-        result = await client.get("/tokens/3/relay/state")
+        result = await client.get("/tokens/3/whatsapp/state")
         assert result.json() == {"state": "connected", "qr": None}
         assert sum(request.url.path.endswith("/qr") for request in calls) == 1
         assert sum(request.method == "POST" for request in calls) == 1
@@ -482,13 +419,13 @@ def test_pairing_is_owned_and_requires_active_relay_token(tmp_path, monkeypatch)
     async def scenario(client, sessions, context):
         context.user.id = 8
         assert (await client.get("/tokens/3/pair")).status_code == 404
-        assert (await client.get("/tokens/3/relay/state")).status_code == 404
+        assert (await client.get("/tokens/3/whatsapp/state")).status_code == 404
         context.user.id = 7
         async with sessions() as db:
             token = await db.get(Token, 3)
             token.is_active = False
             await db.commit()
-        assert (await client.get("/tokens/3/relay/state")).status_code == 400
+        assert (await client.get("/tokens/3/whatsapp/state")).status_code == 400
         async with sessions() as db:
             token = await db.get(Token, 3)
             token.is_active = True
@@ -499,38 +436,8 @@ def test_pairing_is_owned_and_requires_active_relay_token(tmp_path, monkeypatch)
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
-def test_new_relay_token_creates_session_and_redirects_to_pairing(tmp_path, monkeypatch):
-    def relay(request):
-        assert request.method == "POST" and request.url.path == "/api/v1/sessions"
-        assert request.headers["authorization"] == "Bearer new-relay-key"
-        return httpx.Response(201, json={"data": {"id": MESSAGE, "state": "disconnected"}})
-
-    async def scenario(client, sessions, context):
-        result = await client.post("/tokens/create", data={
-            "provider": "relay", "name": "New connection", "api_token": "new-relay-key",
-            "relay_base_url": "https://relay.test", "csrf_token": "safe",
-        }, headers={"Cookie": "csrf_token=safe"})
-        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
-        async with sessions() as db:
-            token = (await db.execute(select(Token).where(Token.name == "New connection"))).scalar_one()
-            assert token.relay_session_id == MESSAGE and token.relay_base_url == "https://relay.test"
-            assert token.api_token != "new-relay-key"
-
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
-def test_existing_session_skips_creation(tmp_path, monkeypatch):
-    def relay(request):
-        pytest.fail("Existing session was recreated")
-
-    async def scenario(client, sessions, context):
-        result = await client.post("/tokens/create", data={
-            "provider": "relay", "api_token": "relay-key", "relay_base_url": "https://relay.test",
-            "relay_session_id": SESSION, "csrf_token": "safe",
-        }, headers={"Cookie": "csrf_token=safe"})
-        assert result.status_code == 303 and result.headers["location"].endswith("/pair")
-
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
 @pytest.mark.parametrize("bad_qr", [
@@ -545,7 +452,7 @@ def test_invalid_qr_is_not_exposed(tmp_path, monkeypatch, bad_qr):
         return httpx.Response(200, json={"data": bad_qr})
 
     async def scenario(client, sessions, context):
-        result = await client.get("/tokens/3/relay/state")
+        result = await client.get("/tokens/3/whatsapp/state")
         assert result.status_code == 502
         assert "png_base64" not in result.text
         assert result.headers["cache-control"] == "no-store, private"
@@ -553,19 +460,3 @@ def test_invalid_qr_is_not_exposed(tmp_path, monkeypatch, bad_qr):
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
-def test_pairing_permission_error_does_not_save_token(tmp_path, monkeypatch):
-    def relay(request):
-        return httpx.Response(403, json={"error": {"code": "insufficient_scope", "message": "Forbidden"}})
-
-    async def scenario(client, sessions, context):
-        headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
-        result = await client.post("/tokens/3/relay/connect", headers=headers)
-        assert result.status_code == 502 and "sessions:write" in result.json()["detail"]
-        result = await client.post("/tokens/create", data={
-            "provider": "relay", "api_token": "relay-key", "relay_base_url": "https://relay.test",
-        }, headers=headers)
-        assert result.status_code == 502
-        async with sessions() as db:
-            assert len((await db.execute(select(Token))).scalars().all()) == 1
-
-    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))

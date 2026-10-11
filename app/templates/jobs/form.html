@@ -10,7 +10,7 @@
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('API Token') }} ({{ 'Relay' if token.provider == 'relay' else 'Whapi.Cloud' }})</option>
+      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if edit_mode and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('API Token') }} ({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</option>
       {% endfor %}
     </select>
     <p id="token_help" role="status"></p>
@@ -29,7 +29,7 @@
           <option value="__manual__">{{ _('Manual entry…') }}</option>
         </select>
       </div>
-      <input type="text" id="group_id_manual" placeholder="120363xxxxxxxxxxxxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
+      <input type="text" id="group_id_manual" placeholder="+201234567890 / 120363xxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
       <div id="group_chips" class="group-chips"></div>
     </div>
 
@@ -219,15 +219,15 @@
   let groupRequest = 0;
   async function loadTokenGroups(clearSelection) {
     const requestId = ++groupRequest;
-    if (clearSelection) { _selectedGroups = []; renderChips(); }
+    if (clearSelection) { _selectedGroups = []; document.getElementById('group_id_manual').value = ''; renderChips(); }
     const picker = document.getElementById('group_picker_select');
     picker.replaceChildren(new Option({{ _('-- Select a group --') | tojson }}, ''), new Option({{ _('Manual entry…') | tojson }}, '__manual__'));
     const help = document.getElementById('token_help');
     help.textContent = '';
     if (!tokenPicker.value) return;
-    const relay = tokenPicker.selectedOptions[0].dataset.provider === 'relay';
+    const relay = tokenPicker.selectedOptions[0].dataset.provider === 'native';
     document.getElementById('image').accept = relay ? '.jpg,.jpeg,.png,.webp,.mp4' : '.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip';
-    help.textContent = relay ? {{ _('Relay supports JPEG, PNG and WebP up to 16MB, and MP4 up to 50MB. Connect WhatsApp before sending.') | tojson }} : '';
+    help.textContent = relay ? {{ _('WhatsApp supports JPEG, PNG and WebP up to 16MB, and MP4 up to 50MB. Connect WhatsApp before sending.') | tojson }} : '';
     try {
       const response = await fetch('/jobs/groups?token_id=' + encodeURIComponent(tokenPicker.value), {cache: 'no-store'});
       if (!response.ok || response.redirected) throw new Error();
@@ -313,6 +313,10 @@
   loadTokenGroups(false);
 
   document.querySelector('form').addEventListener('submit', function(e) {
+    const manual = document.getElementById('group_id_manual').value.trim();
+    if (manual && !_selectedGroups.some(g => g.id === manual)) {
+      _selectedGroups.push({id: manual, name: manual}); renderChips();
+    }
     if (_selectedGroups.length === 0) {
       e.preventDefault();
       document.getElementById('group_error').style.display = 'block';

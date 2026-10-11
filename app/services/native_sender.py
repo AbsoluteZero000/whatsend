@@ -1,4 +1,4 @@
-"""Client for Relay's public REST API. Enqueueing is distinct from delivery."""
+"""Private client for WhatSend's built-in WhatsApp Web service."""
 from pathlib import Path
 from uuid import UUID
 from urllib.parse import urlsplit
@@ -13,64 +13,42 @@ from pydantic import HttpUrl
 def normalize_base_url(value: str) -> str:
     value = value.strip()
     if len(value) > 2048 or any(ord(char) <= 32 for char in value):
-        raise ValueError("Enter a valid HTTP or HTTPS Relay backend URL")
+        raise ValueError("Enter a valid HTTP or HTTPS WhatsApp backend URL")
     normalized = str(HttpUrl(value))
     parts = urlsplit(normalized)
     if parts.username is not None or parts.password is not None or parts.path not in {"", "/"} or parts.query or parts.fragment:
-        raise ValueError("Enter the Relay backend origin without credentials, path, query or fragment")
+        raise ValueError("Enter the WhatsApp backend origin without credentials, path, query or fragment")
     return normalized.rstrip("/")
 
 
-class RelayProtocolError(ValueError):
+class WhatsAppProtocolError(ValueError):
     pass
 
 
-class RelaySender:
-    @staticmethod
-    async def provision_key(base_url: str, email: str, password: str, mode: str) -> str:
-        """Exchange account credentials for a scoped key; never retain the password/JWT."""
-        if mode not in {"register", "login"}:
-            raise ValueError("Invalid account action")
-        origin = normalize_base_url(base_url) + "/api/v1"
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(f"{origin}/auth/{mode}", json={"email": email, "password": password})
-            response.raise_for_status()
-            access_token = RelaySender._data(response).get("access_token")
-            if not isinstance(access_token, str) or not access_token.strip():
-                raise RelayProtocolError("Relay returned an invalid access token")
-            response = await client.post(
-                f"{origin}/api-keys", headers={"authorization": f"Bearer {access_token}"},
-                json={"name": "WhatSend", "scopes": [
-                    "sessions:read", "sessions:write", "chats:read", "messages:read", "messages:write",
-                ]},
-            )
-            response.raise_for_status()
-            key = RelaySender._data(response).get("key")
-            if not isinstance(key, str) or not key.strip():
-                raise RelayProtocolError("Relay returned an invalid API key")
-            return key
-
-    def __init__(self, api_token: str, session_id: str, base_url: str, timeout: int = 30):
+class NativeSender:
+    def __init__(self, api_token: str = "", session_id: str = "", base_url: str = "", timeout: int = 30):
+        from app.config import settings
         self.session_id = str(UUID(session_id))
-        self.base_url = f"{normalize_base_url(base_url)}/api/v1/sessions/{self.session_id}"
+        self.base_url = f"{normalize_base_url(settings.whatsapp_worker_url)}/api/v1/sessions/{self.session_id}"
         self.timeout = timeout
-        self.headers = {"accept": "application/json", "authorization": f"Bearer {api_token}"}
-
-    @staticmethod
-    async def create_session(api_token: str, base_url: str, timeout: int = 30) -> str:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{normalize_base_url(base_url)}/api/v1/sessions",
-                headers={"authorization": f"Bearer {api_token}", "accept": "application/json"},
-            )
-        response.raise_for_status()
-        return RelaySender._message_id(RelaySender._data(response))
+        self.headers = {"accept": "application/json", "authorization": f"Bearer {settings.whatsapp_worker_secret}"}
 
     async def connect(self) -> dict:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(f"{self.base_url}/connect", headers=self.headers)
         response.raise_for_status()
         return self._session_data(response)
+
+    async def disconnect(self) -> dict:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(f"{self.base_url}/disconnect", headers=self.headers)
+        response.raise_for_status()
+        return self._session_data(response)
+
+    async def delete(self):
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.delete(self.base_url, headers=self.headers)
+        response.raise_for_status()
 
     async def get_qr(self) -> dict:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -88,16 +66,16 @@ class RelaySender:
             if expires_at.tzinfo is None:
                 raise ValueError("missing timezone")
         except (KeyError, ValueError, TypeError, AttributeError, binascii.Error) as exc:
-            raise RelayProtocolError("Relay returned an invalid QR code") from exc
+            raise WhatsAppProtocolError("WhatsApp returned an invalid QR code") from exc
         # The raw pairing value is unnecessary for display and stays server-side.
         return {"png_base64": encoded, "expires_at": expires_at.isoformat()}
 
     @staticmethod
     def validate_text(recipient: str, text: str):
         if not recipient.strip() or len(recipient.encode("utf-8")) > 128:
-            raise ValueError("Relay recipient must contain 1–128 UTF-8 bytes")
+            raise ValueError("WhatsApp recipient must contain 1–128 UTF-8 bytes")
         if not text or len(text.encode("utf-8")) > 4096:
-            raise ValueError("Relay text must contain 1–4096 UTF-8 bytes")
+            raise ValueError("WhatsApp text must contain 1–4096 UTF-8 bytes")
 
     async def enqueue_text(self, recipient: str, text: str, idempotency_key: str) -> dict:
         self.validate_text(recipient, text)
@@ -110,24 +88,24 @@ class RelaySender:
         response.raise_for_status()
         data = self._data(response)
         if response.status_code != 202 or data.get("status") != "pending":
-            raise RelayProtocolError("Relay did not return a valid enqueue acknowledgement")
+            raise WhatsAppProtocolError("WhatsApp did not return a valid enqueue acknowledgement")
         self._message_id(data)
         return data
 
     @staticmethod
     def validate_media(recipient: str, path: str, caption: str) -> str:
         if not recipient.strip() or len(recipient.encode("utf-8")) > 128:
-            raise ValueError("Relay recipient must contain 1–128 UTF-8 bytes")
+            raise ValueError("WhatsApp recipient must contain 1–128 UTF-8 bytes")
         if len(caption.encode("utf-8")) > 1024:
-            raise ValueError("Relay caption exceeds 1024 UTF-8 bytes")
+            raise ValueError("WhatsApp caption exceeds 1024 UTF-8 bytes")
         file = Path(path)
         types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".mp4": "video/mp4"}
         mime = types.get(file.suffix.lower())
         if not mime:
-            raise ValueError("Relay supports JPEG, PNG, WebP and MP4 attachments")
+            raise ValueError("WhatsApp supports JPEG, PNG, WebP and MP4 attachments")
         limit = 50 * 1024 * 1024 if mime == "video/mp4" else 16 * 1024 * 1024
         if not 0 < file.stat().st_size <= limit:
-            raise ValueError("Attachment exceeds the Relay/WhatSend upload limit or is empty")
+            raise ValueError("Attachment exceeds the WhatsApp/WhatSend upload limit or is empty")
         return mime
 
     async def enqueue_media(self, recipient: str, path: str, caption: str, idempotency_key: str, *, filename: str | None = None) -> dict:
@@ -144,7 +122,7 @@ class RelaySender:
         response.raise_for_status()
         data = self._data(response)
         if response.status_code != 202 or data.get("status") != "pending":
-            raise RelayProtocolError("Relay did not return a valid enqueue acknowledgement")
+            raise WhatsAppProtocolError("WhatsApp did not return a valid enqueue acknowledgement")
         self._message_id(data)
         return data
 
@@ -161,19 +139,19 @@ class RelaySender:
                 response.raise_for_status()
                 payload = response.json()
                 if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
-                    raise RelayProtocolError("Relay returned an invalid group page")
+                    raise WhatsAppProtocolError("WhatsApp returned an invalid group page")
                 for group in payload["data"]:
                     if not isinstance(group, dict) or not isinstance(group.get("external_chat_id"), str):
-                        raise RelayProtocolError("Relay returned an invalid group")
+                        raise WhatsAppProtocolError("WhatsApp returned an invalid group")
                     recipient = group["external_chat_id"]
                     groups[recipient] = {"id": recipient, "name": group.get("name") or recipient}
                 cursor = payload.get("next_cursor")
                 if cursor == "":
                     return list(groups.values())
                 if not isinstance(cursor, str) or cursor in seen:
-                    raise RelayProtocolError("Relay returned an invalid or repeated group cursor")
+                    raise WhatsAppProtocolError("WhatsApp returned an invalid or repeated group cursor")
                 seen.add(cursor)
-        raise RelayProtocolError("Relay group pagination exceeded its limit")
+        raise WhatsAppProtocolError("WhatsApp group pagination exceeded its limit")
 
     async def get_message(self, message_id: str) -> dict:
         message_id = str(UUID(message_id))
@@ -181,8 +159,8 @@ class RelaySender:
             response = await client.get(f"{self.base_url}/messages/{message_id}", headers=self.headers)
         response.raise_for_status()
         data = self._data(response)
-        if self._message_id(data) != message_id or data.get("status") not in {"pending", "processing", "sent", "failed"}:
-            raise RelayProtocolError("Relay returned an invalid message status")
+        if self._message_id(data) != message_id or data.get("status") not in {"pending", "processing", "sent", "failed", "unknown"}:
+            raise WhatsAppProtocolError("WhatsApp returned an invalid message status")
         return data
 
     async def get_status(self) -> dict:
@@ -196,7 +174,7 @@ class RelaySender:
         if self._message_id(data) != self.session_id or data.get("state") not in {
             "disconnected", "connecting", "qr_required", "connected", "reconnecting", "failed",
         }:
-            raise RelayProtocolError("Relay returned an invalid session state")
+            raise WhatsAppProtocolError("WhatsApp returned an invalid session state")
         return data
 
     @staticmethod
@@ -204,9 +182,9 @@ class RelaySender:
         try:
             payload = response.json()
         except ValueError as exc:
-            raise RelayProtocolError("Relay returned invalid JSON") from exc
+            raise WhatsAppProtocolError("WhatsApp returned invalid JSON") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("data"), dict):
-            raise RelayProtocolError("Relay returned an invalid response envelope")
+            raise WhatsAppProtocolError("WhatsApp returned an invalid response envelope")
         return payload["data"]
 
     @staticmethod
@@ -214,4 +192,4 @@ class RelaySender:
         try:
             return str(UUID(data["id"]))
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
-            raise RelayProtocolError("Relay returned an invalid message ID") from exc
+            raise WhatsAppProtocolError("WhatsApp returned an invalid message ID") from exc

@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 import zoneinfo
 import secrets
+import httpx
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -239,4 +240,12 @@ async def health_ready():
         raise HTTPException(status_code=503, detail="Database is unavailable") from exc
     if not apscheduler.running:
         raise HTTPException(status_code=503, detail="Scheduler is not running")
+    try:
+        async with httpx.AsyncClient(timeout=2) as client:
+            response = await client.get(settings.whatsapp_worker_url + "/health", headers={
+                "Authorization": "Bearer " + settings.whatsapp_worker_secret,
+            })
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, "Built-in WhatsApp service is unavailable") from exc
     return {"status": "ready"}

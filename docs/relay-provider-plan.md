@@ -1,3 +1,7 @@
+# Archived
+
+Relay was replaced by [built-in WhatsApp QR connections](whatsapp.md) on 2026-10-11. The original plan below is kept as implementation history.
+
 # Relay provider implementation plan
 
 Reviewed local WhatSend and `../relay` source on 2026-10-10. This is a source-level endpoint review; no running Relay service was tested and no messages were sent.

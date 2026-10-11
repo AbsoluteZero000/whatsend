@@ -1,4 +1,4 @@
-"""Durable, at-most-one automatic submission to Relay for each caller key."""
+"""Durable, at-most-one automatic submission to WhatsApp for each caller key."""
 import hashlib
 import json
 from uuid import uuid4
@@ -12,11 +12,11 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.relay_operation import RelayOperation
 from app.config import settings
-from app.services.relay_sender import normalize_base_url
+from app.services.native_sender import normalize_base_url
 
 
 def connection_base_url(token) -> str:
-    return normalize_base_url(token.relay_base_url or settings.relay_base_url)
+    return normalize_base_url(settings.whatsapp_worker_url)
 
 
 def key_fingerprint(api_key) -> str:
@@ -35,15 +35,15 @@ def operation_response(operation: RelayOperation, *, polling: bool = False) -> J
     status_code = 200 if polling or state == "sent" else 502 if state == "failed" else 202
     return JSONResponse(status_code=status_code, content={
         "success": state not in {"failed", "unknown"},
-        "provider": "relay", "group_id": operation.recipient,
+        "provider": "native", "group_id": operation.recipient,
         "operation_id": operation.id, "status": state, "data": data,
         "status_url": f"/api/operations/{operation.id}",
     })
 
 
-async def submit_relay(db, context, token, recipient, payload, caller_key, submit):
+async def submit_native(db, context, token, recipient, payload, caller_key, submit):
     if not caller_key or caller_key != caller_key.strip() or len(caller_key) > 128 or not caller_key.isascii() or not caller_key.isprintable():
-        raise HTTPException(400, "Relay requires an Idempotency-Key header of 1–128 printable ASCII characters")
+        raise HTTPException(400, "WhatsApp requires an Idempotency-Key header of 1–128 printable ASCII characters")
     payload_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     token_id, session_id = token.id, token.relay_session_id
     relay_url = connection_base_url(token)
@@ -72,7 +72,7 @@ async def submit_relay(db, context, token, recipient, payload, caller_key, submi
     )
     db.add(operation)
     try:
-        # Only the process that commits the unique operation may contact Relay.
+        # Only the process that commits the unique operation may contact WhatsApp.
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -93,7 +93,7 @@ async def submit_relay(db, context, token, recipient, payload, caller_key, submi
             except (ValueError, AttributeError):
                 definitive = False
         operation.status = "failed" if definitive else "unknown"
-        error = {"message": "Relay rejected the submission" if definitive else "Submission outcome is unknown; do not resend automatically"}
+        error = {"message": "WhatsApp rejected the submission" if definitive else "Submission outcome is unknown; do not resend automatically"}
         if isinstance(exc, httpx.HTTPStatusError):
             error["upstream_status"] = exc.response.status_code
             try:

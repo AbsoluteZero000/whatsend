@@ -1,58 +1,23 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}{{ _('Edit API Token') }} — EchoSend{% else %}{{ _('Add API Token') }} — EchoSend{% endif %}{% endblock %}
+{% block title %}{{ _('Edit API Token') if edit_mode else _('Add API Token') }} — EchoSend{% endblock %}
 {% block content %}
-<div class="section-header">
-  <h1>{% if edit_mode %}{{ _('Edit API Token') }}{% else %}{{ _('Add API Token') }}{% endif %}</h1>
-</div>
+<div class="section-header"><h1>{{ _('Edit API Token') if edit_mode else _('Add API Token') }}</h1></div>
 <div class="form-card">
-  {% if edit_mode and token.provider == 'relay' and not token.relay_session_id %}<p class="error">{{ _('Your Relay API key is saved. Enter an existing session ID, or leave it blank and save to create a session.') }}</p>{% endif %}
+  {% if not edit_mode %}<p><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a></p>{% endif %}
   <form method="POST" action="{% if edit_mode %}/tokens/{{ token.id }}/edit{% else %}/tokens/create{% endif %}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="provider" value="{{ token.provider if edit_mode else 'whatsapp' }}">
     <label for="name">{{ _('Name (optional)') }}</label>
-    <input type="text" id="name" name="name" placeholder="{{ _('Token name (optional)') }}" {% if edit_mode and token.name %}value="{{ token.name }}"{% endif %}>
-
-    <label for="provider">{{ _('Provider') }}</label>
-    {% if edit_mode %}
-    <input type="hidden" name="provider" value="{{ token.provider }}">
-    <p>{{ 'Relay' if token.provider == 'relay' else 'Whapi.Cloud' }}</p>
+    <input type="text" id="name" name="name" maxlength="120" value="{{ (token.name or '') if edit_mode else '' }}">
+    {% if not edit_mode or token.provider == 'whatsapp' %}
+    <label for="api_token">Whapi.Cloud {{ _('Provider API Token') }}</label>
+    <input type="password" id="api_token" name="api_token" {% if not edit_mode %}required{% endif %} placeholder="{{ _('leave blank to keep current') if edit_mode else _('Paste your token here') }}">
     {% else %}
-    <select id="provider" name="provider">
-      <option value="whatsapp">Whapi.Cloud</option>
-      <option value="relay">Relay</option>
-    </select>
+    <p>{{ _('This WhatsApp account connects with a QR code. No API token is needed.') }}</p>
+    <a href="/tokens/{{ token.id }}/pair" class="btn btn-secondary">{{ _('Pair WhatsApp') }}</a>
     {% endif %}
-    <div id="relay_fields" {% if not edit_mode or token.provider != 'relay' %}hidden{% endif %}>
-      {% if not edit_mode %}<p><a href="/tokens/relay/setup" class="btn btn-primary">{{ _('Register or log in to Relay') }}</a><br><small>{{ _('Create your Relay account here. WhatSend handles the API key for you.') }}</small></p>{% endif %}
-      <label for="relay_base_url">{{ _('Relay backend URL') }}</label>
-      <input type="url" id="relay_base_url" name="relay_base_url" placeholder="https://relay.example.com" {% if edit_mode %}value="{{ token.relay_base_url or '' }}" readonly{% endif %}>
-      <small>{{ _('Enter the backend URL without /api/v1. It must be reachable from WhatSend.') }}</small>
-      <label for="relay_session_id">{{ _('Relay session ID') }}</label>
-      <input type="text" id="relay_session_id" name="relay_session_id" {% if edit_mode %}value="{{ token.relay_session_id or '' }}" {% if token.relay_session_id %}readonly{% endif %}{% endif %}>
-      {% if not edit_mode %}<small>{{ _('Leave blank to create a session and scan its QR code here.') }}</small>{% endif %}
-      <small>{{ _('Use a Relay key with sessions:read, sessions:write, chats:read, messages:read and messages:write.') }}</small>
-    </div>
-    <label for="api_token">{{ _('Provider API Token') }}</label>
-    {% if edit_mode %}
-    <input type="text" id="api_token" name="api_token" placeholder="•••••••• ({{ _('leave blank to keep current') }})">
-    <small style="color:var(--text-muted);">{{ _('Leave blank to keep the current token unchanged.') }}</small>
-    {% else %}
-    <input type="text" id="api_token" name="api_token" required placeholder="{{ _('Paste your token here') }}">
-    {% endif %}
-
-    <button id="save_token" type="submit" class="btn btn-primary">{{ _('Save') }}</button>
+    <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
     <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>
 </div>
-<script nonce="{{ csp_nonce }}">
-  const provider = document.getElementById('provider');
-  if (provider) {
-    const syncProvider = () => {
-      const relay = provider.value === 'relay';
-      document.getElementById('relay_fields').hidden = !relay;
-      document.getElementById('relay_base_url').required = relay;
-      document.getElementById('save_token').textContent = relay ? {{ _('Save and pair') | tojson }} : {{ _('Save') | tojson }};
-    };
-    provider.addEventListener('change', syncProvider);
-    syncProvider();
-  }
-</script>
 {% endblock %}

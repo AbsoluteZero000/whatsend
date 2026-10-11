@@ -26,8 +26,8 @@ from app.services.csrf import csrf_protect
 from app.services.scheduler import register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
 from app.services.sender import WhatsAppSender, get_sender
-from app.services.relay_sender import RelaySender
-from app.services.relay_api import connection_base_url
+from app.services.native_sender import NativeSender
+from app.services.native_api import connection_base_url
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
 
@@ -146,19 +146,19 @@ ALLOWED_SORT_COLS = {"id", "label", "group_name", "trigger_type", "status", "cre
 def job_sender(token):
     if token.provider == "whatsapp":
         return WhatsAppSender(api_token=decrypt_token(token.api_token))
-    return get_sender(token.provider, decrypt_token(token.api_token), session_id=token.relay_session_id,
+    return get_sender(token.provider, "", session_id=token.relay_session_id,
                       base_url=connection_base_url(token))
 
 
 def validate_job_payload(token, recipients, message, image_path):
-    if token.provider != "relay":
+    if token.provider != "native":
         return
     try:
         for recipient in recipients:
             if image_path:
-                RelaySender.validate_media(recipient, image_path, message)
+                NativeSender.validate_media(recipient, image_path, message)
             else:
-                RelaySender.validate_text(recipient, message)
+                NativeSender.validate_text(recipient, message)
     except (ValueError, OSError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -181,8 +181,8 @@ async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: i
     token = result.scalar_one_or_none()
     if not token:
         raise HTTPException(status_code=400, detail="Select an active token that belongs to your account")
-    if token.provider == "relay" and not token.relay_session_id:
-        raise HTTPException(400, "Finish setting up your Relay session before creating a job")
+    if token.provider == "native" and not token.relay_session_id:
+        raise HTTPException(400, "Finish setting up your WhatsApp session before creating a job")
     return token
 
 

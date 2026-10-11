@@ -9,6 +9,33 @@ from sqlalchemy import create_engine, inspect, text
 from app.config import settings
 
 
+def test_native_migration_preserves_links_and_retires_external_credentials(tmp_path, monkeypatch):
+    revision = importlib.import_module("migrations.versions.20261011_0006_native_whatsapp")
+    engine = create_engine(f"sqlite:///{tmp_path / 'native-upgrade.db'}")
+    with engine.begin() as connection:
+        for sql in [
+            "CREATE TABLE tokens (id INTEGER PRIMARY KEY, provider TEXT, api_token TEXT, relay_session_id TEXT, relay_base_url TEXT)",
+            "CREATE TABLE jobs (id INTEGER PRIMARY KEY, token_id INTEGER, status TEXT)",
+            "CREATE TABLE relay_operations (status TEXT, response TEXT)",
+            "CREATE TABLE delivery_attempts (status TEXT, response TEXT, relay_token_id INTEGER)",
+            "INSERT INTO tokens VALUES (3, 'relay', 'old-encrypted-key', NULL, 'https://old-relay.test')",
+            "INSERT INTO tokens VALUES (4, 'whatsapp', 'whapi-key', NULL, NULL)",
+            "INSERT INTO jobs VALUES (5, 3, 'queued')",
+            "INSERT INTO relay_operations VALUES ('queued', 'old-ack')",
+            "INSERT INTO delivery_attempts VALUES ('queued', 'old-ack', 3)",
+        ]:
+            connection.execute(text(sql))
+        monkeypatch.setattr(revision, "op", Operations(MigrationContext.configure(connection)))
+        revision.upgrade()
+        token = connection.execute(text("SELECT provider,api_token,relay_session_id,relay_base_url FROM tokens WHERE id=3")).one()
+        assert token.provider == "native" and token.api_token == "" and token.relay_session_id and token.relay_base_url is None
+        assert connection.scalar(text("SELECT api_token FROM tokens WHERE id=4")) == "whapi-key"
+        assert connection.execute(text("SELECT token_id,status FROM jobs WHERE id=5")).one() == (3, "unknown")
+        assert connection.scalar(text("SELECT status FROM delivery_attempts")) == "unknown"
+        assert connection.scalar(text("SELECT status FROM relay_operations")) == "unknown"
+    engine.dispose()
+
+
 def test_relay_migration_preserves_existing_tokens(tmp_path, monkeypatch):
     revision = importlib.import_module("migrations.versions.20261010_0004_relay_api")
     engine = create_engine(f"sqlite:///{tmp_path / 'legacy.db'}")
@@ -33,7 +60,8 @@ def test_complete_migration_chain_on_fresh_database(tmp_path, monkeypatch):
     command.upgrade(configuration, "head")
     engine = create_engine(url.replace("+aiosqlite", ""))
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261010_0005"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261011_0006"
         assert {"provider", "relay_session_id"} <= {column["name"] for column in inspect(connection).get_columns("tokens")}
         assert "relay_operations" in inspect(connection).get_table_names()
+        assert "relay_message_id" in {column["name"] for column in inspect(connection).get_columns("delivery_attempts")}
     engine.dispose()

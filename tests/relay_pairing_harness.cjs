@@ -36,7 +36,7 @@ function setup() {
     async fetch(url, options) {
       calls.push({url, options});
       if (url.endsWith('/connect')) {
-        if (denyConnect) return {ok: false, json: async () => ({detail: 'Relay key needs sessions:read and sessions:write permissions for pairing.'})};
+        if (denyConnect) return {ok: false, json: async () => ({detail: 'WhatsApp service is unavailable. Try again shortly.'})};
         state = 'qr_required';
         return {ok: true, json: async () => ({state})};
       }

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="section-header header-row">
   <h1>{{ _('API Tokens') }}</h1>
-  <div class="actions"><a href="/tokens/relay/setup" class="btn btn-primary">{{ _('Connect Relay') }}</a>
+  <div class="actions"><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a>
   <a href="/tokens/create" class="btn btn-secondary">{{ _('+ Add Token') }}</a></div>
 </div>
 <div class="table-wrap">
@@ -21,14 +21,14 @@
     <tbody>
       {% for token in tokens %}
       <tr>
-        <td>{{ token.name or "—" }} <small>({{ 'Relay' if token.provider == 'relay' else 'Whapi.Cloud' }})</small></td>
-        <td><code>••••••••{{ token.api_token[-8:] }}</code></td>
+        <td>{{ token.name or "—" }} <small>({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</small></td>
+        <td>{% if token.provider == 'native' %}{{ _('QR connection') }}{% else %}<code>••••••••{{ token.api_token[-8:] }}</code>{% endif %}</td>
         <td>{{ "✅" if token.is_active else "❌" }}</td>
         <td>{{ tz(token.created_at, user_tz) }}</td>
         <td>{{ tz(token.last_used_at, user_tz) }}</td>
         <td>
           <div class="actions">
-            {% if token.provider == 'relay' and token.is_active and token.relay_session_id %}<a href="/tokens/{{ token.id }}/pair" class="btn btn-sm btn-primary">{{ _('Pair WhatsApp') }}</a>{% endif %}
+            {% if token.provider == 'native' and token.is_active and token.relay_session_id %}<a href="/tokens/{{ token.id }}/pair" class="btn btn-sm btn-primary">{{ _('Pair WhatsApp') }}</a>{% endif %}
             <a href="/tokens/{{ token.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>
             <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
               <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-warning' }}">

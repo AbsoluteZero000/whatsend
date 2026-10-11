@@ -2,8 +2,8 @@
 {% block title %}{{ _('Pair WhatsApp') }} — EchoSend{% endblock %}
 {% block content %}
 <div class="section-header"><h1>{{ _('Pair WhatsApp') }}</h1></div>
-<div class="form-card relay-pair-card">
-  <p>{{ token.name or 'Relay' }}</p>
+<div class="form-card whatsapp-pair-card">
+  <p>{{ token.name or 'WhatsApp' }}</p>
   <p>{{ _('On your phone, open WhatsApp → Linked devices → Link a device, then scan the QR code below.') }}</p>
   <p id="pair_status" role="status" aria-live="polite">{{ _('Checking connection…') }}</p>
   <div id="pair_qr" hidden>
@@ -14,23 +14,25 @@
   <div class="actions">
     <button id="pair_connect" type="button" class="btn btn-primary">{{ _('Get QR code') }}</button>
     <button id="pair_refresh" type="button" class="btn btn-secondary">{{ _('Refresh status') }}</button>
+    <button id="pair_logout" type="button" class="btn btn-secondary" hidden>{{ _('Log out of WhatsApp') }}</button>
+    <a href="/jobs/create" class="btn btn-primary">{{ _('Create a message') }}</a>
     <a href="/tokens" class="btn btn-secondary">{{ _('Back to tokens') }}</a>
   </div>
 </div>
-<script src="/static/js/relay-pairing.js" defer
+<script src="/static/js/whatsapp-pairing.js" defer
   data-token-id="{{ token.id }}"
   data-messages='{{ {
     "checking": _('Checking connection…'),
     "disconnected": _('Click Get QR code to start pairing.'),
     "connecting": _('Preparing your QR code…'),
     "qr_required": _('Scan this code with WhatsApp on your phone. It refreshes automatically.'),
-    "connected": _('WhatsApp is connected. You can now use this Relay token.'),
-    "reconnecting": _('Relay is reconnecting to WhatsApp…'),
+    "connected": _('WhatsApp is connected. You can now send messages and schedule jobs.'),
+    "reconnecting": _('Reconnecting to WhatsApp…'),
     "failed": _('Connection failed. Click Get QR code to try again.'),
     "expired": _('This QR code expired. Fetching a fresh code…'),
     "expiry": _('QR code valid until'),
-    "error": _('Could not check Relay. Try refreshing the status.'),
-    "request_failed": _('Relay request failed. Try again.'),
-    "permissions": _('Relay key needs sessions:read and sessions:write permissions for pairing.')
+    "error": _('Could not check WhatsApp. Try refreshing the status.'),
+    "request_failed": _('WhatsApp request failed. Try again.'),
+    "permissions": _('WhatsApp service is unavailable. Try again shortly.')
   } | tojson }}'></script>
 {% endblock %}

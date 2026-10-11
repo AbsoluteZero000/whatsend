@@ -87,10 +87,9 @@ class WhatsAppSender:
 def get_sender(provider: str, api_token: str, *, session_id: str | None = None, base_url: str | None = None):
     if provider == "whatsapp":
         return WhatsAppSender(api_token=api_token)
-    if provider == "relay":
-        from app.config import settings
-        from app.services.relay_sender import RelaySender
+    if provider == "native":
+        from app.services.native_sender import NativeSender
         if not session_id:
-            raise ValueError("A Relay session ID is required")
-        return RelaySender(api_token, session_id, base_url or settings.relay_base_url)
+            raise ValueError("A WhatsApp connection is required")
+        return NativeSender(session_id=session_id)
     raise ValueError(f"Unsupported provider: {provider}")

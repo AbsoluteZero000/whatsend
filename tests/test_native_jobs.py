@@ -10,9 +10,9 @@ from sqlalchemy import select
 from app.models.job import Job
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
-from app.services import scheduler, relay_jobs
+from app.services import scheduler, native_jobs
 from app.routers import jobs
-from test_relay_api import exercise, SESSION, RECIPIENT, MESSAGE
+from test_native_api import exercise, SESSION, RECIPIENT, MESSAGE
 
 
 async def no_schedule(job):
@@ -20,7 +20,7 @@ async def no_schedule(job):
 
 
 @pytest.mark.parametrize("media", [False, True])
-def test_relay_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
+def test_native_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
     calls = []
     upstream_state = ["processing"]
     monkeypatch.setattr(jobs, "register_job", no_schedule)
@@ -44,7 +44,7 @@ def test_relay_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
 
     async def scenario(client, sessions, context):
         page = await client.get("/jobs/create")
-        assert page.status_code == 200 and 'data-provider="relay"' in page.text
+        assert page.status_code == 200 and 'data-provider="native"' in page.text
         groups = await client.get("/jobs/groups?token_id=3")
         assert groups.json()["groups"] == [{"id": RECIPIENT, "name": "My Relay group"}]
         assert (await client.get("/jobs/groups?token_id=999")).status_code == 400
@@ -62,14 +62,14 @@ def test_relay_jobs_enqueue_and_confirm_delivery(tmp_path, monkeypatch, media):
             assert (await db.get(Job, job_id)).status == "queued"
             attempt = (await db.execute(select(DeliveryAttempt))).scalar_one()
             assert attempt.status == "queued" and attempt.relay_message_id == MESSAGE
-            assert attempt.relay_base_url == "https://relay.test"
-        await relay_jobs.poll_deliveries()
+            assert attempt.relay_base_url == "https://native.test"
+        await native_jobs.poll_deliveries()
         async with sessions() as db:
             assert (await db.execute(select(DeliveryAttempt))).scalar_one().status == "processing"
             assert (await db.get(Job, job_id)).status == "queued"
         upstream_state[0] = "sent"
-        await relay_jobs.poll_deliveries()
-        await relay_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
         async with sessions() as db:
             assert (await db.get(Job, job_id)).status == "completed"
             assert (await db.execute(select(DeliveryAttempt))).scalar_one().status == "sent"
@@ -105,13 +105,13 @@ def test_relay_job_terminal_failure_and_poll_error(tmp_path, monkeypatch, trigge
             assert result.status_code == 303
         else:
             await scheduler.send_job(job_id)
-        await relay_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
         async with sessions() as db:
             attempt = (await db.execute(select(DeliveryAttempt))).scalar_one()
             assert attempt.status == "queued" and attempt.relay_message_id == MESSAGE
         fail_poll[0] = False
-        await relay_jobs.poll_deliveries()
-        await relay_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
         async with sessions() as db:
             job = await db.get(Job, job_id)
             assert job.status == {"cron": "active", "trigger": "trigger", "date": "failed"}[trigger]
@@ -123,7 +123,7 @@ def test_relay_job_terminal_failure_and_poll_error(tmp_path, monkeypatch, trigge
 
 
 @pytest.mark.parametrize("failure", ["timeout", "500", "403", "409", "malformed"])
-def test_relay_jobs_never_retry_uncertain_enqueue(tmp_path, monkeypatch, failure):
+def test_native_jobs_never_retry_uncertain_enqueue(tmp_path, monkeypatch, failure):
     calls = []
 
     def relay(request):
@@ -142,7 +142,7 @@ def test_relay_jobs_never_retry_uncertain_enqueue(tmp_path, monkeypatch, failure
             job_id = job.id
         await scheduler.send_job(job_id)
         await scheduler.send_job(job_id, retry_only=True)
-        await relay_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
         async with sessions() as db:
             job = await db.get(Job, job_id)
             expected = "failed" if failure == "403" else "unknown"
@@ -155,7 +155,7 @@ def test_relay_jobs_never_retry_uncertain_enqueue(tmp_path, monkeypatch, failure
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
 
 
-def test_relay_jobs_recover_unacknowledged_run_without_resending(tmp_path, monkeypatch):
+def test_native_jobs_recover_unacknowledged_run_without_resending(tmp_path, monkeypatch):
     def relay(request):
         pytest.fail("An interrupted run was resubmitted")
 
@@ -165,11 +165,11 @@ def test_relay_jobs_recover_unacknowledged_run_without_resending(tmp_path, monke
             db.add(job)
             await db.flush()
             db.add(DeliveryAttempt(job_id=job.id, run_id=str(uuid4()), group_id=RECIPIENT, status="submitting",
-                                   relay_token_id=3, relay_session_id=SESSION, relay_base_url="https://relay.test",
+                                   relay_token_id=3, relay_session_id=SESSION, relay_base_url="https://native.test",
                                    created_at=datetime.now(timezone.utc) - timedelta(minutes=5)))
             await db.commit()
             job_id = job.id
-        await relay_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
         await scheduler.send_job(job_id)
         async with sessions() as db:
             assert (await db.get(Job, job_id)).status == "unknown"

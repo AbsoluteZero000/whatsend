@@ -27,3 +27,9 @@ primary_region = "iad"
   UPLOAD_DIR = "/data/uploads"
   COOKIE_SECURE = "true"
   API_KEYS_ENABLED = "true"
+  WHATSAPP_DATA_DIR = "/data/whatsapp"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"

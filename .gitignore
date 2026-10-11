@@ -6,3 +6,6 @@ whatsend.db
 .venv/
 .env
 uploads/
+# Built-in WhatsApp credentials and installed dependencies
+whatsapp-worker/node_modules/
+whatsapp-data/

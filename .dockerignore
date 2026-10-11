@@ -13,3 +13,5 @@ whatsend.db
 uploads/
 whatsend.db-*
 docs/improvement-plan.html
+whatsapp-worker/node_modules/
+whatsapp-data/
