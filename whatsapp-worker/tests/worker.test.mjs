@@ -51,6 +51,21 @@ test('document uploads reach Baileys with original filename, caption and bytes',
   assert.equal(sends[0].content.caption,'Quarterly report');
   assert.equal(sends[0].content.image,undefined);
 });
+test('document uploads keep Arabic filenames intact', async t => {
+  const {manager,sockets,sends} = setup(t);
+  const server = workerServer(manager,'document-secret');
+  await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const id=randomUUID(); await manager.connect(id);
+  sockets[0].ev.emit('connection.update',{connection:'open'});
+  const form=new FormData(); form.set('recipient','123456789@g.us');
+  form.set('file',new Blob([Buffer.from('%PDF-1.7 document')],{type:'application/pdf'}),'تقرير الربع الأول.pdf');
+  const response=await fetch('http://127.0.0.1:'+server.address().port+'/api/v1/sessions/'+id+'/messages',{
+    method:'POST',headers:{Authorization:'Bearer document-secret','Idempotency-Key':'document-ar-1'},body:form});
+  assert.equal(response.status,202); await tick();
+  assert.equal(sends.length,1);
+  assert.equal(sends[0].content.fileName,'تقرير الربع الأول.pdf');
+});
 function setup(t) {
   const root = mkdtempSync(join(tmpdir(), 'whatsend-worker-'));
   const sockets = [], sends = [];

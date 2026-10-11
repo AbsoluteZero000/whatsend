@@ -8,7 +8,7 @@ import {mediaKind} from './media.mjs';
 async function parseBody(request) {
   if (request.headers['content-type']?.startsWith('multipart/form-data')) {
     return new Promise((resolve, reject) => {
-      const parser = Busboy({headers: request.headers, limits: {files: 1, fields: 3, fileSize: 50 * 1024 * 1024, fieldSize: 4096}});
+      const parser = Busboy({headers: request.headers, defParamCharset: 'utf8', limits: {files: 1, fields: 3, fileSize: 50 * 1024 * 1024, fieldSize: 4096}});
       const fields = {};
       let media, failed = false;
       const fail = () => { failed = true; reject(new ClientError(400, 'invalid_media', 'Invalid attachment or upload limit exceeded.')); };
