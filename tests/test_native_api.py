@@ -30,6 +30,34 @@ RECIPIENT = "120363123456789@g.us"
 CLIENT = httpx.AsyncClient
 
 
+def test_scheduled_job_requires_date_and_preserves_form(tmp_path, monkeypatch):
+    def worker(request):
+        pytest.fail("An invalid schedule must not send a message")
+
+    async def scenario(client, sessions, context):
+        response = await client.post('/jobs/create',
+            headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"},
+            data={"token_id": "3", "message": "test", "group_ids": RECIPIENT,
+                  "group_names": "TESTING ECHOSEND", "trigger_type": "date", "trigger_value_date": ""})
+        assert response.status_code == 400
+        assert response.headers['content-type'].startswith('text/html')
+        assert 'Choose a date and time' in response.text
+        assert 'value="date" selected' in response.text
+        from html.parser import HTMLParser
+        class DateInput(HTMLParser):
+            attributes = None
+            def handle_starttag(self, tag, attrs):
+                if tag == 'input' and dict(attrs).get('id') == 'trigger_value_date':
+                    self.attributes = dict(attrs)
+        parser = DateInput(); parser.feed(response.text)
+        assert 'required' in parser.attributes
+        assert RECIPIENT in response.text and 'TESTING ECHOSEND' in response.text
+        async with sessions() as db:
+            assert not (await db.execute(select(Job))).scalars().all()
+
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
+
+
 @pytest.mark.parametrize("content,error", [(b"", "The uploaded file is empty"),
                                            (b"not a JPEG", "file content does not match .jpeg")])
 def test_invalid_job_upload_preserves_draft_without_creating_or_sending(tmp_path, monkeypatch, content, error):

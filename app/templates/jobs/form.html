@@ -5,7 +5,7 @@
   <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>
 </div>
 <div class="form-card">
-  {% if upload_error %}<p role="alert" style="color:var(--danger, #c62828);">{{ upload_error }}</p>{% endif %}
+  {% if form_error %}<p role="alert" style="color:var(--danger, #c62828);">{{ form_error }}</p>{% endif %}
   <form method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
     <label for="token_id">{{ _('API Token') }}</label>
     <select id="token_id" name="token_id" required>
@@ -80,7 +80,7 @@
     {% set cdays = cron_days|default([]) %}
     {% set craw = cron_raw|default('') %}
     <div id="trigger_value_group">
-      <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;" {% if trigger_value_date %}value="{{ trigger_value_date }}"{% endif %}>
+      <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;" {% if trigger_value_date %}value="{{ trigger_value_date }}"{% endif %} {% if (edit_mode and job.trigger_type == 'date') or (not edit_mode and initial_trigger_type|default('now') == 'date') %}required{% endif %}>
       <div id="trigger_value_cron" style="display:none;">
         <label for="cron_freq">{{ _('Frequency') }}</label>
         <select id="cron_freq" name="cron_freq">
@@ -158,6 +158,7 @@
     document.getElementById('trigger_value_group').style.display = show ? 'block' : 'none';
     document.getElementById('trigger_hint').style.display = show ? 'block' : 'none';
     document.getElementById('trigger_value_date').style.display = type === 'date' ? 'block' : 'none';
+    document.getElementById('trigger_value_date').required = type === 'date';
     document.getElementById('trigger_value_cron').style.display = type === 'cron' ? 'block' : 'none';
   }
   document.getElementById('trigger_type').addEventListener('change', toggleTriggerValue);

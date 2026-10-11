@@ -135,14 +135,14 @@ async def save_upload(file: UploadFile) -> str | None:
         raise
 
 
-async def upload_error_form(request, db, user, error, group_ids, group_names, job=None):
+async def job_error_form(request, db, user, error, group_ids, group_names, job=None):
     form = await request.form()
     result = await db.execute(select(Token).where(Token.user_id == int(user["sub"]), Token.is_active.is_(True)))
     draft = SimpleNamespace(id=job.id if job else None, token_id=int(form["token_id"]),
                             label=form.get("label", ""), message=form.get("message", ""),
                             trigger_type=form.get("trigger_type", "now"), image_path=job.image_path if job else None)
     response = request.app.state.render(
-        request, "jobs/form.html", job=draft, edit_mode=job is not None, upload_error=str(error.detail),
+        request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail),
         tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
         selected_groups=[{"id": gid, "name": (group_names[i] or gid) if i < len(group_names) else gid}
                          for i, gid in enumerate(group_ids)],
@@ -424,18 +424,18 @@ async def create_job(
             cron_raw=cron_raw,
         )
     except (ValueError, zoneinfo.ZoneInfoNotFoundError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        return await job_error_form(request, db, user, HTTPException(400, str(exc)), group_ids, group_names)
 
     try:
         image_path = await save_upload(image) if image else None
     except HTTPException as exc:
-        return await upload_error_form(request, db, user, exc, group_ids, group_names)
+        return await job_error_form(request, db, user, exc, group_ids, group_names)
     try:
         validate_job_payload(token, group_ids, message, image_path)
-    except HTTPException:
+    except HTTPException as exc:
         if image_path:
             Path(image_path).unlink(missing_ok=True)
-        raise
+        return await job_error_form(request, db, user, exc, group_ids, group_names)
 
     job = Job(
         user_id=user_id,
@@ -768,7 +768,7 @@ async def edit_job(
         try:
             new_path = await save_upload(image)
         except HTTPException as exc:
-            return await upload_error_form(request, db, user, exc, group_ids, group_names, job)
+            return await job_error_form(request, db, user, exc, group_ids, group_names, job)
         if new_path:
             image_path = new_path
 
@@ -786,9 +786,8 @@ async def edit_job(
     except (ValueError, zoneinfo.ZoneInfoNotFoundError, HTTPException) as exc:
         if new_path:
             Path(new_path).unlink(missing_ok=True)
-        if isinstance(exc, HTTPException):
-            raise
-        raise HTTPException(status_code=400, detail=str(exc))
+        error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
+        return await job_error_form(request, db, user, error, group_ids, group_names, job)
 
     if new_path and job.image_path:
         await delete_media_if_unreferenced(db, job.image_path, job.id)
