@@ -9,6 +9,8 @@
   const connect = document.getElementById('pair_connect');
   const logout = document.getElementById('pair_logout');
   const refresh = document.getElementById('pair_refresh');
+  const create = document.getElementById('pair_create');
+  const placeholder = document.getElementById('pair_placeholder');
   let pollTimer, expiryTimer, controller;
   let closed = false;
   let busy = false;
@@ -18,6 +20,7 @@
     clearTimeout(expiryTimer);
     qr.hidden = true;
     image.removeAttribute('src');
+    if (placeholder) placeholder.hidden = false;
   }
 
   function display(data) {
@@ -28,6 +31,8 @@
     status.textContent = messages[data.state] || messages.checking;
     connect.hidden = data.state === 'connected';
     if (logout) logout.hidden = data.state !== 'connected';
+    if (create) create.hidden = data.state !== 'connected';
+    if (status.dataset) status.dataset.state = data.state;
     clearQr();
     if (data.qr) {
       const expiry = new Date(data.qr.expires_at);
@@ -35,6 +40,7 @@
       if (remaining > 0) {
         image.src = 'data:image/png;base64,' + data.qr.png_base64;
         qr.hidden = false;
+        if (placeholder) placeholder.hidden = true;
         document.getElementById('pair_expiry').textContent = messages.expiry + ' ' + expiry.toLocaleTimeString();
         expiryTimer = setTimeout(function () {
           clearQr();

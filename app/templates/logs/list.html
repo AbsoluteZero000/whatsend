@@ -4,7 +4,7 @@
 <div class="section-header">
   <h1>{{ _('Execution Logs') }}</h1>
   {% if job_id %}
-  <p style="color:#888;margin-top:0.25rem;">{{ _('Filtered by job') }} #{{ job_id }} — <a href="/logs">{{ _('Show all') }}</a></p>
+  <p>{{ _('Filtered by job') }} #{{ job_id }} — <a href="/logs">{{ _('Show all') }}</a></p>
   {% endif %}
 </div>
 <div class="table-wrap">
@@ -23,8 +23,8 @@
       <tr>
         <td><a href="/logs/{{ log.id }}" class="job-id-link">#{{ log.id }}</a></td>
         <td><a href="/jobs/{{ log.job_id }}" class="job-id-link">#{{ log.job_id }}</a></td>
-        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else 'failed' }}">{{ _(log.status) }}</span></td>
-        <td><details><summary style="cursor:pointer;color:var(--primary);">{{ _('Show response') }}</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
+        <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else log.status }}">{{ _(log.status) }}</span></td>
+        <td><details class="response-toggle"><summary>{{ _('Show response') }}</summary><pre><code>{{ log.response or "—" }}</code></pre></details></td>
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>
       {% else %}

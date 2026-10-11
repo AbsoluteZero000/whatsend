@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Connect WhatsApp') }} — EchoSend{% endblock %}
 {% block content %}
-<div class="section-header"><h1>{{ _('Connect WhatsApp') }}</h1></div>
+<div class="section-header"><h1>{{ _('Connect WhatsApp') }}</h1><p>{{ _('Connect your WhatsApp account by scanning a QR code. No provider account or API token is needed.') }}</p></div>
 <div class="form-card">
-  <p>{{ _('Connect your WhatsApp account by scanning a QR code. No provider account or API token is needed.') }}</p>
   <form method="POST" action="/tokens/connect">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" name="name" id="name" maxlength="120" placeholder="{{ _('My WhatsApp') }}">
-    <button type="submit" class="btn btn-primary">{{ _('Continue to QR code') }}</button>
-    <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ _('Continue to QR code') }}</button>
+      <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
+    </div>
   </form>
 </div>
 {% endblock %}

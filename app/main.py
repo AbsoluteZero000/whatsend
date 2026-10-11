@@ -59,9 +59,10 @@ _jinja_env.globals["parse_dt"] = parse_dt
 
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+WEEKDAYS_AR = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
 
 
-def cron_to_text(expr: str, schedule_tz: str = "UTC", display_tz: str | None = None) -> str:
+def cron_to_text(expr: str, schedule_tz: str = "UTC", display_tz: str | None = None, lang: str = "en") -> str:
     try:
         parts = expr.split()
         if len(parts) != 5:
@@ -80,6 +81,21 @@ def cron_to_text(expr: str, schedule_tz: str = "UTC", display_tz: str | None = N
             except Exception:
                 pass
 
+        if lang == "ar":
+            if dow == "*" and dom == "*":
+                return f"يومياً الساعة {time}"
+            if dow == "0-4" and dom == "*":
+                return f"من الإثنين إلى الجمعة الساعة {time}"
+            if dow == "5,6" and dom == "*":
+                return f"السبت والأحد الساعة {time}"
+            if dom == "*" and "," in dow:
+                names = [WEEKDAYS_AR[int(d)] for d in dow.split(",")]
+                return f"{'، '.join(names)} الساعة {time}"
+            if dom == "*" and "-" not in dow:
+                return f"أسبوعياً يوم {WEEKDAYS_AR[int(dow)]} الساعة {time}"
+            if dom != "*" and dow == "*":
+                return f"شهرياً يوم {dom} الساعة {time}"
+            return expr
         if dow == "*" and dom == "*":
             return f"Daily at {time}"
         if dow == "0-4" and dom == "*":
@@ -111,6 +127,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
         lang = "en"
     lang = request.cookies.get("lang", lang)
     context.setdefault("lang", lang)
+    context.setdefault("cron_to_text", lambda *args, **kwargs: cron_to_text(*args, lang=lang, **kwargs))
     context.setdefault("api_keys_enabled", settings.api_keys_enabled)
     context.setdefault("is_admin", bool(user and user.get("is_admin")))
     csrf_token, csrf_is_new = get_or_create_csrf_token(request)

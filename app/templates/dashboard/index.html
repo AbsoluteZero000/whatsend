@@ -37,10 +37,10 @@
 
   <div class="dashboard-main-grid">
     <section class="dashboard-panel schedules-panel">
-      <div class="panel-heading"><div><h2>{{ _('Active schedules') }}</h2><p>{{ _('Messages that are queued or ready to run') }}</p></div><a href="/jobs?status=active">{{ _('View all') }} <span aria-hidden="true">→</span></a></div>
+      <div class="panel-heading"><div><h2>{{ _('Active schedules') }}</h2><p>{{ _('Messages that are queued or ready to run') }}</p></div><a href="/jobs?status=active">{{ _('View all') }} <span class="dir-arrow" aria-hidden="true">→</span></a></div>
       <div class="schedule-list">
       {% for job in active_jobs %}
-        <a class="schedule-item" href="/jobs/{{ job.id }}"><span class="schedule-avatar">{{ (job.label or job.group_name or 'M')[0]|upper }}</span><span class="schedule-content"><strong>{{ job.label or job.group_name or _('Untitled message') }}</strong><span>{{ job.group_name or job.group_id }} · {% if job.trigger_type == 'trigger' %}{{ _('On Trigger') }}{% elif job.trigger_type == 'date' %}{{ tz(parse_dt(job.trigger_value), user_tz) }}{% elif job.trigger_type == 'now' %}{{ _('Now') }}{% else %}{{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}{% endif %}</span></span><span class="schedule-status"><span class="status-dot"></span>{{ _(job.status) }}</span><span class="item-arrow" aria-hidden="true">›</span></a>
+        <a class="schedule-item" href="/jobs/{{ job.id }}"><span class="schedule-avatar">{{ (job.label or job.group_name or 'M')[0]|upper }}</span><span class="schedule-content"><strong>{{ job.label or job.group_name or _('Untitled message') }}</strong><span>{{ job.group_name or job.group_id }} · {% if job.trigger_type == 'trigger' %}{{ _('On Trigger') }}{% elif job.trigger_type == 'date' %}{{ tz(parse_dt(job.trigger_value), user_tz) }}{% elif job.trigger_type == 'now' %}{{ _('Now') }}{% else %}{{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}{% endif %}</span></span><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span><span class="item-arrow" aria-hidden="true">›</span></a>
       {% else %}
         <div class="panel-empty"><span>⌁</span><strong>{{ _('Nothing is scheduled') }}</strong><p>{{ _('Create a message and it will appear here.') }}</p><a href="/jobs/create" class="btn btn-primary">{{ _('Schedule message') }}</a></div>
       {% endfor %}
@@ -54,7 +54,7 @@
       </section>
       <section class="dashboard-panel quick-panel">
         <div class="panel-heading compact"><div><h2>{{ _('Quick actions') }}</h2><p>{{ _('Common places, one click away') }}</p></div></div>
-        <div class="quick-links"><a href="/jobs/create"><span>＋</span><div><strong>{{ _('New message') }}</strong><small>{{ _('Send now or schedule') }}</small></div><b>›</b></a><a href="/tokens"><span>⌁</span><div><strong>{{ _('Connections') }}</strong><small>{{ stats.active_tokens }} {{ _('active tokens') }}</small></div><b>›</b></a><a href="/logs"><span>↗</span><div><strong>{{ _('Delivery logs') }}</strong><small>{{ _('Review responses and errors') }}</small></div><b>›</b></a></div>
+        <div class="quick-links"><a href="/jobs/create"><span>＋</span><div><strong>{{ _('New message') }}</strong><small>{{ _('Send now or schedule') }}</small></div><b>›</b></a><a href="/tokens"><span>⇄</span><div><strong>{{ _('Connections') }}</strong><small>{{ stats.active_tokens }} {{ _('active tokens') }}</small></div><b>›</b></a><a href="/logs"><span>↗</span><div><strong>{{ _('Delivery logs') }}</strong><small>{{ _('Review responses and errors') }}</small></div><b>›</b></a></div>
       </section>
     </aside>
   </div>

@@ -5,7 +5,7 @@
   <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>
 </div>
 <div class="form-card">
-  {% if form_error %}<p role="alert" style="color:var(--danger, #c62828);">{{ form_error }}</p>{% endif %}
+  {% if form_error %}<p role="alert" class="flash flash-error">{{ form_error }}</p>{% endif %}
   <form method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
     <label for="token_id">{{ _('API Token') }}</label>
     <select id="token_id" name="token_id" required>
@@ -39,28 +39,28 @@
 
     <label for="image">{{ _('Attachment (optional, max 50MB)') }}</label>
     <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip">
-    <p id="upload_error" role="alert" style="display:none;color:var(--danger, #c62828);"></p>
+    <p id="upload_error" role="alert" class="form-error" style="display:none;"></p>
     {% if edit_mode and job.image_path and image_available %}
-    <div style="margin-bottom:0.5rem;">
+    <div class="media-preview">
       {% set is_video = job.image_path.lower().endswith(('.mp4','.mov','.avi','.mkv','.webm')) %}
       {% set is_document = job.image_path.lower().endswith(('.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.csv','.rtf','.odt','.ods','.odp','.zip')) %}
       {% if is_video %}
-      <video controls style="max-width:320px;max-height:320px;border-radius:8px;display:block;border:1px solid var(--border);">
+      <video controls>
         <source src="/media/{{ job.image_path.split('/')[-1] }}">
       </video>
       {% elif is_document %}
       <a href="/media/{{ job.image_path.split('/')[-1] }}" class="btn btn-secondary" target="_blank" rel="noopener">{{ _('Open current attachment') }}</a>
       {% else %}
-      <img src="/media/{{ job.image_path.split('/')[-1] }}" style="max-width:240px;max-height:240px;border-radius:8px;display:block;border:1px solid var(--border);">
+      <img src="/media/{{ job.image_path.split('/')[-1] }}" alt="{{ _('Message media') }}">
       {% endif %}
-      <small style="color:var(--text-muted);margin-top:0.25rem;display:block;">{{ _('Current file:') }} {{ job.image_filename or job.image_path.split('/')[-1] }}</small>
+      <small>{{ _('Current file:') }} {{ job.image_filename or job.image_path.split('/')[-1] }}</small>
     </div>
     {% elif edit_mode and job.image_path and not image_available %}
-    <div style="margin-bottom:0.5rem;padding:0.6rem 0.8rem;background:var(--bg-flash-error);border-radius:6px;font-size:0.85rem;">
+    <div class="media-missing">
       {{ _('Could not find the file — please upload it again.') }}
     </div>
     {% endif %}
-    <small style="color:#888;">{{ _('Supported: images, videos, PDF, Office, OpenDocument, text, CSV, RTF, and ZIP — up to 50MB') }}</small>
+    <small class="field-note">{{ _('Supported: images, videos, PDF, Office, OpenDocument, text, CSV, RTF, and ZIP — up to 50MB') }}</small>
 
     <label for="trigger_type">{{ _('Trigger Type') }}</label>
     <select id="trigger_type" name="trigger_type" required {% if edit_mode and job.trigger_type == 'now' %}disabled{% endif %}>
@@ -148,7 +148,10 @@
     <small id="trigger_hint" style="color:#888;">{{ _('Timezone:') }} {{ user_tz }}</small>
 
     <div id="group_error" class="form-error" style="display:none;color:var(--danger);margin-bottom:0.5rem;">{{ _('Please select at least one group.') }}</div>
-    <button type="submit" class="btn btn-primary" id="submit_btn">{% if edit_mode %}{{ _('Update Job') }}{% else %}{{ _('Create Job') }}{% endif %}</button>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="submit_btn">{% if edit_mode %}{{ _('Update Job') }}{% else %}{{ _('Create Job') }}{% endif %}</button>
+      <a href="{% if edit_mode %}/jobs/{{ job.id }}{% else %}/jobs{% endif %}" class="btn btn-secondary">{{ _('Cancel') }}</a>
+    </div>
   </form>
 </div>
 <script nonce="{{ csp_nonce }}">

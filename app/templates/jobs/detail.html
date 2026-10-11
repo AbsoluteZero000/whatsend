@@ -6,7 +6,7 @@
     <h1>{{ _('Job') }} #{{ job.id }}</h1>
     <p class="tz-note">{{ job.label or "—" }}</p>
   </div>
-  <a href="/jobs" class="btn btn-secondary">← {{ _('Back to Jobs') }}</a>
+  <a href="/jobs" class="btn btn-secondary"><span class="dir-arrow" aria-hidden="true">←</span> {{ _('Back to Jobs') }}</a>
 </div>
 
 <div class="detail-grid">
@@ -26,9 +26,9 @@
         <span class="detail-value">
           {% set gs = job.job_groups %}
           {% if gs %}
-            {% for jg in gs %}<code>{{ jg.group_name or jg.group_id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+            <span class="group-list">{% for jg in gs %}<span class="group-tag">{{ jg.group_name or jg.group_id }}</span>{% endfor %}</span>
           {% else %}
-            <code>{{ job.group_name or job.group_id }}</code>
+            <span class="group-tag">{{ job.group_name or job.group_id }}</span>
           {% endif %}
         </span>
       </div>
@@ -38,7 +38,7 @@
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('Trigger Type') }}</span>
-        <span class="detail-value">{{ job.trigger_type }}</span>
+        <span class="detail-value">{% if job.trigger_type == "now" %}{{ _('Send Now') }}{% elif job.trigger_type == "date" %}{{ _('One-time (date)') }}{% elif job.trigger_type == "cron" %}{{ _('Recurring (cron)') }}{% else %}{{ _('On Trigger') }}{% endif %}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('Trigger Value') }}</span>
@@ -104,16 +104,16 @@
         {% if job.status in ("pending", "active", "trigger", "retry_scheduled") and job.trigger_type != "now" %}
         <a href="/jobs/{{ job.id }}/edit" class="btn btn-primary">{{ _('Edit') }}</a>
         {% endif %}
-        <a href="/logs?job_id={{ job.id }}" class="btn btn-primary">{{ _('Logs') }}</a>
+        <a href="/logs?job_id={{ job.id }}" class="btn btn-secondary">{{ _('Logs') }}</a>
         <form method="POST" action="/jobs/{{ job.id }}/clone">
           <button class="btn btn-secondary">{{ _('Clone') }}</button>
         </form>
         {% if job.status in ("pending", "active", "retry_scheduled") and job.trigger_type not in ("trigger", "now") %}
         <form method="POST" action="/jobs/{{ job.id }}/pause">
-          <button class="btn btn-warning">{{ _('Pause') }}</button>
+          <button class="btn btn-secondary">{{ _('Pause') }}</button>
         </form>
         <form method="POST" action="/jobs/{{ job.id }}/skip">
-          <button class="btn btn-skip">{{ _('Skip') }}{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
+          <button class="btn btn-secondary">{{ _('Skip') }}{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button>
         </form>
         {% if job.skip_count > 0 %}
         <form method="POST" action="/jobs/{{ job.id }}/skip-clear">
@@ -121,21 +121,21 @@
         </form>
         {% endif %}
         <form method="POST" action="/jobs/{{ job.id }}/cancel">
-          <button class="btn btn-danger">{{ _('Cancel') }}</button>
+          <button class="btn btn-danger-outline">{{ _('Cancel') }}</button>
         </form>
         {% elif job.trigger_type == "trigger" and job.status in ("pending", "trigger") %}
         <form method="POST" action="/jobs/{{ job.id }}/send-now">
           <button class="btn btn-primary">{{ _('Send Now') }}</button>
         </form>
         <form method="POST" action="/jobs/{{ job.id }}/cancel">
-          <button class="btn btn-danger">{{ _('Cancel') }}</button>
+          <button class="btn btn-danger-outline">{{ _('Cancel') }}</button>
         </form>
         {% elif job.status == "paused" %}
         <form method="POST" action="/jobs/{{ job.id }}/resume">
           <button class="btn btn-primary">{{ _('Resume') }}</button>
         </form>
         {% endif %}
-        <form method="POST" action="/jobs/{{ job.id }}/delete" data-confirm="{{ _('Delete this job?') }}">
+        <form method="POST" action="/jobs/{{ job.id }}/delete" data-confirm="{{ _('Delete this job?') }}" class="push-end">
           <button class="btn btn-danger">{{ _('Delete') }}</button>
         </form>
       </div>
@@ -144,7 +144,7 @@
 </div>
 
 {% if delivery_attempts %}
-<div class="section-header" style="margin-top:2rem;">
+<div class="section-header section-gap">
   <h2>{{ _('Recipient delivery attempts') }}</h2>
 </div>
 <div class="table-wrap">
@@ -164,9 +164,9 @@
 </div>
 {% endif %}
 
-<div class="section-header" style="margin-top:2rem;">
+<div class="header-row section-gap">
   <h2>{{ _('Recent Logs') }}</h2>
-  <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-primary">{{ _('View All Logs') }}</a>
+  <a href="/logs?job_id={{ job.id }}" class="btn btn-sm btn-secondary">{{ _('View All Logs') }}</a>
 </div>
 <div class="table-wrap">
   <table>
@@ -183,7 +183,7 @@
       <tr>
         <td><a href="/logs/{{ log.id }}" class="job-id-link">#{{ log.id }}</a></td>
         <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else log.status }}">{{ _(log.status) }}</span></td>
-        <td><details><summary style="cursor:pointer;color:var(--primary);">{{ _('Show response') }}</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:0.85rem;margin:0.25rem 0;max-height:400px;overflow-y:auto;"><code>{{ log.response or "—" }}</code></pre></details></td>
+        <td><details class="response-toggle"><summary>{{ _('Show response') }}</summary><pre><code>{{ log.response or "—" }}</code></pre></details></td>
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>
       {% else %}

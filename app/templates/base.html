@@ -7,35 +7,39 @@
   <script nonce="{{ csp_nonce }}">if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
   <title>{% block title %}EchoSend{% endblock %}</title>
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=19">
+  <link rel="stylesheet" href="/static/css/app.css?v=22">
 </head>
 <body>
   <nav>
     <div class="nav-inner">
       <a href="{{ '/admin' if is_admin else '/dashboard' }}" class="brand" aria-label="EchoSend"><span class="brand-word">Echo<span>Send</span></span></a>
-      <div class="nav-links">
-        {% if is_admin %}
-        <a href="/admin">{{ _('Admin') }}</a>
-        <a href="/auth/profile">{{ _('Profile') }}</a>
-        {% else %}
-        <a href="/dashboard">{{ _('Dashboard') }}</a>
-        <a href="/tokens">{{ _('Tokens') }}</a>
-        {% if api_keys_enabled %}<a href="/api-keys">{{ _('API Keys') }}</a>{% endif %}
-        <a href="/jobs">{{ _('Jobs') }}</a>
-        <a href="/logs">{{ _('Logs') }}</a>
-        <a href="/about">{{ _('Help') }}</a>
-        <a href="/auth/profile">{{ _('Profile') }}</a>
-        {% endif %}
-        <button id="themeToggle" class="theme-toggle"></button>
-        <form method="POST" action="/auth/lang" class="lang-form">
-          <input type="hidden" name="lang" value="{{ 'ar' if lang == 'en' else 'en' }}">
-          <button type="submit" class="lang-toggle" title="{{ _('Toggle language') }}">
-            {{ 'AR' if lang == 'en' else 'EN' }}
-          </button>
-        </form>
-        <form method="POST" action="/auth/signout" class="nav-form"><button type="submit">{{ _('Sign out') }}</button></form>
-        {% if user_tz and not is_admin %}<a href="/auth/timezone" class="tz-badge">{{ user_tz }}</a>{% endif %}
-        <span class="clock" id="clock"></span>
+      {% set path = request.url.path %}
+      <div class="nav-right">
+        <div class="nav-links">
+          {% if is_admin %}
+          <a href="/admin" class="{{ 'active' if path.startswith('/admin') }}">{{ _('Admin') }}</a>
+          <a href="/auth/profile" class="{{ 'active' if path.startswith('/auth/profile') }}">{{ _('Profile') }}</a>
+          {% else %}
+          <a href="/dashboard" class="{{ 'active' if path.startswith('/dashboard') }}">{{ _('Dashboard') }}</a>
+          <a href="/jobs" class="{{ 'active' if path.startswith('/jobs') }}">{{ _('Jobs') }}</a>
+          <a href="/tokens" class="{{ 'active' if path.startswith('/tokens') }}">{{ _('Tokens') }}</a>
+          {% if api_keys_enabled %}<a href="/api-keys" class="{{ 'active' if path.startswith('/api-keys') }}">{{ _('API Keys') }}</a>{% endif %}
+          <a href="/logs" class="{{ 'active' if path.startswith('/logs') }}">{{ _('Logs') }}</a>
+          <a href="/about" class="{{ 'active' if path.startswith('/about') }}">{{ _('Help') }}</a>
+          <a href="/auth/profile" class="{{ 'active' if path.startswith('/auth/profile') }}">{{ _('Profile') }}</a>
+          {% endif %}
+        </div>
+        <span class="nav-sep" aria-hidden="true"></span>
+        <div class="nav-utils">
+          {% if user_tz and not is_admin %}<a href="/auth/timezone" class="tz-badge" title="{{ _('Timezone') }}">{{ user_tz }}</a>{% endif %}
+          <span class="clock" id="clock"></span>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="{{ _('Toggle theme') }}" title="{{ _('Toggle theme') }}"></button>
+          <form method="POST" action="/auth/lang" class="lang-form">
+            <input type="hidden" name="lang" value="{{ 'ar' if lang == 'en' else 'en' }}">
+            <button type="submit" class="lang-toggle" title="{{ _('Toggle language') }}">{{ 'AR' if lang == 'en' else 'EN' }}</button>
+          </form>
+          <form method="POST" action="/auth/signout" class="nav-form"><button type="submit">{{ _('Sign out') }}</button></form>
+        </div>
       </div>
     </div>
   </nav>
