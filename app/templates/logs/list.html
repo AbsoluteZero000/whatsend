@@ -2,17 +2,23 @@
 {% block title %}{{ _('Logs') }} — EchoSend{% endblock %}
 {% block content %}
 <div class="section-header">
-  <h1>{{ _('Execution Logs') }}</h1>
+  <h1>{{ _('Delivery logs') }}</h1>
   {% if job_id %}
   <p>{{ _('Filtered by job') }} #{{ job_id }} — <a href="/logs">{{ _('Show all') }}</a></p>
   {% endif %}
+</div>
+<div class="filter-bar" role="navigation" aria-label="{{ _('Filter deliveries') }}">
+  {% for value, label in [('all', 'All'), ('sent', 'Sent'), ('failed', 'Failed')] %}
+  <a class="filter-btn {{ 'active' if current_status == value }}" href="/logs?status={{ value }}{% if job_id %}&job_id={{ job_id }}{% endif %}" {% if current_status == value %}aria-current="page"{% endif %}>{{ _(label) }}</a>
+  {% endfor %}
+  <span class="field-note">{{ total }} {{ _('delivery attempts') }}</span>
 </div>
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
         <th>{{ _('ID') }}</th>
-        <th>{{ _('Job ID') }}</th>
+        <th>{{ _('Message') }}</th>
         <th>{{ _('Status') }}</th>
         <th>{{ _('Response') }}</th>
         <th>{{ _('Sent At') }}</th>
@@ -22,15 +28,22 @@
       {% for log in logs %}
       <tr>
         <td><a href="/logs/{{ log.id }}" class="job-id-link">#{{ log.id }}</a></td>
-        <td><a href="/jobs/{{ log.job_id }}" class="job-id-link">#{{ log.job_id }}</a></td>
+        <td><a href="/jobs/{{ log.job_id }}" class="job-id-link">{{ log.job.label or log.job.group_name or _('Untitled message') }}</a><small class="field-help">#{{ log.job_id }}</small></td>
         <td><span class="badge badge-{{ 'completed' if log.status == 'sent' else log.status }}">{{ _(log.status) }}</span></td>
         <td><details class="response-toggle"><summary>{{ _('Show response') }}</summary><pre><code>{{ log.response or "—" }}</code></pre></details></td>
         <td>{{ tz(log.sent_at, user_tz) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">{{ _('No logs yet.') }}</div></div></td></tr>
+      <tr><td colspan="5" class="empty-row"><div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">{% if current_status != 'all' or job_id %}{{ _('No deliveries match these filters.') }}{% else %}{{ _('Delivery activity will appear here.') }}{% endif %}</div>{% if current_status != 'all' or job_id %}<a href="/logs" class="btn btn-secondary">{{ _('Clear filters') }}</a>{% endif %}</div></td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% if pages > 1 %}
+<div class="pagination" aria-label="{{ _('Delivery log pages') }}">
+  {% if page > 1 %}<a class="page-link" href="/logs?status={{ current_status }}&page={{ page - 1 }}{% if job_id %}&job_id={{ job_id }}{% endif %}">{{ _('Previous') }}</a>{% endif %}
+  <span>{{ _('Page') }} {{ page }} {{ _('of') }} {{ pages }}</span>
+  {% if page < pages %}<a class="page-link" href="/logs?status={{ current_status }}&page={{ page + 1 }}{% if job_id %}&job_id={{ job_id }}{% endif %}">{{ _('Next') }}</a>{% endif %}
+</div>
+{% endif %}
 {% endblock %}

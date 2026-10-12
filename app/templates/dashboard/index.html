@@ -6,7 +6,7 @@
   <span class="eyebrow">{{ _('QUICK START') }}</span><h2>{{ _('Welcome to EchoSend') }}</h2>
   <p>{{ _('Connect WhatsApp, create a message, and EchoSend will take care of the timing.') }}</p>
   <div class="onboarding-steps">
-    <div class="onboarding-step"><span class="step-number">1</span><span>{{ _('Add your Whapi.Cloud token') }}</span></div>
+    <div class="onboarding-step"><span class="step-number">1</span><span>{{ _('Connect WhatsApp with a QR code') }}</span></div>
     <div class="onboarding-step"><span class="step-number">2</span><span>{{ _('Create a scheduled or instant message') }}</span></div>
     <div class="onboarding-step"><span class="step-number">3</span><span>{{ _('Check delivery from this dashboard') }}</span></div>
   </div>
@@ -23,13 +23,13 @@
   {% if stats.tokens_count == 0 or stats.total_jobs == 0 %}
   <section class="setup-banner">
     <div class="setup-icon" aria-hidden="true">{% if stats.tokens_count == 0 %}🔗{% else %}✦{% endif %}</div>
-    <div class="setup-copy"><strong>{% if stats.tokens_count == 0 %}{{ _('Connect WhatsApp to start sending') }}{% else %}{{ _('You are ready to schedule your first message') }}{% endif %}</strong><span>{% if stats.tokens_count == 0 %}{{ _('Add a Whapi.Cloud token. It only takes a minute.') }}{% else %}{{ _('Choose a group, write your message, and pick when it should go out.') }}{% endif %}</span></div>
-    <a href="{% if stats.tokens_count == 0 %}/tokens/create{% else %}/jobs/create{% endif %}" class="btn btn-primary">{% if stats.tokens_count == 0 %}{{ _('Add token') }}{% else %}{{ _('Create message') }}{% endif %}</a>
+    <div class="setup-copy"><strong>{% if stats.tokens_count == 0 %}{{ _('Connect WhatsApp to start sending') }}{% else %}{{ _('You are ready to schedule your first message') }}{% endif %}</strong><span>{% if stats.tokens_count == 0 %}{{ _('Scan a QR code with WhatsApp to connect your account.') }}{% else %}{{ _('Choose a group, write your message, and pick when it should go out.') }}{% endif %}</span></div>
+    <a href="{% if stats.tokens_count == 0 %}/tokens/connect{% else %}/jobs/create{% endif %}" class="btn btn-primary">{% if stats.tokens_count == 0 %}{{ _('Connect WhatsApp') }}{% else %}{{ _('Create message') }}{% endif %}</a>
   </section>
   {% endif %}
 
   <section class="metric-grid" aria-label="{{ _('Delivery overview') }}">
-    <a class="metric-card" href="/jobs?status=active"><span class="metric-top"><span class="metric-label">{{ _('Active schedules') }}</span><span class="metric-symbol metric-blue">↗</span></span><strong>{{ stats.active_jobs }}</strong><span class="metric-caption">{{ _('of') }} {{ stats.total_jobs }} {{ _('total jobs') }}</span></a>
+    <a class="metric-card" href="/jobs?status=active"><span class="metric-top"><span class="metric-label">{{ _('Active schedules') }}</span><span class="metric-symbol metric-blue">↗</span></span><strong>{{ stats.active_jobs }}</strong><span class="metric-caption">{{ _('of') }} {{ stats.total_jobs }} {{ _('total messages') }}</span></a>
     <a class="metric-card" href="/logs"><span class="metric-top"><span class="metric-label">{{ _('Messages sent') }}</span><span class="metric-symbol metric-green">✓</span></span><strong>{{ stats.sent_count }}</strong><span class="metric-caption">{{ _('all-time deliveries') }}</span></a>
     <a class="metric-card" href="/logs?status=failed"><span class="metric-top"><span class="metric-label">{{ _('Needs attention') }}</span><span class="metric-symbol metric-red">!</span></span><strong>{{ stats.failed_count }}</strong><span class="metric-caption">{{ _('failed deliveries') }}</span></a>
     <div class="metric-card"><span class="metric-top"><span class="metric-label">{{ _('Delivery rate') }}</span><span class="metric-symbol metric-violet">%</span></span><strong>{{ stats.success_rate }}%</strong><div class="metric-progress"><span style="width:{{ stats.success_rate }}%"></span></div><span class="metric-caption">{% if stats.sent_count + stats.failed_count == 0 %}{{ _('No attempts yet') }}{% else %}{{ stats.sent_count + stats.failed_count }} {{ _('attempts') }}{% endif %}</span></div>
@@ -40,7 +40,7 @@
       <div class="panel-heading"><div><h2>{{ _('Active schedules') }}</h2><p>{{ _('Messages that are queued or ready to run') }}</p></div><a href="/jobs?status=active">{{ _('View all') }} <span class="dir-arrow" aria-hidden="true">→</span></a></div>
       <div class="schedule-list">
       {% for job in active_jobs %}
-        <a class="schedule-item" href="/jobs/{{ job.id }}"><span class="schedule-avatar">{{ (job.label or job.group_name or 'M')[0]|upper }}</span><span class="schedule-content"><strong>{{ job.label or job.group_name or _('Untitled message') }}</strong><span>{{ job.group_name or job.group_id }} · {% if job.trigger_type == 'trigger' %}{{ _('On Trigger') }}{% elif job.trigger_type == 'date' %}{{ tz(parse_dt(job.trigger_value), user_tz) }}{% elif job.trigger_type == 'now' %}{{ _('Now') }}{% else %}{{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}{% endif %}</span></span><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span><span class="item-arrow" aria-hidden="true">›</span></a>
+        <a class="schedule-item" href="/jobs/{{ job.id }}"><span class="schedule-avatar">{{ (job.label or job.group_name or 'M')[0]|upper }}</span><span class="schedule-content"><strong>{{ job.label or job.group_name or _('Untitled message') }}</strong><span>{{ job.group_name or job.group_id }} · {% if job.trigger_type == 'trigger' %}{{ _('On external trigger') }}{% elif job.trigger_type == 'date' %}{{ tz(parse_dt(job.trigger_value), user_tz) }}{% elif job.trigger_type == 'now' %}{{ _('Now') }}{% else %}{{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}{% endif %}</span></span><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span><span class="item-arrow" aria-hidden="true">›</span></a>
       {% else %}
         <div class="panel-empty"><span>⌁</span><strong>{{ _('Nothing is scheduled') }}</strong><p>{{ _('Create a message and it will appear here.') }}</p><a href="/jobs/create" class="btn btn-primary">{{ _('Schedule message') }}</a></div>
       {% endfor %}
@@ -50,11 +50,11 @@
     <aside class="dashboard-side">
       <section class="dashboard-panel">
         <div class="panel-heading compact"><div><h2>{{ _('Recent activity') }}</h2><p>{{ _('Latest delivery attempts') }}</p></div><a href="/logs">{{ _('All logs') }}</a></div>
-        <div class="activity-list">{% for log in recent_logs %}<a class="activity-item" href="/logs?job_id={{ log.job_id }}"><span class="activity-icon {{ 'is-success' if log.status == 'sent' else 'is-failed' }}">{{ '✓' if log.status == 'sent' else '!' }}</span><span><strong>{{ log.job.label or _('Job') ~ ' #' ~ log.job_id }}</strong><small>{{ _(log.status) }} · {{ tz(log.sent_at, user_tz) }}</small></span></a>{% else %}<div class="activity-empty">{{ _('Delivery activity will appear here.') }}</div>{% endfor %}</div>
+        <div class="activity-list">{% for log in recent_logs %}<a class="activity-item" href="/logs?job_id={{ log.job_id }}"><span class="activity-icon {{ 'is-success' if log.status == 'sent' else 'is-failed' }}">{{ '✓' if log.status == 'sent' else '!' }}</span><span><strong>{{ log.job.label or _('Message') ~ ' #' ~ log.job_id }}</strong><small>{{ _(log.status) }} · {{ tz(log.sent_at, user_tz) }}</small></span></a>{% else %}<div class="activity-empty">{{ _('Delivery activity will appear here.') }}</div>{% endfor %}</div>
       </section>
       <section class="dashboard-panel quick-panel">
         <div class="panel-heading compact"><div><h2>{{ _('Quick actions') }}</h2><p>{{ _('Common places, one click away') }}</p></div></div>
-        <div class="quick-links"><a href="/jobs/create"><span>＋</span><div><strong>{{ _('New message') }}</strong><small>{{ _('Send now or schedule') }}</small></div><b>›</b></a><a href="/tokens"><span>⇄</span><div><strong>{{ _('Connections') }}</strong><small>{{ stats.active_tokens }} {{ _('active tokens') }}</small></div><b>›</b></a><a href="/logs"><span>↗</span><div><strong>{{ _('Delivery logs') }}</strong><small>{{ _('Review responses and errors') }}</small></div><b>›</b></a></div>
+        <div class="quick-links"><a href="/jobs/create"><span>＋</span><div><strong>{{ _('New message') }}</strong><small>{{ _('Send now or schedule') }}</small></div><b>›</b></a><a href="/tokens"><span>⇄</span><div><strong>{{ _('Connections') }}</strong><small>{{ stats.active_tokens }} {{ _('enabled connections') }}</small></div><b>›</b></a><a href="/logs"><span>↗</span><div><strong>{{ _('Delivery logs') }}</strong><small>{{ _('Review responses and errors') }}</small></div><b>›</b></a></div>
       </section>
     </aside>
   </div>

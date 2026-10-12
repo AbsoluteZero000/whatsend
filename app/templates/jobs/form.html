@@ -1,25 +1,23 @@
 {% extends "base.html" %}
-{% block title %}{% if edit_mode %}{{ _('Edit Job') }} — EchoSend{% else %}{{ _('New Scheduled Job') }} — EchoSend{% endif %}{% endblock %}
+{% block title %}{% if edit_mode %}{{ _('Edit message') }} — EchoSend{% else %}{{ _('New message') }} — EchoSend{% endif %}{% endblock %}
 {% block content %}
 <div class="section-header">
-  <h1>{% if edit_mode %}{{ _('Edit Job') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New Scheduled Job') }}{% endif %}</h1>
+  <h1>{% if edit_mode %}{{ _('Edit message') }}{% if job.label %}: {{ job.label }}{% endif %}{% else %}{{ _('New message') }}{% endif %}</h1>
 </div>
 <div class="form-card">
   {% if form_error %}<p role="alert" class="flash flash-error">{{ form_error }}</p>{% endif %}
-  <form method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
-    <label for="token_id">{{ _('API Token') }}</label>
+  <form id="message-form" method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
+    <h2 class="composer-section">{{ _('Recipients') }}</h2>
+    <label for="token_id">{{ _('Connection') }}</label>
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if job is defined and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('API Token') }} ({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</option>
+      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if job is defined and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('Connection') }} ({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</option>
       {% endfor %}
     </select>
     <p id="token_help" role="status"></p>
 
-    <label for="label">{{ _('Label (optional)') }}</label>
-    <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if job is defined and job.label %}value="{{ job.label }}"{% endif %}>
-
-    <label>{{ _('Groups') }}</label>
+    <label for="group_picker_select">{{ _('Recipients') }}</label>
     <div class="group-picker">
       <div class="group-picker-row">
         <select id="group_picker_select" class="group-picker-select">
@@ -33,6 +31,10 @@
       <input type="text" id="group_id_manual" placeholder="+201234567890 / 120363xxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
       <div id="group_chips" class="group-chips"></div>
     </div>
+
+    <h2 class="composer-section">{{ _('Message') }}</h2>
+    <label for="label">{{ _('Label (optional)') }}</label>
+    <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if job is defined and job.label %}value="{{ job.label }}"{% endif %}>
 
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
@@ -62,12 +64,15 @@
     {% endif %}
     <small class="field-note">{{ _('Supported: images, videos, PDF, Office, OpenDocument, text, CSV, RTF, and ZIP — up to 50MB') }}</small>
 
-    <label for="trigger_type">{{ _('Trigger Type') }}</label>
+    <h2 class="composer-section">{{ _('Timing') }}</h2>
+    <label for="trigger_type">{{ _('When to send') }}</label>
     <select id="trigger_type" name="trigger_type" required {% if edit_mode and job.trigger_type == 'now' %}disabled{% endif %}>
       <option value="now" {% if (edit_mode and job.trigger_type == 'now') or (not edit_mode and initial_trigger_type|default('now') == 'now') %}selected{% endif %}>{{ _('Send Now') }}</option>
-      <option value="date" {% if (edit_mode and job.trigger_type == 'date') or (not edit_mode and initial_trigger_type|default('now') == 'date') %}selected{% endif %}>{{ _('One-time (date)') }}</option>
-      <option value="cron" {% if (edit_mode and job.trigger_type == 'cron') or (not edit_mode and initial_trigger_type|default('now') == 'cron') %}selected{% endif %}>{{ _('Recurring (cron)') }}</option>
-      <option value="trigger" {% if (edit_mode and job.trigger_type == 'trigger') or (not edit_mode and initial_trigger_type|default('now') == 'trigger') %}selected{% endif %}>{{ _('On Trigger') }}</option>
+      <option value="date" {% if (edit_mode and job.trigger_type == 'date') or (not edit_mode and initial_trigger_type|default('now') == 'date') %}selected{% endif %}>{{ _('Schedule once') }}</option>
+      <option value="cron" {% if (edit_mode and job.trigger_type == 'cron') or (not edit_mode and initial_trigger_type|default('now') == 'cron') %}selected{% endif %}>{{ _('Repeat') }}</option>
+      <optgroup label="{{ _('Advanced') }}">
+      <option value="trigger" {% if (edit_mode and job.trigger_type == 'trigger') or (not edit_mode and initial_trigger_type|default('now') == 'trigger') %}selected{% endif %}>{{ _('On external trigger') }}</option>
+      </optgroup>
     </select>
     {% if edit_mode and job.trigger_type == 'now' %}
     <input type="hidden" name="trigger_type" value="now">
@@ -88,7 +93,7 @@
           <option value="weekdays" {% if cf == 'weekdays' %}selected{% endif %}>{{ _('Weekdays (Mon–Fri)') }}</option>
           <option value="custom" {% if cf == 'custom' %}selected{% endif %}>{{ _('Weekly (custom days)') }}</option>
           <option value="monthly" {% if cf == 'monthly' %}selected{% endif %}>{{ _('Monthly') }}</option>
-          <option value="raw" {% if cf == 'raw' %}selected{% endif %}>{{ _('Custom cron…') }}</option>
+          <option value="raw" {% if cf == 'raw' %}selected{% endif %}>{{ _('Advanced: cron expression') }}</option>
         </select>
         <label for="cron_time">{{ _('Time') }}</label>
         <input type="time" id="cron_time" name="cron_time" value="{{ ct }}">
@@ -149,7 +154,7 @@
 
     <div id="group_error" class="form-error" style="display:none;color:var(--danger);margin-bottom:0.5rem;">{{ _('Please select at least one group.') }}</div>
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" id="submit_btn">{% if edit_mode %}{{ _('Update Job') }}{% else %}{{ _('Create Job') }}{% endif %}</button>
+      <button type="submit" class="btn btn-primary" id="submit_btn">{% if edit_mode %}{{ _('Save changes') }}{% else %}{{ _('Create message') }}{% endif %}</button>
       <a href="{% if edit_mode %}/jobs/{{ job.id }}{% else %}/jobs{% endif %}" class="btn btn-secondary">{{ _('Cancel') }}</a>
     </div>
   </form>
@@ -163,6 +168,8 @@
     document.getElementById('trigger_value_date').style.display = type === 'date' ? 'block' : 'none';
     document.getElementById('trigger_value_date').required = type === 'date';
     document.getElementById('trigger_value_cron').style.display = type === 'cron' ? 'block' : 'none';
+    const submit = document.getElementById('submit_btn');
+    if ({{ 'false' if edit_mode else 'true' }}) submit.textContent = type === 'now' ? {{ _('Send now') | tojson }} : {{ _('Schedule message') | tojson }};
   }
   document.getElementById('trigger_type').addEventListener('change', toggleTriggerValue);
   toggleTriggerValue();
@@ -318,7 +325,7 @@
   if (!tokenPicker.value && tokenPicker.options.length === 2) tokenPicker.selectedIndex = 1;
   loadTokenGroups(false);
 
-  document.querySelector('form').addEventListener('submit', function(e) {
+  document.getElementById('message-form').addEventListener('submit', function(e) {
     const attachment = document.getElementById('image').files[0];
     const uploadError = document.getElementById('upload_error');
     uploadError.style.display = 'none';

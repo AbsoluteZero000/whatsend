@@ -1,18 +1,19 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Tokens') }} — EchoSend{% endblock %}
+{% block title %}{{ _('Connections') }} — EchoSend{% endblock %}
 {% block content %}
 <div class="section-header header-row">
-  <div><h1>{{ _('API Tokens') }}</h1><p class="page-subtitle">{{ _('WhatsApp connections used to send your messages.') }}</p></div>
+  <div><h1>{{ _('Connections') }}</h1><p class="page-subtitle">{{ _('WhatsApp connections used to send your messages.') }}</p></div>
   <div class="actions"><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a>
-  <a href="/tokens/create" class="btn btn-secondary">{{ _('+ Add Token') }}</a></div>
+  </div>
 </div>
+<details class="advanced-options"><summary>{{ _('Advanced') }}</summary><a href="/tokens/create" class="btn btn-secondary">{{ _('Add provider token') }}</a></details>
 <div class="table-wrap">
   <table>
     <thead>
       <tr>
         <th>{{ _('Name') }}</th>
         <th>{{ _('Token') }}</th>
-        <th>{{ _('Active') }}</th>
+        <th>{{ _('Status') }}</th>
         <th>{{ _('Created') }}</th>
         <th>{{ _('Last Used') }}</th>
         <th>{{ _('Actions') }}</th>
@@ -23,7 +24,9 @@
       <tr>
         <td>{{ token.name or "—" }} <small>({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</small></td>
         <td>{% if token.provider == 'native' %}{{ _('QR connection') }}{% else %}<code>••••••••{{ token.api_token[-8:] }}</code>{% endif %}</td>
-        <td>{% if token.is_active %}<span class="badge badge-completed">{{ _('Active') }}</span>{% else %}<span class="badge badge-paused">{{ _('Inactive') }}</span>{% endif %}</td>
+        <td>{% if token.is_active %}<span class="badge badge-completed">{{ _('Enabled') }}</span>{% else %}<span class="badge badge-paused">{{ _('Disabled') }}</span>{% endif %}
+          {% if token.provider == 'native' and token.is_active %}<span class="connection-state" data-connection-id="{{ token.id }}" role="status">{{ _('Checking connection…') }}</span>{% endif %}
+        </td>
         <td>{{ tz(token.created_at, user_tz) }}</td>
         <td>{{ tz(token.last_used_at, user_tz) }}</td>
         <td>
@@ -35,16 +38,22 @@
                 {{ _('Activate') if not token.is_active else _('Deactivate') }}
               </button>
             </form>
-            <form method="POST" action="/tokens/{{ token.id }}/delete" style="display:inline" data-confirm="{{ _('Delete this token? Jobs that use it will also be deleted.') }}">
+            <form method="POST" action="/tokens/{{ token.id }}/delete" style="display:inline" data-confirm="{{ _('Delete this connection? Its messages will also be deleted.') }}">
               <button class="btn btn-sm btn-danger-outline">{{ _('Delete') }}</button>
             </form>
           </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔑</div><div class="empty-state-text">{{ _('No tokens yet.') }}</div><a href="/tokens/create" class="btn btn-primary">{{ _('Add your first token') }}</a></div></td></tr>
+      <tr><td colspan="6" class="empty-row"><div class="empty-state"><div class="empty-state-icon">🔗</div><div class="empty-state-text">{{ _('No connections yet.') }}</div><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a></div></td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+<script src="/static/js/connections.js?v=1" defer data-connection-messages='{{ {
+  "connected": _('Connected'), "disconnected": _('Disconnected'),
+  "connecting": _('Connecting…'), "qr_required": _('Pairing required'),
+  "reconnecting": _('Reconnecting…'), "failed": _('Connection failed'),
+  "unknown": _('Status unavailable')
+} | tojson }}'></script>
 {% endblock %}

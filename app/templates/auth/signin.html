@@ -6,7 +6,7 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <script nonce="{{ csp_nonce }}">try{if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}</script>
   <title>{{ _('Sign In') }} — EchoSend</title>
-  <link rel="stylesheet" href="/static/css/app.css?v=23">
+  <link rel="stylesheet" href="/static/css/app.css?v=25">
 </head>
 <body class="auth-page">
   <div class="auth-card">
@@ -21,8 +21,10 @@
       <p class="error">{{ error }}</p>
     {% endif %}
     <form method="POST" action="/auth/signin">
-      <input type="text" name="username" placeholder="{{ _('Username') }}" required autocomplete="username">
-      <input type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="current-password">
+      <label class="auth-label" for="username">{{ _('Username') }}</label>
+      <input id="username" type="text" name="username" placeholder="{{ _('Username') }}" required autocomplete="username">
+      <label class="auth-label" for="password">{{ _('Password') }}</label>
+      <input id="password" type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="current-password">
       <button type="submit">{{ _('Sign in') }}</button>
     </form>
     <p class="alt-link">{{ _("Don't have an account?") }} <a href="/auth/signup">{{ _('Sign up') }}</a></p>

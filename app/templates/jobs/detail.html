@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{{ _('Job') }} #{{ job.id }} — EchoSend{% endblock %}
+{% block title %}{{ _('Message') }} #{{ job.id }} — EchoSend{% endblock %}
 {% block content %}
 <div class="section-header header-row">
   <div>
-    <h1>{{ _('Job') }} #{{ job.id }}</h1>
+    <h1>{{ _('Message') }} #{{ job.id }}</h1>
     <p class="tz-note">{{ job.label or "—" }}</p>
   </div>
   <a href="/jobs" class="btn btn-secondary"><span class="dir-arrow" aria-hidden="true">←</span> {{ _('Back to Jobs') }}</a>
@@ -11,7 +11,7 @@
 
 <div class="detail-grid">
   <div class="detail-card">
-    <div class="detail-card-header">{{ _('Job Details') }}</div>
+    <div class="detail-card-header">{{ _('Message details') }}</div>
     <div class="detail-body">
       <div class="detail-row">
         <span class="detail-label">{{ _('ID') }}</span>
@@ -22,7 +22,7 @@
         <span class="detail-value">{{ job.label or "—" }}</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">{{ _('Groups') }}</span>
+        <span class="detail-label">{{ _('Recipients') }}</span>
         <span class="detail-value">
           {% set gs = job.job_groups %}
           {% if gs %}
@@ -37,8 +37,8 @@
         <span class="detail-value"><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">{{ _('Trigger Type') }}</span>
-        <span class="detail-value">{% if job.trigger_type == "now" %}{{ _('Send Now') }}{% elif job.trigger_type == "date" %}{{ _('One-time (date)') }}{% elif job.trigger_type == "cron" %}{{ _('Recurring (cron)') }}{% else %}{{ _('On Trigger') }}{% endif %}</span>
+        <span class="detail-label">{{ _('When to send') }}</span>
+        <span class="detail-value">{% if job.trigger_type == "now" %}{{ _('Send Now') }}{% elif job.trigger_type == "date" %}{{ _('Schedule once') }}{% elif job.trigger_type == "cron" %}{{ _('Repeat') }}{% else %}{{ _('On external trigger') }}{% endif %}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('Trigger Value') }}</span>
@@ -48,7 +48,7 @@
           {% elif job.trigger_type == "date" %}
             {{ tz(parse_dt(job.trigger_value), user_tz) }}
           {% elif job.trigger_type == "trigger" %}
-            {{ _('On Trigger') }}
+            {{ _('On external trigger') }}
           {% else %}
             {{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}
           {% endif %}
@@ -135,7 +135,7 @@
           <button class="btn btn-primary">{{ _('Resume') }}</button>
         </form>
         {% endif %}
-        <form method="POST" action="/jobs/{{ job.id }}/delete" data-confirm="{{ _('Delete this job?') }}" class="push-end">
+        <form method="POST" action="/jobs/{{ job.id }}/delete" data-confirm="{{ _('Delete this message?') }}" class="push-end">
           <button class="btn btn-danger">{{ _('Delete') }}</button>
         </form>
       </div>

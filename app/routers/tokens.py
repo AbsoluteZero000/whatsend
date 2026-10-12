@@ -137,6 +137,16 @@ async def native_pairing_state(token_id: int, request: Request, db: AsyncSession
     return JSONResponse({"state": state, "qr": qr}, headers=PAIRING_HEADERS)
 
 
+@router.get("/{token_id}/whatsapp/status")
+async def native_connection_status(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    token = await owned_native_token(token_id, request, db)
+    try:
+        state = (await native_connection(token).get_status())["state"]
+    except (httpx.HTTPError, ValueError):
+        return JSONResponse({"state": "unknown"}, status_code=502, headers=PAIRING_HEADERS)
+    return JSONResponse({"state": state}, headers=PAIRING_HEADERS)
+
+
 @router.post("/{token_id}/toggle")
 async def toggle_token(token_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     user = require_user(request)

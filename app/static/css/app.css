@@ -671,3 +671,27 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .theme-switch-thumb::before { content: '☀'; }
 .theme-switch[aria-checked="true"] .theme-switch-thumb { color: var(--on-primary); }
 .theme-switch[aria-checked="true"] .theme-switch-thumb::before { content: '☾'; }
+
+/* Message flow and compact screens */
+.composer-section { margin: 1.5rem 0 .8rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 1rem; }
+.composer-section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.advanced-options { margin: 1rem 0; }
+.advanced-options summary { cursor: pointer; color: var(--text-secondary); font-weight: 600; }
+.advanced-options .btn { margin-top: .75rem; }
+.connection-state { display: block; margin-top: .35rem; font-size: .8rem; color: var(--text-secondary); }
+@media (max-width: 760px) {
+  .job-card-main .job-info-block { display: block; grid-column: 2 / -1; }
+  .job-card-main .job-primary-actions { grid-column: 3; grid-row: 1; }
+  .job-card-main .job-info-label { font-size: .75rem; }
+  .job-card-main .job-timing strong { white-space: normal; }
+  .job-menu > summary, .btn, .nav-links a, .nav-form button, .job-tabs a { min-height: 44px; }
+  .job-menu > summary { width: 44px; }
+  .header-row { flex-wrap: wrap; gap: .75rem; }
+  .header-row .actions { flex-wrap: wrap; }
+  .admin-users-heading { align-items: stretch; flex-direction: column; }
+  .admin-search input { width: 100%; min-width: 0; }
+  .admin-search { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
