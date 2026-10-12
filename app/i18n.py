@@ -226,6 +226,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Good evening": "مساء الخير",
         "Profile": "الملف الشخصي",
         "Profile Settings": "إعدادات الملف الشخصي",
+        "Developer settings": "إعدادات المطورين",
+        "Manage API keys for integrations and developer tools.": "إدارة مفاتيح API للتكاملات وأدوات المطورين.",
         "Change Username": "تغيير اسم المستخدم",
         "New Username": "اسم المستخدم الجديد",
         "Change Password": "تغيير كلمة المرور",

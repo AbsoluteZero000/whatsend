@@ -35,4 +35,11 @@
     </div>
   </form>
 </div>
+{% if api_keys_enabled and not is_admin and not force_password_change %}
+<details class="form-card developer-settings">
+  <summary>{{ _('Developer settings') }}</summary>
+  <p>{{ _('Manage API keys for integrations and developer tools.') }}</p>
+  <a href="/api-keys" class="btn btn-secondary">{{ _('API Keys') }}</a>
+</details>
+{% endif %}
 {% endblock %}
