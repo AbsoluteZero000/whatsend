@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <script nonce="{{ csp_nonce }}">if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
+  <script nonce="{{ csp_nonce }}">try{if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}</script>
   <title>{{ _('Sign In') }} — EchoSend</title>
-  <link rel="stylesheet" href="/static/css/app.css?v=22">
+  <link rel="stylesheet" href="/static/css/app.css?v=23">
 </head>
 <body class="auth-page">
   <div class="auth-card">
@@ -15,7 +15,7 @@
         <h1 class="auth-brand"><span class="brand-word">Echo<span>Send</span></span></h1>
         <h2>{{ _('Sign in') }}</h2>
       </div>
-      <button id="themeToggleAuth" class="theme-toggle" style="font-size:1.2rem;margin-top:0.25rem;"></button>
+      <button type="button" class="theme-switch" role="switch" aria-checked="false" aria-label="{{ _('Dark mode') }}" title="{{ _('Dark mode') }}"><span class="theme-switch-track" aria-hidden="true"><span class="theme-switch-icon">☀</span><span class="theme-switch-icon">☾</span><span class="theme-switch-thumb"></span></span></button>
     </div>
     {% if error %}
       <p class="error">{{ error }}</p>
@@ -27,12 +27,7 @@
     </form>
     <p class="alt-link">{{ _("Don't have an account?") }} <a href="/auth/signup">{{ _('Sign up') }}</a></p>
   </div>
-<script nonce="{{ csp_nonce }}">
-const t = document.getElementById('themeToggleAuth');
-function u(){const d=document.documentElement.getAttribute('data-theme')==='dark';t.textContent=d?'\u2600\uFE0F':'\uD83C\uDF19'}
-t.addEventListener('click',function(){const d=document.documentElement.getAttribute('data-theme')==='dark';const n=d?'light':'dark';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('theme',n);u()});
-u();
-</script>
 <script src="/static/js/security.js?v=1"></script>
+<script src="/static/js/theme.js?v=1"></script>
 </body>
 </html>

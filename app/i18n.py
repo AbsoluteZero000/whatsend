@@ -467,6 +467,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Toggle theme": "تبديل المظهر",
         "WhatsApp connections used to send your messages.": "اتصالات واتساب المستخدمة لإرسال رسائلك.",
         "Delete this token? Jobs that use it will also be deleted.": "هل تريد حذف هذا الرمز؟ سيتم أيضاً حذف المهام التي تستخدمه.",
+        "Dark mode": "الوضع الداكن",
     },
 }
 

@@ -650,3 +650,21 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 @media (max-width: 760px) { .pair-card { grid-template-columns: 1fr; padding: 1rem; } .pair-qr-panel { order: -1; min-height: 0; padding: 1rem; } }
 .nav-form button, .lang-toggle { white-space: nowrap; }
 @media (max-width: 640px) { .schedule-item .badge { display: none; } }
+
+/* Theme switch */
+.theme-switch { flex: none; display: inline-flex; align-items: center; padding: 2px; background: none; border: 0; border-radius: 999px; cursor: pointer; direction: ltr; }
+.theme-switch-track { position: relative; display: flex; align-items: center; justify-content: space-between; width: 52px; height: 28px; padding: 0 7px; background: var(--bg-progress); border: 1px solid var(--border-light); border-radius: 999px; transition: background 0.2s, border-color 0.2s; }
+.theme-switch-icon { position: relative; z-index: 1; font-size: 0.72rem; line-height: 1; color: var(--text-muted); transition: color 0.2s; }
+.theme-switch-thumb { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.2s ease; }
+.theme-switch[aria-checked="true"] .theme-switch-track { background: var(--primary-soft); border-color: var(--primary-border); }
+.theme-switch[aria-checked="true"] .theme-switch-thumb { transform: translateX(24px); background: var(--primary); }
+.theme-switch[aria-checked="false"] .theme-switch-icon:first-child, .theme-switch[aria-checked="true"] .theme-switch-icon:nth-child(2) { color: var(--text); }
+.theme-switch[aria-checked="false"] .theme-switch-icon:first-child { visibility: hidden; }
+.theme-switch[aria-checked="true"] .theme-switch-icon:nth-child(2) { visibility: hidden; }
+.theme-switch:hover .theme-switch-track { border-color: var(--primary); }
+.theme-switch:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .theme-switch-thumb, .theme-switch-track { transition: none; } }
+.theme-switch-thumb { display: grid; place-items: center; font-size: 0.7rem; line-height: 1; color: #b45309; }
+.theme-switch-thumb::before { content: '☀'; }
+.theme-switch[aria-checked="true"] .theme-switch-thumb { color: var(--on-primary); }
+.theme-switch[aria-checked="true"] .theme-switch-thumb::before { content: '☾'; }

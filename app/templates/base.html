@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <script nonce="{{ csp_nonce }}">if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}</script>
+  <script nonce="{{ csp_nonce }}">try{if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}</script>
   <title>{% block title %}EchoSend{% endblock %}</title>
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=22">
+  <link rel="stylesheet" href="/static/css/app.css?v=23">
 </head>
 <body>
   <nav>
@@ -33,7 +33,7 @@
         <div class="nav-utils">
           {% if user_tz and not is_admin %}<a href="/auth/timezone" class="tz-badge" title="{{ _('Timezone') }}">{{ user_tz }}</a>{% endif %}
           <span class="clock" id="clock"></span>
-          <button id="themeToggle" class="theme-toggle" type="button" aria-label="{{ _('Toggle theme') }}" title="{{ _('Toggle theme') }}"></button>
+          <button type="button" class="theme-switch" role="switch" aria-checked="false" aria-label="{{ _('Dark mode') }}" title="{{ _('Dark mode') }}"><span class="theme-switch-track" aria-hidden="true"><span class="theme-switch-icon">☀</span><span class="theme-switch-icon">☾</span><span class="theme-switch-thumb"></span></span></button>
           <form method="POST" action="/auth/lang" class="lang-form">
             <input type="hidden" name="lang" value="{{ 'ar' if lang == 'en' else 'en' }}">
             <button type="submit" class="lang-toggle" title="{{ _('Toggle language') }}">{{ 'AR' if lang == 'en' else 'EN' }}</button>
@@ -166,20 +166,8 @@ function showToast(message, type) {
   }
 })();
 
-const themeToggle = document.getElementById('themeToggle');
-function updateThemeIcon() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  themeToggle.textContent = isDark ? '\u2600\uFE0F' : '\uD83C\uDF19';
-}
-themeToggle.addEventListener('click', function() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const newTheme = isDark ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('theme', newTheme);
-  updateThemeIcon();
-});
-updateThemeIcon();
 </script>
 <script src="/static/js/security.js?v=1"></script>
+<script src="/static/js/theme.js?v=1"></script>
 </body>
 </html>
