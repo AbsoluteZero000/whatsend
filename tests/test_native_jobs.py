@@ -199,3 +199,71 @@ def test_relay_job_validates_media_and_text_before_scheduling(tmp_path, monkeypa
             assert not (await db.execute(select(Job))).scalars().all()
 
     asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_late_ack_recovers_unknown_job_without_resending_or_duplicate_logs(tmp_path, monkeypatch):
+    calls = []
+    def relay(request):
+        calls.append(request)
+        assert request.method == "GET"
+        return httpx.Response(200, json={"data": {"id": MESSAGE, "status": "sent"}})
+
+    async def scenario(client, sessions, context):
+        async with sessions() as db:
+            job = Job(user_id=7, token_id=3, group_id=RECIPIENT, message="Hello", trigger_type="now",
+                      trigger_value="", status="unknown")
+            db.add(job)
+            await db.flush()
+            db.add(DeliveryAttempt(job_id=job.id, run_id=str(uuid4()), group_id=RECIPIENT, status="unknown",
+                                   relay_token_id=3, relay_session_id=SESSION, relay_base_url="https://native.test",
+                                   relay_message_id=MESSAGE))
+            await db.commit()
+            job_id = job.id
+        await native_jobs.poll_deliveries()
+        await native_jobs.poll_deliveries()
+        async with sessions() as db:
+            assert (await db.get(Job, job_id)).status == "completed"
+            assert (await db.execute(select(DeliveryAttempt))).scalar_one().status == "sent"
+            assert [log.status for log in (await db.execute(select(Log))).scalars()] == ["sent"]
+        assert len(calls) == 1
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
+
+
+def test_multi_recipient_job_submits_and_confirms_every_recipient(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, "register_job", no_schedule)
+    recipients = [RECIPIENT, "120363123456790@g.us", "+201234567890"]
+    submitted = {}
+
+    def worker(request):
+        if request.method == "POST":
+            payload = json.loads(request.content)
+            recipient = payload["recipient"]
+            assert recipient not in submitted
+            identifier = str(uuid4())
+            submitted[recipient] = identifier
+            return httpx.Response(202, json={"data": {"id": identifier, "status": "pending"}})
+        identifier = request.url.path.rsplit("/", 1)[-1]
+        assert identifier in submitted.values()
+        return httpx.Response(200, json={"data": {"id": identifier, "status": "sent"}})
+
+    async def scenario(client, sessions, context):
+        result = await client.post("/jobs/create", data={
+            "token_id": "3", "group_ids": recipients, "group_names": ["One", "Two", "Three"],
+            "message": "Hello everyone", "trigger_type": "now",
+        }, headers={"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"})
+        assert result.status_code == 303
+        async with sessions() as db:
+            job_id = (await db.execute(select(Job.id))).scalar_one()
+        await scheduler.send_job(job_id)
+        assert set(submitted) == set(recipients)
+        await native_jobs.poll_deliveries()
+        await scheduler.send_job(job_id)
+        async with sessions() as db:
+            assert (await db.get(Job, job_id)).status == "completed"
+            attempts = (await db.execute(select(DeliveryAttempt))).scalars().all()
+            assert len(attempts) == 3
+            assert all(attempt.status == "sent" for attempt in attempts)
+        assert len(submitted) == 3
+
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))

@@ -6,7 +6,7 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <script nonce="{{ csp_nonce }}">try{if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}</script>
   <title>{{ _('Sign Up') }} — EchoSend</title>
-  <link rel="stylesheet" href="/static/css/app.css?v=25">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ asset_versions['css/app.css'] }}">
 </head>
 <body class="auth-page">
   <div class="auth-card">

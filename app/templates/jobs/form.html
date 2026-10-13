@@ -17,10 +17,16 @@
     </select>
     <p id="token_help" role="status"></p>
 
-    <label for="group_picker_select">{{ _('Recipients') }}</label>
+    <label for="group_search">{{ _('Recipients') }}</label>
     <div class="group-picker">
-      <div class="group-picker-row">
-        <select id="group_picker_select" class="group-picker-select">
+      <div id="group_search_picker" class="group-search-picker" data-loading="{{ _('Loading groups…') }}" data-unavailable="{{ _('Groups unavailable. Use manual entry or reconnect WhatsApp.') }}" data-results="{{ _('groups found') }}" data-empty="{{ _('No groups match your search.') }}">
+        <div class="group-search-field"><span aria-hidden="true">⌕</span><input id="group_search" type="text" role="combobox" aria-autocomplete="list" aria-controls="group_search_results" aria-expanded="false" autocomplete="off" placeholder="{{ _('Search groups by name or ID…') }}"><span aria-hidden="true">⌄</span></div>
+        <div class="group-search-panel" hidden>
+          <p class="group-search-note" role="status"></p>
+          <div id="group_search_results" role="listbox" aria-label="{{ _('Groups') }}" aria-multiselectable="true"></div>
+          <button type="button" class="group-manual-action">+ {{ _('Manual entry…') }}</button>
+        </div>
+        <select id="group_picker_select" class="group-picker-select" hidden>
           <option value="">{{ _('-- Select a group --') }}</option>
           {% for g in groups %}
           <option value="{{ g.id }}" data-name="{{ g.name or g.id }}">{{ g.name or g.id }}</option>
@@ -159,6 +165,7 @@
     </div>
   </form>
 </div>
+<script src="/static/js/group-picker.js?v={{ asset_versions['js/group-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
   function toggleTriggerValue() {
     var type = document.getElementById('trigger_type').value;
@@ -235,6 +242,7 @@
     if (clearSelection) { _selectedGroups = []; document.getElementById('group_id_manual').value = ''; renderChips(); }
     const picker = document.getElementById('group_picker_select');
     picker.replaceChildren(new Option({{ _('-- Select a group --') | tojson }}, ''), new Option({{ _('Manual entry…') | tojson }}, '__manual__'));
+    picker.dataset.state = tokenPicker.value ? 'loading' : 'ready';
     const help = document.getElementById('token_help');
     help.textContent = '';
     if (!tokenPicker.value) return;
@@ -246,17 +254,20 @@
       if (!response.ok || response.redirected) throw new Error();
       const data = await response.json();
       if (requestId !== groupRequest) return;
+      picker.dataset.state = 'ready';
       for (const group of data.groups) {
         const option = new Option(group.name || group.id, group.id);
         option.dataset.name = group.name || group.id;
         picker.insertBefore(option, picker.lastElementChild);
       }
     } catch (error) {
+      if (requestId === groupRequest) picker.dataset.state = 'error';
       if (requestId === groupRequest) help.textContent = {{ _('Could not load groups. Connect WhatsApp and try again, or enter the recipient manually.') | tojson }};
     }
   }
   tokenPicker.addEventListener('change', () => loadTokenGroups(true));
 
+  var groupPicker;
   function renderChips() {
     var container = document.getElementById('group_chips');
     container.innerHTML = '';
@@ -268,6 +279,7 @@
       btn.type = 'button';
       btn.className = 'chip-remove';
       btn.innerHTML = '&times;';
+      btn.setAttribute('aria-label', {{ _('Remove') | tojson }} + ' ' + g.name);
       btn.onclick = function() { _selectedGroups.splice(i, 1); renderChips(); };
       chip.appendChild(btn);
       container.appendChild(chip);
@@ -282,6 +294,8 @@
       nameInput.value = g.name;
       container.appendChild(nameInput);
     });
+    if (groupPicker) groupPicker.refresh();
+    if (_selectedGroups.length) document.getElementById('group_error').style.display = 'none';
   }
 
   function addGroup() {
@@ -321,6 +335,7 @@
     }
   });
 
+  groupPicker = createGroupPicker(document.getElementById('group_picker_select'), () => _selectedGroups);
   renderChips();
   if (!tokenPicker.value && tokenPicker.options.length === 2) tokenPicker.selectedIndex = 1;
   loadTokenGroups(false);

@@ -85,6 +85,18 @@ export class WhatsAppManager {
       getMessage: async () => undefined,
     });
     s.socket = socket;
+    // Baileys reports negative server ACKs through messages.update, but does
+    // not emit successful server ACKs there. sendMessage only writes the
+    // stanza; its returned PENDING status is not a server acknowledgement.
+    socket.ws?.on('CB:ack,class:message', ({attrs}) => {
+      if (generation !== s.generation || !attrs?.id) return;
+      const operation = Object.values(s.journal).find(o => o.waId === attrs.id);
+      if (!operation || operation.status === 'sent') return;
+      operation.status = attrs.error ? 'failed' : 'sent';
+      if (attrs.error) operation.error = `WhatsApp rejected this message (${attrs.error}).`;
+      else delete operation.error;
+      this.saveJournal(s);
+    });
     socket.ev.on('creds.update', data => { if (generation === s.generation) { Object.assign(s.auth.creds, data); save(); } });
     socket.ev.on('connection.update', update => {
       void this.connectionUpdate(s, generation, update).catch(() => {
@@ -97,7 +109,7 @@ export class WhatsAppManager {
         if (update.status === undefined) continue;
         const operation = Object.values(s.journal).find(o => o.waId === key.id);
         if (!operation || operation.status === 'sent') continue;
-        if (update.status >= proto.WebMessageInfo.Status.SERVER_ACK) operation.status = 'sent';
+        if (update.status >= proto.WebMessageInfo.Status.SERVER_ACK) { operation.status = 'sent'; delete operation.error; }
         else if (update.status === proto.WebMessageInfo.Status.ERROR) operation.status = 'failed';
       }
       this.saveJournal(s);
@@ -149,11 +161,77 @@ export class WhatsAppManager {
     this.sessions.delete(id);
     rmSync(join(this.root, id), {recursive: true, force: true});
   }
+  async recipientGroups(socket, parent = null) {
+    const groups = Object.fromEntries(Object.values(await socket.groupFetchAllParticipating()).map(g => [g.id, g]));
+    // WhatsApp can return communities separately from ordinary groups.
+    if (socket.communityFetchAllParticipating) {
+      try {
+        for (const community of Object.values(await socket.communityFetchAllParticipating())) {
+          const existing = groups[community.id];
+          groups[community.id] = {...existing, ...community,
+            isCommunity: !!(existing?.isCommunity || community.isCommunity),
+            isCommunityAnnounce: !!(existing?.isCommunityAnnounce || community.isCommunityAnnounce)};
+        }
+      } catch {
+        console.warn('WhatsApp community list could not be loaded; ordinary groups remain available.');
+      }
+    }
+    if (parent) groups[parent.id] = {...groups[parent.id], ...parent};
+    // Some accounts omit the announcement chat from the participating list.
+    // Inspect linked chats by their metadata, never by their name or ID order.
+    if (socket.communityFetchLinkedGroups) {
+      for (const community of Object.values(groups).filter(g => g.isCommunity && !g.isCommunityAnnounce)) {
+        if (Object.values(groups).some(g => g.isCommunityAnnounce && g.linkedParent === community.id)) continue;
+        try {
+          const result = await socket.communityFetchLinkedGroups(community.id);
+          for (const linked of result.linkedGroups || []) {
+            if (!linked.id) continue;
+            try {
+              const metadata = await socket.groupMetadata(recipientJid(linked.id));
+              if (metadata.isCommunityAnnounce && (!metadata.linkedParent || metadata.linkedParent === community.id)) {
+                groups[metadata.id] = {...metadata, linkedParent: community.id};
+              }
+            } catch { /* Inaccessible linked chats cannot be selected. */ }
+          }
+        } catch {
+          console.warn('WhatsApp linked announcement chats could not be loaded.');
+        }
+      }
+    }
+    return groups;
+  }
   async groups(id) {
     const s = this.session(id);
     if (s.state !== 'connected') throw new ClientError(409, 'not_connected', 'Scan the WhatsApp QR code before loading groups.');
-    const groups = await s.socket.groupFetchAllParticipating();
-    return Object.values(groups).map(g => ({external_chat_id: g.id, name: g.subject || g.id}));
+    const groups = await this.recipientGroups(s.socket);
+    // Community parents are containers, not announcement chats. Only offer
+    // their actual subgroups, and make announcement targets easy to identify.
+    return Object.values(groups).filter(g => !g.isCommunity || g.isCommunityAnnounce).map(g => ({
+      external_chat_id: g.id,
+      name: g.isCommunityAnnounce
+        ? `${groups[g.linkedParent]?.subject || g.subject || g.id} — Announcements`
+        : g.linkedParent && groups[g.linkedParent]?.subject
+          ? `${groups[g.linkedParent].subject} — ${g.subject || g.id}`
+          : g.subject || g.id,
+    }));
+  }
+  async resolveRecipient(socket, recipient) {
+    if (!recipient.endsWith('@g.us')) return recipient;
+    let metadata;
+    try { metadata = await socket.groupMetadata(recipient); }
+    catch (error) {
+      if (!socket.communityMetadata) throw error;
+      metadata = await socket.communityMetadata(recipient);
+    }
+    if (!metadata.isCommunity || metadata.isCommunityAnnounce) return recipient;
+    // Existing jobs and manually entered IDs may still point at a parent.
+    const groups = await this.recipientGroups(socket, metadata);
+    const announcements = Object.values(groups).filter(g => g.isCommunityAnnounce && g.linkedParent === recipient);
+    if (announcements.length !== 1) {
+      throw new ClientError(400, 'announcement_not_found',
+        'The community announcement group is unavailable. Join it with this WhatsApp account and select its announcement group.');
+    }
+    return recipientJid(announcements[0].id);
   }
   enqueue(id, key, payload) {
     const s = this.session(id);
@@ -190,6 +268,20 @@ export class WhatsAppManager {
       for (const operation of Object.values(s.journal)) {
         if (s.state !== 'connected') break;
         if (operation.status !== 'pending') continue;
+        const socket = s.socket;
+        try {
+          operation.resolvedRecipient = await this.resolveRecipient(socket, operation.payload.recipient);
+        } catch (error) {
+          // Resolution happens before any send, so this is a definite failure.
+          operation.status = 'failed';
+          operation.error = error instanceof ClientError ? error.message :
+            'Could not load the WhatsApp group before sending. Check the connection and group membership.';
+          if (operation.payload.media) delete operation.payload.media.bytes;
+          this.saveJournal(s);
+          continue;
+        }
+        // A reconnect/logout may have occurred while resolving the target.
+        if (s.state !== 'connected' || s.socket !== socket) break;
         operation.status = 'processing';
         operation.attemptedAt = Date.now();
         operation.waId = generateMessageIDV2(s.socket.user?.id);
@@ -198,7 +290,7 @@ export class WhatsAppManager {
           const p = operation.payload;
           const content = p.media ? {[p.media.kind]: Buffer.from(p.media.bytes, 'base64'), caption: p.caption || '',
             mimetype: p.media.mime, fileName: p.media.filename} : {text: p.text};
-          const response = await s.socket.sendMessage(p.recipient, content, {messageId: operation.waId});
+          const response = await socket.sendMessage(operation.resolvedRecipient, content, {messageId: operation.waId});
           if (response?.status >= proto.WebMessageInfo.Status.SERVER_ACK) operation.status = 'sent';
         } catch {
           if (operation.status !== 'sent') {
@@ -209,7 +301,14 @@ export class WhatsAppManager {
         if (operation.payload.media) delete operation.payload.media.bytes;
         this.saveJournal(s);
       }
-    } finally { s.running = false; }
+    } finally {
+      s.running = false;
+      // Enqueue can run while sendMessage is awaiting WhatsApp. Those sends
+      // were not in this batch's snapshot, and their drain calls saw running.
+      if (s.state === 'connected' && Object.values(s.journal).some(o => o.status === 'pending')) {
+        setImmediate(() => { void this.drain(s); });
+      }
+    }
   }
   async restore() {
     for (const id of readdirSync(this.root).filter(isSessionId)) {

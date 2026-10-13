@@ -1,5 +1,6 @@
 """Durable WhatsApp job submissions. WhatsApp owns delivery retries after acceptance."""
 import json
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -17,6 +18,8 @@ from app.services.native_sender import NativeSender
 
 PENDING = {"submitting", "queued", "processing"}
 ACTIVE_RUNS = set()
+POLL_CURSOR = 0
+logger = logging.getLogger(__name__)
 
 
 async def finish_run(db, job, run_id):
@@ -112,12 +115,24 @@ async def submit_job(db, job, token, groups):
 
 
 async def poll_deliveries():
+    global POLL_CURSOR
     async with async_session() as db:
-        attempts = (await db.execute(select(DeliveryAttempt).where(
-            DeliveryAttempt.relay_token_id.is_not(None), DeliveryAttempt.status.in_(PENDING),
-        ).order_by(DeliveryAttempt.id).limit(200))).scalars().all()
+        # Late acknowledgements can resolve an uncertain send. Poll its existing
+        # message ID without resubmitting; rotate batches so old entries cannot
+        # prevent newer deliveries from being checked.
+        query = select(DeliveryAttempt).where(
+            DeliveryAttempt.relay_token_id.is_not(None),
+            DeliveryAttempt.status.in_(PENDING | {"unknown"}),
+        ).order_by(DeliveryAttempt.id).limit(200)
+        attempts = (await db.execute(query.where(DeliveryAttempt.id > POLL_CURSOR))).scalars().all()
+        if not attempts and POLL_CURSOR:
+            attempts = (await db.execute(query)).scalars().all()
+        POLL_CURSOR = attempts[-1].id if attempts else 0
         completed_runs = set()
         for attempt in attempts:
+            was_unknown = attempt.status == "unknown"
+            if was_unknown and not attempt.relay_message_id:
+                continue
             if attempt.status == "submitting":
                 if attempt.run_id in ACTIVE_RUNS:
                     continue
@@ -134,14 +149,19 @@ async def poll_deliveries():
                 if (not token or not token.is_active or token.user_id != job.user_id or token.provider != "native"
                         or token.relay_session_id != attempt.relay_session_id
                         or connection_base_url(token) != attempt.relay_base_url):
+                    if was_unknown:
+                        continue
                     attempt.status = "unknown"
                     attempt.response = "The original WhatsApp connection is unavailable. Restore it and check WhatsApp before sending again."
                 else:
                     try:
                         sender = NativeSender(session_id=attempt.relay_session_id)
                         data = await sender.get_message(attempt.relay_message_id)
-                    except (httpx.HTTPError, ValueError):
+                    except (httpx.HTTPError, ValueError) as exc:
                         # A polling failure says nothing about delivery; retain the acknowledged ID.
+                        logger.warning("WhatsApp status check failed for attempt %s (%s)", attempt.id, type(exc).__name__)
+                        continue
+                    if was_unknown and data["status"] not in {"sent", "failed"}:
                         continue
                     attempt.status = "queued" if data["status"] == "pending" else data["status"]
                     attempt.response = json.dumps(data)

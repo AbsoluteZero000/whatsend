@@ -11,6 +11,8 @@ WhatSend uses the pinned WhiskeySockets Baileys client to connect directly to Wh
 
 Saved sessions reconnect after a restart. The pairing page offers **Log out of WhatsApp** to unlink and clear credentials. Deleting a connection also logs it out and removes its local session data. QR codes stay in memory and are not logged or cached.
 
+For communities, select the entry labeled **Announcements**. The picker combines WhatsApp’s ordinary group and community lists, and checks linked chats for missing announcement groups. Community subgroups include the community name so similarly named chats are easy to distinguish. Community containers are excluded from the picker; existing jobs or manually entered community IDs resolve to the linked announcement group before sending. If that group cannot be uniquely identified for the connected account, the message fails before transmission with an explanation. The connected account must have permission to post in the announcement group.
+
 ## Jobs and delivery
 
 Send Now, dates, recurring schedules, and manual triggers work with built-in connections. Text is limited to 4096 UTF-8 bytes, captions to 1024 bytes. JPEG/PNG/WebP attachments can be up to 16MiB. MP4 and documents can be up to 50MiB. Documents include PDF, Word (DOC/DOCX), Excel (XLS/XLSX), PowerPoint (PPT/PPTX), OpenDocument (ODT/ODS/ODP), TXT, CSV, RTF, and ZIP. Jobs preserve the uploaded filename, including for scheduled and recurring deliveries. Document captions and delivery status follow the same rules as other attachments.

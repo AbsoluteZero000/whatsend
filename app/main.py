@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 import zoneinfo
 import secrets
+import hashlib
 import httpx
 
 from fastapi import FastAPI, HTTPException, Request
@@ -31,6 +32,11 @@ _jinja_env = Environment(
     autoescape=select_autoescape(["html", "xml"]),
     cache_size=0,
 )
+_static_dir = Path(__file__).resolve().parent / "static"
+_jinja_env.globals["asset_versions"] = {
+    path: hashlib.sha256((_static_dir / path).read_bytes()).hexdigest()[:12]
+    for path in ("css/app.css", "js/group-picker.js")
+}
 
 
 def tz(dt: datetime | None, tz_name: str = "UTC") -> str:

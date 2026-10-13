@@ -7,7 +7,7 @@
   <script nonce="{{ csp_nonce }}">try{if(localStorage.getItem('theme')==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}</script>
   <title>{% block title %}EchoSend{% endblock %}</title>
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=25">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ asset_versions['css/app.css'] }}">
 </head>
 <body>
   <nav>
