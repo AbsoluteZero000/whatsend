@@ -714,3 +714,27 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .group-search-text small { color:var(--text-muted); font-size:.7rem; overflow-wrap:anywhere; }
 .group-manual-action { width:100%; padding:.7rem; margin-top:.3rem; text-align:start; background:transparent; color:var(--primary); border:0; border-top:1px solid var(--border); cursor:pointer; font:inherit; font-size:.8rem; font-weight:700; }
 .group-manual-action:hover,.group-manual-action:focus-visible { background:var(--primary-soft); border-radius:8px; }
+
+/* Composer helpers and current-run delivery progress */
+.composer-draft { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; padding:.7rem .85rem; border:1px solid var(--border); border-radius:9px; background:var(--bg-table-th); font-size:.8rem; color:var(--text-secondary); }
+.composer-draft > span { margin-inline-end:auto; }
+.composer-draft [hidden] { display:none; }
+.recipient-lists-panel { margin-top:.35rem; padding:.65rem .85rem; border:1px solid var(--border); border-radius:10px; background:var(--bg-table-th); }
+.recipient-lists-panel > summary { color:var(--primary); cursor:pointer; font-size:.82rem; font-weight:700; }
+.recipient-list-row { display:flex; gap:.6rem; align-items:center; margin-top:.75rem; }
+.form-card .recipient-list-row input,.form-card .recipient-list-row select { margin:0; flex:1; min-width:0; }
+.recipient-list-row button { flex-shrink:0; }
+.recipient-lists-panel button:disabled { opacity:.5; cursor:default; }
+.delivery-progress { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1rem; }
+.delivery-progress h2 { font-size:1rem; }
+.delivery-progress > [role="status"] { margin:.75rem 0; font-weight:700; }
+.delivery-progress progress { display:block; width:100%; height:12px; accent-color:var(--primary); margin:.5rem 0 .85rem; }
+.delivery-progress progress[hidden] { display:none; }
+.delivery-counts { display:flex; gap:.5rem; flex-wrap:wrap; }
+.delivery-progress .table-wrap { max-height:420px; overflow:auto; margin-top:.8rem; }
+.delivery-progress .table-wrap[hidden] { display:none; }
+.delivery-progress td { overflow-wrap:anywhere; }
+@media (max-width:600px) { .recipient-list-row { flex-wrap:wrap; } .form-card .recipient-list-row input,.form-card .recipient-list-row select { flex-basis:100%; } .delivery-progress { padding:.8rem; } }
+
+.composer-draft .btn-clear,.recipient-list-row .btn-clear,.delivery-progress .btn-clear { color:var(--text-secondary); min-height:32px; padding:.45rem .65rem; }
+.composer-draft .btn-clear:hover,.delivery-progress .btn-clear:hover { color:var(--primary); background:var(--primary-soft); border-color:var(--primary) !important; }

@@ -7,6 +7,11 @@
 <div class="form-card">
   {% if form_error %}<p role="alert" class="flash flash-error">{{ form_error }}</p>{% endif %}
   <form id="message-form" method="POST" action="{% if edit_mode %}/jobs/{{ job.id }}/edit{% else %}/jobs/create{% endif %}" enctype="multipart/form-data">
+    <div id="composer_draft" class="composer-draft">
+      <span role="status">{{ _('Drafts save on this device') }}</span>
+      <button type="button" class="btn-clear" data-action="restore" hidden>{{ _('Restore draft') }}</button>
+      <button type="button" class="btn-clear" data-action="discard" hidden>{{ _('Discard draft') }}</button>
+    </div>
     <h2 class="composer-section">{{ _('Recipients') }}</h2>
     <label for="token_id">{{ _('Connection') }}</label>
     <select id="token_id" name="token_id" required>
@@ -36,6 +41,19 @@
       </div>
       <input type="text" id="group_id_manual" placeholder="+201234567890 / 120363xxxxxxxx@g.us" style="display:none;margin-top:0.5rem;">
       <div id="group_chips" class="group-chips"></div>
+      <details class="recipient-lists-panel" id="recipient_lists">
+        <summary>{{ _('Saved recipient lists') }}</summary>
+        <div class="recipient-list-row">
+          <select aria-label="{{ _('Saved recipient lists') }}"><option value="">{{ _('Choose a saved list…') }}</option></select>
+          <button type="button" class="btn btn-secondary" data-action="add" disabled>{{ _('Add list') }}</button>
+          <button type="button" class="btn-clear" data-action="delete" disabled>{{ _('Delete list') }}</button>
+        </div>
+        <div class="recipient-list-row">
+          <input type="text" maxlength="80" aria-label="{{ _('List name') }}" placeholder="{{ _('e.g. All branches') }}">
+          <button type="button" class="btn btn-secondary" data-action="save">{{ _('Save selected recipients') }}</button>
+        </div>
+        <p class="field-note" role="status"></p>
+      </details>
     </div>
 
     <h2 class="composer-section">{{ _('Message') }}</h2>
@@ -165,6 +183,7 @@
     </div>
   </form>
 </div>
+<script src="/static/js/recipient-lists.js?v={{ asset_versions['js/recipient-lists.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/group-picker.js?v={{ asset_versions['js/group-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
   function toggleTriggerValue() {
@@ -295,6 +314,7 @@
       container.appendChild(nameInput);
     });
     if (groupPicker) groupPicker.refresh();
+    document.getElementById('message-form').dispatchEvent(new Event('composer:change'));
     if (_selectedGroups.length) document.getElementById('group_error').style.display = 'none';
   }
 
@@ -339,6 +359,38 @@
   renderChips();
   if (!tokenPicker.value && tokenPicker.options.length === 2) tokenPicker.selectedIndex = 1;
   loadTokenGroups(false);
+
+  const savedLists = createRecipientLists({
+    connection: tokenPicker, selected: () => _selectedGroups,
+    add: recipients => {
+      const existing = new Set(_selectedGroups.map(group => group.id));
+      recipients.forEach(group => { if (!existing.has(group.id)) { _selectedGroups.push(group); existing.add(group.id); } });
+      renderChips();
+    },
+    labels: {
+      choose: {{ _('Choose a saved list…') | tojson }}, added: {{ _('Recipients added') | tojson }},
+      required: {{ _('Select recipients and enter a list name first.') | tojson }},
+      saving: {{ _('Saving…') | tojson }}, saved: {{ _('Recipient list saved') | tojson }},
+      loadError: {{ _('Could not load saved lists. Try again.') | tojson }},
+      saveError: {{ _('Could not update saved lists. Try again.') | tojson }},
+      confirmDelete: {{ _('Delete recipient list') | tojson }}, deleted: {{ _('Recipient list deleted') | tojson }}
+    }
+  });
+  window.composerDraftConfig = {
+    owner: {{ draft_owner | default('') | string | tojson }}, validationError: {{ 'true' if form_error else 'false' }},
+    selected: () => _selectedGroups,
+    restore: recipients => {
+      _selectedGroups = recipients; renderChips();
+      toggleTriggerValue(); toggleCronFields(); updateCronDayPicker();
+      loadTokenGroups(false); savedLists.load();
+    },
+    labels: {
+      saving: {{ _('Saving draft…') | tojson }}, saved: {{ _('Draft saved on this device') | tojson }},
+      available: {{ _('A saved draft is available on this device.') | tojson }},
+      unavailable: {{ _('Draft could not be saved on this device. Keep this page open.') | tojson }},
+      restored: {{ _('Draft restored') | tojson }}, discarded: {{ _('Saved draft discarded. Your current message is unchanged.') | tojson }}
+    }
+  };
 
   document.getElementById('message-form').addEventListener('submit', function(e) {
     const attachment = document.getElementById('image').files[0];

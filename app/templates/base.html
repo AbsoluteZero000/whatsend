@@ -9,7 +9,7 @@
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ asset_versions['css/app.css'] }}">
 </head>
-<body>
+<body data-user-id="{{ user.sub if user else draft_owner|default('') }}">
   <nav>
     <div class="nav-inner">
       <a href="{{ '/admin' if is_admin else '/dashboard' }}" class="brand" aria-label="EchoSend"><span class="brand-word">Echo<span>Send</span></span></a>
@@ -63,6 +63,7 @@
     </div>
   </div>
 </div>
+<script src="/static/js/composer-drafts.js?v={{ asset_versions['js/composer-drafts.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
 function updateClock() {
   const now = new Date();

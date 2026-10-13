@@ -38,3 +38,11 @@ Poll the returned status URL `GET /api/operations/{id}` until sent/failed/unknow
 Run Node 22+ and `npm ci` in `whatsapp-worker`, then start `python run.py`. The launcher applies migrations, starts the private loopback worker, and supervises both processes. The Docker image includes both runtimes. Fly stays running for schedules, delivery polling, and WhatsApp reconnects; it has 512MiB RAM. `WHATSAPP_DATA_DIR=/data/whatsapp` stores encrypted sessions. Keep `TOKEN_ENCRYPTION_KEY` (or fallback `SECRET_KEY`) stable and back up the volume. The worker's random internal Bearer secret is generated at each startup and never sent to browsers. When running processes separately, supply `WHATSAPP_WORKER_SECRET` to both and `WHATSAPP_STORAGE_KEY` to Node.
 
 Existing Relay connections become built-in QR connections while retaining their job and WhatSend API-key links. External provider credentials are cleared and every migrated connection needs a fresh QR scan. Pending historical Relay operations become unknown and are not replayed. Internal database fields with legacy Relay names remain for migration compatibility; no runtime code contacts Relay.
+
+## Composer helpers
+
+Open **Saved recipient lists** below the recipient picker to save the current selection. Lists belong to your account and the selected WhatsApp connection. **Add list** merges its recipients into the current selection without duplicating IDs; deleting a saved list leaves the current selection intact.
+
+The composer saves drafts on the current device using browser storage. **Restore draft** recovers the message, label, recipients, timing fields, and selected attachment. Drafts are separate for each signed-in account and each new/edit composer. A successful submission clears that draft. A validation error retains it. **Discard draft** removes the saved copy without changing the current form. If browser storage is unavailable or full, the composer shows a warning instead of claiming the draft was saved. Drafts do not sync across devices.
+
+**Send Now** opens the job details and its live progress panel. It displays the latest run, refreshing while work is pending. Sent means WhatsApp acknowledged acceptance, not that recipients read the message. Failed and uncertain outcomes remain separate; checking progress never resends a message.

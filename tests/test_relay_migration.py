@@ -75,9 +75,31 @@ def test_complete_migration_chain_on_fresh_database(tmp_path, monkeypatch):
     command.upgrade(configuration, "head")
     engine = create_engine(url.replace("+aiosqlite", ""))
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261011_0007"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261013_0008"
         assert "image_filename" in {column["name"] for column in inspect(connection).get_columns("jobs")}
         assert {"provider", "relay_session_id"} <= {column["name"] for column in inspect(connection).get_columns("tokens")}
         assert "relay_operations" in inspect(connection).get_table_names()
         assert "relay_message_id" in {column["name"] for column in inspect(connection).get_columns("delivery_attempts")}
+    engine.dispose()
+
+
+def test_recipient_list_migration_on_existing_installation(tmp_path, monkeypatch):
+    revision = importlib.import_module('migrations.versions.20261013_0008_recipient_lists')
+    engine = create_engine(f"sqlite:///{tmp_path / 'lists.db'}")
+    with engine.begin() as connection:
+        connection.execute(text('PRAGMA foreign_keys=ON'))
+        connection.execute(text('CREATE TABLE users (id INTEGER PRIMARY KEY)'))
+        connection.execute(text('CREATE TABLE tokens (id INTEGER PRIMARY KEY)'))
+        connection.execute(text('INSERT INTO users VALUES (7)'))
+        connection.execute(text('INSERT INTO tokens VALUES (3)'))
+        monkeypatch.setattr(revision, 'op', Operations(MigrationContext.configure(connection)))
+        revision.upgrade()
+        connection.execute(text("INSERT INTO recipient_lists(user_id,token_id,name,recipients) VALUES(7,3,'All branches','[]')"))
+        revision.upgrade()  # Baseline/current metadata may already have created it.
+        assert connection.scalar(text('SELECT count(*) FROM recipient_lists')) == 1
+        connection.execute(text('DELETE FROM tokens WHERE id=3'))
+        assert connection.scalar(text('SELECT count(*) FROM recipient_lists')) == 0
+        assert connection.scalar(text('SELECT count(*) FROM users')) == 1
+        revision.downgrade()
+        assert 'recipient_lists' not in inspect(connection).get_table_names()
     engine.dispose()

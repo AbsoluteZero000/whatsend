@@ -34,7 +34,7 @@
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('Status') }}</span>
-        <span class="detail-value"><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></span>
+        <span class="detail-value"><span data-job-status class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></span>
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('When to send') }}</span>
@@ -143,26 +143,25 @@
   </div>
 </div>
 
-{% if delivery_attempts %}
-<div class="section-header section-gap">
-  <h2>{{ _('Recipient delivery attempts') }}</h2>
+{% set progress_labels = {} %}
+{% for state in ['sent', 'pending', 'failed', 'unknown', 'submitting', 'queued', 'processing', 'completed', 'active', 'trigger', 'paused', 'cancelled', 'retry_scheduled'] %}
+{% set _unused = progress_labels.update({state: _(state)}) %}
+{% endfor %}
+{% set _unused = progress_labels.update({'waiting': _('Waiting for the next send'), 'error': _('Updates paused. Retrying shortly…')}) %}
+<div id="delivery_progress" class="delivery-progress section-gap" data-url="/jobs/{{ job.id }}/progress" data-labels="{{ progress_labels | tojson | forceescape }}">
+  <div class="header-row"><h2>{{ _('Sending progress') }}</h2><button type="button" class="btn-clear" data-action="refresh">{{ _('Refresh') }}</button></div>
+  <p role="status">{{ _('Loading delivery status…') }}</p>
+  <progress max="1" value="0" hidden aria-label="{{ _('Sending progress') }}"></progress>
+  <div class="delivery-counts"></div>
+  <p class="field-note">{{ _('Sent means WhatsApp accepted the message; it does not confirm it was read.') }}</p>
+  <p class="delivery-refresh-note field-note"></p>
+  <div class="table-wrap" hidden><table>
+    <thead><tr><th>{{ _('Recipient') }}</th><th>{{ _('Status') }}</th><th>{{ _('Details') }}</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
 </div>
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>{{ _('Recipient') }}</th><th>{{ _('Attempt') }}</th><th>{{ _('Status') }}</th><th>{{ _('Sent At') }}</th></tr></thead>
-    <tbody>
-      {% for attempt in delivery_attempts %}
-      <tr>
-        <td>{{ attempt.group_name or attempt.group_id }}</td>
-        <td>#{{ attempt.attempt_number }}</td>
-        <td><span class="badge badge-{{ 'completed' if attempt.status == 'sent' else attempt.status }}">{{ _(attempt.status) }}</span></td>
-        <td>{{ tz(attempt.created_at, user_tz) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+<script src="/static/js/delivery-progress.js?v={{ asset_versions['js/delivery-progress.js'] }}" nonce="{{ csp_nonce }}"></script>
+
 
 <div class="header-row section-gap">
   <h2>{{ _('Recent Logs') }}</h2>

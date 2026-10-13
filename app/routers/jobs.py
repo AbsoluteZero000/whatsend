@@ -1,4 +1,6 @@
 import os
+import json
+import re
 import zoneinfo
 import uuid
 import httpx
@@ -7,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 
 from urllib.parse import urlencode
+
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -20,6 +24,7 @@ from app.database import get_db
 from app.models.job import Job, JobGroup
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
+from app.models.recipient_list import RecipientList
 from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
@@ -146,7 +151,7 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
                             image_filename=job.image_filename if job else None)
     response = request.app.state.render(
         request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail),
-        tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
+        draft_owner=user["sub"], tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
         selected_groups=[{"id": gid, "name": (group_names[i] or gid) if i < len(group_names) else gid}
                          for i, gid in enumerate(group_ids)],
         initial_trigger_type=draft.trigger_type, trigger_value_date=form.get("trigger_value_date", ""),
@@ -198,6 +203,99 @@ async def token_groups(request: Request, token_id: int, db: AsyncSession = Depen
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(502, "Could not load groups. Check that this token's WhatsApp session is connected.") from exc
     return JSONResponse({"groups": groups})
+
+
+class SavedRecipient(BaseModel):
+    id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=255)
+
+
+class SavedRecipientList(BaseModel):
+    token_id: int
+    name: str = Field(min_length=1, max_length=80)
+    recipients: list[SavedRecipient] = Field(min_length=1, max_length=1000)
+
+
+@router.get("/recipient-lists")
+async def recipient_lists(request: Request, token_id: int, db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)["sub"])
+    await require_owned_active_token(db, user_id, token_id)
+    rows = (await db.execute(select(RecipientList).where(
+        RecipientList.user_id == user_id, RecipientList.token_id == token_id,
+    ).order_by(RecipientList.name, RecipientList.id))).scalars().all()
+    return JSONResponse({"lists": [{"id": row.id, "name": row.name, "recipients": json.loads(row.recipients)}
+                                   for row in rows]}, headers={"Cache-Control": "no-store, private"})
+
+
+@router.post("/recipient-lists")
+async def save_recipient_list(request: Request, payload: SavedRecipientList, db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)["sub"])
+    token = await require_owned_active_token(db, user_id, payload.token_id)
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "Enter a list name")
+    recipients = {}
+    for recipient in payload.recipients:
+        identifier = recipient.id.strip()
+        if not identifier:
+            raise HTTPException(400, "Enter a valid recipient")
+        if token.provider == "native":
+            # Phone numbers and group/LID IDs supported by the built-in worker.
+            if not re.fullmatch(r"(?:\+?[0-9]{7,15}|[0-9]+(?:-[0-9]+)?@g\.us|[0-9]+@(?:s\.whatsapp\.net|lid))", identifier):
+                raise HTTPException(400, "Enter a phone number or WhatsApp group ID")
+        recipients[identifier] = {"id": identifier, "name": recipient.name.strip() or identifier}
+    row = RecipientList(user_id=user_id, token_id=token.id, name=name,
+                        recipients=json.dumps(list(recipients.values()), ensure_ascii=False))
+    db.add(row)
+    await db.commit()
+    return JSONResponse({"id": row.id, "name": row.name, "recipients": list(recipients.values())}, status_code=201)
+
+
+@router.delete("/recipient-lists/{list_id}")
+async def delete_recipient_list(request: Request, list_id: int, db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)["sub"])
+    row = (await db.execute(select(RecipientList).where(
+        RecipientList.id == list_id, RecipientList.user_id == user_id,
+    ))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, "Recipient list not found")
+    await db.delete(row)
+    await db.commit()
+    return JSONResponse({"deleted": True})
+
+
+@router.get("/{job_id}/progress")
+async def job_progress(request: Request, job_id: int, db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)["sub"])
+    job = (await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))).scalar_one_or_none()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    run_id = await db.scalar(select(DeliveryAttempt.run_id).where(DeliveryAttempt.job_id == job_id)
+                             .order_by(DeliveryAttempt.id.desc()).limit(1))
+    attempts = (await db.execute(select(DeliveryAttempt).where(
+        DeliveryAttempt.job_id == job_id, DeliveryAttempt.run_id == run_id,
+    ).order_by(DeliveryAttempt.id))).scalars().all() if run_id else []
+    counts = {"sent": 0, "failed": 0, "unknown": 0, "pending": 0}
+    recipients = []
+    for attempt in attempts:
+        state = attempt.status if attempt.status in counts else "pending"
+        counts[state] += 1
+        error = ""
+        if attempt.status in {"failed", "unknown"} and attempt.response:
+            try:
+                data = json.loads(attempt.response)
+                error = (data.get("error") or "") if isinstance(data, dict) else ""
+                if isinstance(error, dict):
+                    error = error.get("message", "")
+                if not isinstance(error, str):
+                    error = ""
+            except ValueError:
+                error = attempt.response
+        recipients.append({"id": attempt.group_id, "name": attempt.group_name or attempt.group_id,
+                           "status": attempt.status, "error": error})
+    return JSONResponse({"job_status": job.status, "trigger_type": job.trigger_type,
+                         "run_id": run_id, "total": len(attempts), "counts": counts, "recipients": recipients},
+                        headers={"Cache-Control": "no-store, private"})
 
 
 async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: int) -> Token:
@@ -333,7 +431,7 @@ async def create_job_page(request: Request, type: str = "now", db: AsyncSession 
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     initial_trigger_type = type if type in {"now", "date", "cron", "trigger"} else "now"
-    return request.app.state.render(request, "jobs/form.html", tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[], initial_trigger_type=initial_trigger_type)
+    return request.app.state.render(request, "jobs/form.html", draft_owner=user["sub"], tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[], initial_trigger_type=initial_trigger_type)
 
 
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
@@ -467,7 +565,7 @@ async def create_job(
         if image_path:
             Path(image_path).unlink(missing_ok=True)
         raise
-    return redirect_with_flash("/jobs", success="Job created")
+    return redirect_with_flash(f"/jobs/{job.id}" if trigger_type == "now" else "/jobs", success="Job created")
 
 
 @router.post("/{job_id}/pause")
@@ -544,7 +642,7 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
         job.retry_group_ids = None
         await db.commit()
         await send_job(job_id)
-    return redirect_with_flash("/jobs", success="Job submitted. Check delivery status in the job details.")
+    return redirect_with_flash(f"/jobs/{job_id}", success="Job submitted. Check delivery status in the job details.")
 
 
 @router.post("/{job_id}/cancel")
@@ -719,7 +817,7 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     if not selected_groups and job.group_id:
         selected_groups = [{"id": job.group_id, "name": job.group_name or job.group_id}]
     return request.app.state.render(request, "jobs/form.html",
-                                     job=job, tokens=tokens, groups=groups,
+                                     job=job, draft_owner=user["sub"], tokens=tokens, groups=groups,
                                      now=now, user_tz=user_tz, edit_mode=True,
                                      image_available=image_available,
                                      selected_groups=selected_groups, **form_data)
