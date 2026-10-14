@@ -62,6 +62,70 @@ def test_variables_use_occurrence_and_schedule_timezone():
     assert render_message('{send_number} {total_sends}', 7, None, 'UTC', now) == '7 ∞'
 
 
+def mixed_lines(strategy='parallel', inside='sequential'):
+    return {'strategy':strategy,'lanes':[
+        {'id':'videos','name':'Video lessons','strategy':inside},
+        {'id':'books','name':'Reading','strategy':'sequential'}],
+        'sources':[{'kind':kind,'lane_id':lane,'name':name,'entries':[{'message':text} for text in texts]}
+            for kind,lane,name,texts in [
+                ('playlist','videos','Playlist A',['A1','A2']), ('playlist','videos','Playlist B',['B1','B2']),
+                ('pdf','books','Book A',['C1']), ('pdf','books','Book B',['D1','D2','D3','D4'])]]}
+
+
+@pytest.mark.parametrize('strategy,inside,expected',[
+    ('parallel','sequential',['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4']),
+    ('sequential','sequential',['A1','A2','B1','B2','C1','D1','D2','D3','D4']),
+    ('parallel','parallel',['A1\n\nB1\n\nC1','A2\n\nB2\n\nD1','D2','D3','D4'])])
+def test_lines_combine_parallel_and_sequential_content(strategy,inside,expected):
+    assert [entry.message for entry in flatten_plan(SeriesPlan.model_validate(mixed_lines(strategy,inside)))] == expected
+
+
+@pytest.mark.parametrize('mutation',['duplicate','empty','missing','unassigned','orphan'])
+def test_plan_rejects_invalid_line_membership(mutation):
+    from pydantic import ValidationError
+    definition=mixed_lines()
+    if mutation=='duplicate': definition['lanes'].append(definition['lanes'][0])
+    if mutation=='empty': definition['lanes'].append({'id':'empty','name':'Empty'})
+    if mutation=='missing': definition['sources'][0]['lane_id']='missing'
+    if mutation=='unassigned': definition['sources'][0].pop('lane_id')
+    if mutation=='orphan': definition['lanes']=[]
+    with pytest.raises(ValidationError): SeriesPlan.model_validate(definition)
+
+
+def test_mixed_lines_save_edit_clone_and_send_until_longest_line_finishes(tmp_path,monkeypatch):
+    monkeypatch.setattr(jobs,'register_job',no_schedule)
+    calls=[]
+    def worker(request):
+        if request.method=='POST':
+            calls.append(json.loads(request.content)['text'])
+            return httpx.Response(202,json={'data':{'id':str(uuid4()),'status':'pending'}})
+        return httpx.Response(200,json={'data':{'id':request.url.path.rsplit('/',1)[-1],'status':'sent'}})
+    async def scenario(client,sessions,context):
+        definition=mixed_lines()
+        result=await create_series(client,definition,group_ids=RECIPIENT,message='Lesson {counter}/{total_sends}')
+        assert result.status_code==303
+        async with sessions() as db:
+            job_id=(await db.execute(select(Job.id))).scalar_one()
+            job=await db.get(Job,job_id)
+            assert job.series_total==5
+            assert json.loads(job.series_plan)['lanes']==definition['lanes']
+        definition['lanes'][0]['name']='Videos renamed'
+        fields={'token_id':'3','group_ids':RECIPIENT,'message_mode':'series','message':'Lesson {counter}/{total_sends}',
+                'trigger_type':'cron','cron_time':'09:00','series_definition':json.dumps(definition)}
+        assert (await client.post(f'/jobs/{job_id}/edit',data=fields,headers=HEADERS)).status_code==303
+        assert (await client.post(f'/jobs/{job_id}/clone',headers=HEADERS)).status_code==303
+        async with sessions() as db:
+            clone=(await db.execute(select(Job).where(Job.id!=job_id))).scalar_one()
+            assert json.loads(clone.series_plan)['lanes']==definition['lanes']
+        for _ in range(5):
+            await scheduler.send_job(job_id);await native_jobs.poll_deliveries()
+        await scheduler.send_job(job_id)
+        assert calls==[f'Lesson {i}/5\n\n{content}' for i,content in enumerate(['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4'],1)]
+        async with sessions() as db:
+            job=await db.get(Job,job_id);assert job.status=='completed' and job.series_cursor==5
+    asyncio.run(exercise(tmp_path,monkeypatch,worker,scenario))
+
+
 @pytest.mark.parametrize('frequency', ['daily', 'weekdays', 'monthly', 'raw'])
 def test_native_series_claims_each_occurrence_once_and_finishes(tmp_path, monkeypatch, frequency):
     monkeypatch.setattr(jobs, 'register_job', no_schedule)

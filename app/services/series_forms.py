@@ -1,7 +1,7 @@
 import json
 from uuid import uuid4
 from typing import Literal
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy import select, update
 from app.models.job_series import SeriesEntry, SeriesAttachment
 from app.services.message_variables import render_message
@@ -34,23 +34,51 @@ class SourceDefinition(BaseModel):
     ranges: list[PageRange] = Field(default_factory=list, max_length=1000)
     items_per_send: int = Field(default=2, ge=1, le=20)
     skipped: int = Field(default=0, ge=0)
+    lane_id: str | None = Field(default=None, max_length=36)
     entries: list[EntryDefinition] = Field(min_length=1, max_length=1000)
+
+
+class LaneDefinition(BaseModel):
+    id: str = Field(min_length=1, max_length=36)
+    name: str = Field(default='Line', max_length=120)
+    strategy: Literal['sequential', 'parallel'] = 'sequential'
 
 
 class SeriesPlan(BaseModel):
     strategy: Literal['sequential', 'parallel'] = 'sequential'
     sources: list[SourceDefinition] = Field(min_length=1, max_length=20)
+    lanes: list[LaneDefinition] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode='after')
+    def validate_lanes(self):
+        if self.lanes:
+            ids = {lane.id for lane in self.lanes}
+            assigned = {source.lane_id for source in self.sources}
+            if len(ids) != len(self.lanes) or ids != assigned:
+                raise ValueError('Each line needs a unique ID and at least one source; every source must belong to a line')
+        elif any(source.lane_id is not None for source in self.sources):
+            raise ValueError('The source belongs to a missing line')
+        return self
 
 
-def flatten_plan(plan):
-    if plan.strategy == 'sequential':
-        return [entry for source in plan.sources for entry in source.entries]
+def combine_streams(streams, strategy):
+    if strategy == 'sequential':
+        return [entry for stream in streams for entry in stream]
     entries = []
-    for index in range(max(len(source.entries) for source in plan.sources)):
-        current = [source.entries[index] for source in plan.sources if index < len(source.entries)]
+    for index in range(max(map(len, streams), default=0)):
+        current = [stream[index] for stream in streams if index < len(stream)]
         entries.append(EntryDefinition(message='\n\n'.join(e.message for e in current if e.message),
                        attachments=[attachment for e in current for attachment in e.attachments]))
     return entries
+
+
+def flatten_plan(plan):
+    # Plans saved before lines were introduced retain their original behavior.
+    if not plan.lanes:
+        return combine_streams([source.entries for source in plan.sources], plan.strategy)
+    streams = [combine_streams([source.entries for source in plan.sources if source.lane_id == lane.id], lane.strategy)
+               for lane in plan.lanes]
+    return combine_streams(streams, plan.strategy)
 
 
 async def validate_plan(db, raw, user_id, token, recipients, common_message, job=None):
@@ -62,7 +90,7 @@ async def validate_plan(db, raw, user_id, token, recipients, common_message, job
         plan = SeriesPlan.model_validate_json(raw)
         entries = flatten_plan(plan)
     except (ValidationError, TypeError):
-        raise ValueError('Add at least one valid source. Each source needs content, with no more than 20 attachments per send.')
+        raise ValueError('Every line needs a valid source with content. Each send supports up to 20 attachments.')
     if not 1 <= len(entries) <= 1000:
         raise ValueError('Plans must contain between 1 and 1000 scheduled sends')
     ids = {attachment.id for entry in entries for attachment in entry.attachments}

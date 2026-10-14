@@ -75,18 +75,27 @@
     </div>
     <p class="field-note">{{ _('For plans, this message is included in every send. Dates and times use the schedule timezone when the send runs.') }}</p>
     <div id="series_builder" hidden>
-      <label for="series_strategy">{{ _('How sources run') }}</label>
-      <select id="series_strategy"><option value="sequential">{{ _('One after another') }}</option><option value="parallel">{{ _('Together on each occurrence') }}</option></select>
-      <p class="field-note">{{ _('Together: take the next batch from each unfinished source. One after another: finish each source in order.') }}</p>
-      <div class="series-source-buttons">
-        <button type="button" class="btn btn-secondary" data-series-source="messages">+ {{ _('Messages and documents') }}</button>
-        <button type="button" class="btn btn-secondary" data-series-source="pdf">+ {{ _('PDF page chunks') }}</button>
-        <button type="button" class="btn btn-secondary" data-series-source="playlist">+ {{ _('YouTube / SoundCloud playlist') }}</button>
+      <div class="series-hero">
+        <span class="series-kicker">{{ _('Your content, one occurrence at a time') }}</span>
+        <h2>{{ _('Build your sending plan') }}</h2>
+        <p>{{ _('Create lines for books, playlists, or messages. Run the lines together, with each line moving through its own content in order.') }}</p>
+      </div>
+      <div class="series-plan-controls">
+        <div>
+          <span class="series-control-title" id="series_flow_label">{{ _('How lines run') }}</span>
+          <div class="series-flow-switch" role="group" aria-labelledby="series_flow_label">
+            <button type="button" data-plan-strategy="parallel" aria-pressed="true">{{ _('Together on each occurrence') }}</button>
+            <button type="button" data-plan-strategy="sequential" aria-pressed="false">{{ _('One after another') }}</button>
+          </div>
+          <select id="series_strategy" hidden aria-label="{{ _('How lines run') }}"><option value="sequential">{{ _('One after another') }}</option><option value="parallel" selected>{{ _('Together on each occurrence') }}</option></select>
+        </div>
+        <p class="field-note">{{ _('Example: Playlist A → Playlist B in one line, and Book A → Book B in another. Both lines progress on the same schedule.') }}</p>
       </div>
       <div id="series_sources"></div>
+      <button type="button" class="series-add-line" data-action="add-line">+ {{ _('Add a line') }} <span>{{ _('Books, playlists, or messages running alongside your other lines') }}</span></button>
       <input type="hidden" id="series_definition" name="series_definition">
-      <p id="series_summary" class="field-note"></p><p id="series_status" role="status"></p>
-      <button type="button" class="btn btn-secondary" data-action="preview">{{ _('Preview scheduled sends') }}</button>
+      <div class="series-plan-footer"><p id="series_summary"></p><button type="button" class="btn btn-secondary" data-action="preview" aria-expanded="false" aria-controls="series_preview">{{ _('Preview scheduled sends') }}</button></div>
+      <p id="series_status" role="status" aria-live="polite"></p>
       <div id="series_preview" hidden></div>
     </div>
     <div id="repeat_attachment">
@@ -410,6 +419,13 @@
     timing: () => { toggleTriggerValue(); toggleCronFields(); },
     labels: {
       scheduledSends: {{ _('scheduled sends') | tojson }}, sources: {{ _('sources') | tojson }},
+      lines: {{ _('lines') | tojson }}, line: {{ _('Line') | tojson }}, lineName: {{ _('Line name') | tojson }},
+      insideLine: {{ _('Content inside this line') | tojson }}, inOrder: {{ _('Finish one source, then start the next') | tojson }},
+      together: {{ _('Take the next batch from every source') | tojson }},
+      lineHint: {{ _('Each line has its own queue. It finishes when all of its content is sent.') | tojson }},
+      moveUp: {{ _('Move up') | tojson }}, moveDown: {{ _('Move down') | tojson }}, moveToLine: {{ _('Move to line') | tojson }},
+      editSource: {{ _('Edit source and batches') | tojson }}, prepareSource: {{ _('Prepare this source') | tojson }}, book: {{ _('PDF book') | tojson }},
+      preview: {{ _('Scheduled sends preview') | tojson }}, commonPreview: {{ _('Your common message is included in every send. Variables resolve when the send runs.') | tojson }},
       send: {{ _('Send') | tojson }}, batch: {{ _('Batch') | tojson }}, message: {{ _('Message') | tojson }},
       remove: {{ _('Remove') | tojson }}, sourceName: {{ _('Source name') | tojson }},
       entryMessage: {{ _('Message for this batch (optional with documents)') | tojson }}, addAttachments: {{ _('Add attachments') | tojson }},
