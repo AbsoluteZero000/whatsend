@@ -75,7 +75,7 @@ def test_complete_migration_chain_on_fresh_database(tmp_path, monkeypatch):
     command.upgrade(configuration, "head")
     engine = create_engine(url.replace("+aiosqlite", ""))
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261013_0008"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261014_0009"
         assert "image_filename" in {column["name"] for column in inspect(connection).get_columns("jobs")}
         assert {"provider", "relay_session_id"} <= {column["name"] for column in inspect(connection).get_columns("tokens")}
         assert "relay_operations" in inspect(connection).get_table_names()
@@ -102,4 +102,24 @@ def test_recipient_list_migration_on_existing_installation(tmp_path, monkeypatch
         assert connection.scalar(text('SELECT count(*) FROM users')) == 1
         revision.downgrade()
         assert 'recipient_lists' not in inspect(connection).get_table_names()
+    engine.dispose()
+
+
+def test_series_migration_preserves_existing_schedules(tmp_path, monkeypatch):
+    revision = importlib.import_module('migrations.versions.20261014_0009_message_series')
+    engine = create_engine(f"sqlite:///{tmp_path / 'series-legacy.db'}")
+    with engine.begin() as connection:
+        connection.execute(text('CREATE TABLE users (id INTEGER PRIMARY KEY)'))
+        connection.execute(text('CREATE TABLE tokens (id INTEGER PRIMARY KEY)'))
+        connection.execute(text('CREATE TABLE jobs (id INTEGER PRIMARY KEY,message TEXT,status TEXT)'))
+        connection.execute(text("INSERT INTO jobs VALUES (3,'Keep repeating','active')"))
+        connection.execute(text('CREATE TABLE delivery_attempts (id INTEGER PRIMARY KEY,job_id INTEGER)'))
+        monkeypatch.setattr(revision,'op',Operations(MigrationContext.configure(connection)))
+        revision.upgrade();revision.upgrade()
+        row=connection.execute(text('SELECT message,status,message_mode,series_cursor,series_total,send_count FROM jobs WHERE id=3')).one()
+        assert tuple(row)==('Keep repeating','active','repeat',0,0,0)
+        assert {'series_entries','series_attachments'} <= set(inspect(connection).get_table_names())
+        revision.downgrade()
+        assert connection.scalar(text('SELECT message FROM jobs WHERE id=3'))=='Keep repeating'
+        assert 'message_mode' not in {column['name'] for column in inspect(connection).get_columns('jobs')}
     engine.dispose()

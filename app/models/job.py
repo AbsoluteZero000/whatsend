@@ -32,6 +32,12 @@ class Job(Base):
     trigger_type: Mapped[str] = mapped_column(String(10), nullable=False)
     trigger_value: Mapped[str] = mapped_column(String(100), nullable=False)
     schedule_timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    message_mode: Mapped[str] = mapped_column(String(10), default="repeat", server_default="repeat")
+    series_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    series_cursor: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    send_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    series_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    series_active_run: Mapped[str | None] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     skip_count: Mapped[int] = mapped_column(Integer, default=0)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -45,3 +51,5 @@ class Job(Base):
     logs: Mapped[list["Log"]] = relationship("Log", back_populates="job", cascade="all, delete-orphan")
     delivery_attempts: Mapped[list["DeliveryAttempt"]] = relationship("DeliveryAttempt", back_populates="job", cascade="all, delete-orphan")
     job_groups: Mapped[list["JobGroup"]] = relationship("JobGroup", back_populates="job", cascade="all, delete-orphan")
+
+    series_entries: Mapped[list["SeriesEntry"]] = relationship("SeriesEntry", back_populates="job", cascade="all, delete-orphan", order_by="SeriesEntry.position")

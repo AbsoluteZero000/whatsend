@@ -18,6 +18,20 @@
       if (!response.ok || response.redirected) throw new Error();
       const data = await response.json();
       error.textContent = '';
+      if (data.series) {
+        document.querySelectorAll('[data-series-edit]').forEach(link => { link.hidden = data.series.cursor > 0; });
+        if (data.series.cursor >= data.series.total && !data.series.active) {
+          document.querySelectorAll('.detail-actions form').forEach(form => {
+            if (/\/(pause|resume|skip|skip-clear|cancel|send-now)$/.test(new URL(form.action).pathname)) form.hidden = true;
+          });
+        }
+        const position = document.getElementById('series_position');
+        if (position) { position.textContent = data.series.cursor + ' / ' + data.series.total; position.className = 'badge badge-' + (data.series.cursor >= data.series.total && !data.series.active ? data.job_status : 'active'); }
+        for (const entry of data.series.entries) {
+          const badge = document.querySelector('[data-series-entry="' + entry.position + '"]');
+          if (badge) { badge.textContent = labels[entry.status] || entry.status; badge.className = 'badge badge-' + (entry.status === 'sent' ? 'completed' : entry.status); }
+        }
+      }
       summary.textContent = data.total ? data.counts.sent + ' / ' + data.total + ' ' + labels.sent : labels.waiting;
       bar.max = data.total || 1;
       bar.value = data.counts.sent;
@@ -51,7 +65,7 @@
         badge.textContent = labels[data.job_status] || data.job_status;
         badge.className = 'badge badge-' + data.job_status;
       });
-      if (data.total && !data.counts.pending && ['now','date'].includes(data.trigger_type) && !data.counts.unknown) delay = 0;
+      if (data.total && !data.counts.pending && (['now','date'].includes(data.trigger_type) || (data.series && data.series.cursor >= data.series.total && !data.series.active)) && !data.counts.unknown) delay = 0;
       else if (data.counts.unknown && !data.counts.pending) delay = 15000;
     } catch { error.textContent = labels.error; delay = 10000; }
     finally {

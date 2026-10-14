@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 
 from app.database import async_session
 from app.models.delivery_attempt import DeliveryAttempt
@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 async def finish_run(db, job, run_id):
+    if job.message_mode == "series":
+        from app.services.series import finish_series_run
+        await finish_series_run(db, job, run_id)
+        return
     attempts = (await db.execute(select(DeliveryAttempt).where(
         DeliveryAttempt.job_id == job.id, DeliveryAttempt.run_id == run_id,
     ))).scalars().all()
@@ -53,6 +57,9 @@ async def submit_job(db, job, token, groups):
         ).values(status="queued"))
         if not claimed.rowcount:
             return
+    from app.services.message_variables import render_message
+    job.send_count = (job.send_count or 0) + 1
+    message = render_message(job.message, job.send_count, None, job.schedule_timezone)
     sender = NativeSender(session_id=token.relay_session_id)
     attempts = []
     for group in {g.group_id: g for g in groups}.values():
@@ -73,9 +80,9 @@ async def submit_job(db, job, token, groups):
         for attempt in attempts:
             try:
                 if job.image_path:
-                    sender.validate_media(attempt.group_id, job.image_path, job.message)
+                    sender.validate_media(attempt.group_id, job.image_path, message)
                 else:
-                    sender.validate_text(attempt.group_id, job.message)
+                    sender.validate_text(attempt.group_id, message)
             except (ValueError, OSError):
                 attempt.status = "failed"
                 attempt.response = "The job payload is unsupported or its attachment is unavailable. Edit the job before sending again."
@@ -84,10 +91,10 @@ async def submit_job(db, job, token, groups):
             try:
                 key = f"echosend-job:{run_id}:{attempt.id}"
                 if job.image_path:
-                    data = await sender.enqueue_media(attempt.group_id, job.image_path, job.message, key,
+                    data = await sender.enqueue_media(attempt.group_id, job.image_path, message, key,
                                                       filename=job.image_filename)
                 else:
-                    data = await sender.enqueue_text(attempt.group_id, job.message, key)
+                    data = await sender.enqueue_text(attempt.group_id, message, key)
                 attempt.relay_message_id = data["id"]
                 attempt.status = "queued"
                 attempt.response = json.dumps(data)
@@ -121,7 +128,7 @@ async def poll_deliveries():
         # message ID without resubmitting; rotate batches so old entries cannot
         # prevent newer deliveries from being checked.
         query = select(DeliveryAttempt).where(
-            DeliveryAttempt.relay_token_id.is_not(None),
+            or_(DeliveryAttempt.relay_token_id.is_not(None), DeliveryAttempt.series_entry_id.is_not(None)),
             DeliveryAttempt.status.in_(PENDING | {"unknown"}),
         ).order_by(DeliveryAttempt.id).limit(200)
         attempts = (await db.execute(query.where(DeliveryAttempt.id > POLL_CURSOR))).scalars().all()

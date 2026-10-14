@@ -46,3 +46,28 @@ Open **Saved recipient lists** below the recipient picker to save the current se
 The composer saves drafts on the current device using browser storage. **Restore draft** recovers the message, label, recipients, timing fields, and selected attachment. Drafts are separate for each signed-in account and each new/edit composer. A successful submission clears that draft. A validation error retains it. **Discard draft** removes the saved copy without changing the current form. If browser storage is unavailable or full, the composer shows a warning instead of claiming the draft was saved. Drafts do not sync across devices.
 
 **Send Now** opens the job details and its live progress panel. It displays the latest run, refreshing while work is pending. Sent means WhatsApp acknowledged acceptance, not that recipients read the message. Failed and uncertain outcomes remain separate; checking progress never resends a message.
+
+## Finite mixed-content plans
+
+In the message composer choose **Finite message plan**, then select a recurring schedule (daily, weekdays, weekly/custom days, monthly, or a cron expression). External triggers can also advance a plan one send at a time. Entries are numbered scheduled occurrences, independent of calendar days or weeks.
+
+Add any combination of sources:
+
+- **Messages and documents:** add batches, write individual messages, and upload several attachments to each batch. A batch can contain just documents. The common message above the builder is included in every scheduled send.
+- **PDF page chunks:** upload an unencrypted PDF up to 100MB, choose a 1-based start page and inclusive end page, and set pages per send. A blank end page uses the document’s last page. The final chunk may have fewer pages. Each generated PDF must fit the 50MB attachment limit.
+- **YouTube / SoundCloud playlist:** import an accessible playlist and choose 1–20 items per send. Items become titled links in playlist order. The playlist is captured at import time; later additions do not extend the plan. Unavailable items are reported as skipped. Audio/video files are not downloaded.
+
+Choose **Together on each occurrence** to send the next batch from every unfinished source. If sources contain 3, 5, and 2 batches, the plan lasts 5 scheduled sends. Choose **One after another** to finish sources in their displayed order; the same sources last 10 sends. Move sources with the arrow buttons and inspect **Preview scheduled sends** before saving. Plans support up to 20 sources, 1000 scheduled sends, and 20 attachments per occurrence.
+
+Variables are expanded when sending, in the schedule’s timezone:
+
+| Variable | Meaning |
+| --- | --- |
+| `{send_number}` / `{counter}` | Current scheduled send, starting at 1 |
+| `{total_sends}` | Total finite plan length; `∞` for ordinary repeating messages |
+| `{today}` / `{date}` | Local date as YYYY-MM-DD |
+| `{time}` | Local time as HH:MM |
+
+Text and attachments are separate WhatsApp messages within an occurrence; the progress panel groups their outcomes by recipient. The next occurrence cannot reuse an entry already claimed or still awaiting reconciliation. Pause/resume retains the position. Skipping delays the next batch rather than discarding it. Started plan contents are locked; clone the plan to make a new sequence from Send #1.
+
+After the final occurrence settles, future scheduled runs are removed. The result is Completed, Failed, or Unknown depending on delivery outcomes. Failed and uncertain parts are not resent automatically, including after a restart. Imported attachments that were never assigned to a schedule expire after seven days; attached plan files remain available, including through clones.

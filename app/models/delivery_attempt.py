@@ -17,6 +17,8 @@ class DeliveryAttempt(Base):
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    series_entry_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    part_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     relay_message_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     relay_token_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     relay_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

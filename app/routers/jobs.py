@@ -1,4 +1,5 @@
 import os
+import asyncio
 import json
 import re
 import zoneinfo
@@ -13,15 +14,18 @@ from urllib.parse import urlencode
 from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import func as sqlfunc, select
+from sqlalchemy import func as sqlfunc, select, update
 from sqlalchemy import asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.job import Job, JobGroup
+from app.models.job_series import SeriesEntry, SeriesAttachment
+from app.services.series_forms import validate_plan, persist_plan
+from app.services.series_imports import import_playlist, split_pdf, MAX_PDF_BYTES, PDF_SPLIT_LOCK, delete_unreferenced_path
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
 from app.models.recipient_list import RecipientList
@@ -106,7 +110,7 @@ def local_to_utc(date_str: str, tz_name: str = "UTC") -> str:
     return utc.strftime("%Y-%m-%d %H:%M")
 
 
-async def save_upload(file: UploadFile) -> str | None:
+async def save_upload(file: UploadFile, max_size: int = MAX_UPLOAD_SIZE) -> str | None:
     if not file.filename:
         return None
     if len(Path(file.filename.replace("\\", "/")).name.encode("utf-8")) > 255:
@@ -127,8 +131,8 @@ async def save_upload(file: UploadFile) -> str | None:
         with dest.open("wb") as output:
             while chunk := await file.read(1024 * 1024):
                 total += len(chunk)
-                if total > MAX_UPLOAD_SIZE:
-                    raise HTTPException(status_code=400, detail="File exceeds 50MB limit")
+                if total > max_size:
+                    raise HTTPException(status_code=400, detail=f"File exceeds {max_size // (1024 * 1024)}MB limit")
                 if len(header) < 32:
                     header += chunk[:32 - len(header)]
                 output.write(chunk)
@@ -148,7 +152,9 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
     draft = SimpleNamespace(id=job.id if job else None, token_id=int(form["token_id"]),
                             label=form.get("label", ""), message=form.get("message", ""),
                             trigger_type=form.get("trigger_type", "now"), image_path=job.image_path if job else None,
-                            image_filename=job.image_filename if job else None)
+                            image_filename=job.image_filename if job else None,
+                            message_mode=form.get('message_mode', 'repeat'), series_cursor=job.series_cursor if job else 0,
+                            series_plan=form.get('series_definition', ''))
     response = request.app.state.render(
         request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail),
         draft_owner=user["sub"], tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
@@ -167,6 +173,7 @@ async def delete_media_if_unreferenced(db: AsyncSession, image_path: str, exclud
     references = await db.scalar(
         select(sqlfunc.count(Job.id)).where(Job.image_path == image_path, Job.id != excluding_job_id)
     )
+    references += await db.scalar(select(sqlfunc.count()).select_from(SeriesAttachment).where(SeriesAttachment.path == image_path)) or 0
     if not references:
         Path(image_path).unlink(missing_ok=True)
 
@@ -203,6 +210,71 @@ async def token_groups(request: Request, token_id: int, db: AsyncSession = Depen
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(502, "Could not load groups. Check that this token's WhatsApp session is connected.") from exc
     return JSONResponse({"groups": groups})
+
+
+@router.post("/series-files")
+async def upload_series_file(request: Request, file: UploadFile, db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)['sub'])
+    path = await save_upload(file)
+    if not path: raise HTTPException(400, 'Choose an attachment')
+    attachment = SeriesAttachment(id=str(uuid.uuid4()), user_id=user_id, path=path,
+                                  filename=Path(file.filename.replace('\\', '/')).name)
+    db.add(attachment)
+    try: await db.commit()
+    except Exception:
+        Path(path).unlink(missing_ok=True); raise
+    return JSONResponse({'id': attachment.id, 'filename': attachment.filename}, status_code=201)
+
+
+@router.get("/series-files/{attachment_id}")
+async def read_series_file(request: Request, attachment_id: str, db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)['sub'])
+    asset = await db.scalar(select(SeriesAttachment).where(SeriesAttachment.id == attachment_id, SeriesAttachment.user_id == user_id))
+    if not asset or not Path(asset.path).is_file(): raise HTTPException(404, 'Attachment not found')
+    media_type = MEDIA_SIGNATURES.get(Path(asset.path).suffix.lower(), ('application/octet-stream', None))[0]
+    return FileResponse(asset.path, media_type=media_type, filename=asset.filename, content_disposition_type='inline', headers={'Cache-Control': 'private, max-age=300'})
+
+
+@router.post("/series-pdf")
+async def upload_series_pdf(request: Request, file: UploadFile, start_page: int = Form(1),
+                            end_page: int | None = Form(None), pages_per_send: int = Form(5),
+                            db: AsyncSession = Depends(get_db)):
+    user_id = int(require_user(request)['sub'])
+    if Path(file.filename or '').suffix.lower() != '.pdf': raise HTTPException(400, 'Choose a PDF file')
+    source = await save_upload(file, max_size=MAX_PDF_BYTES)
+    outputs = []
+    try:
+        async with PDF_SPLIT_LOCK:
+            outputs = await asyncio.to_thread(split_pdf, source, UPLOAD_DIR, file.filename, start_page, end_page, pages_per_send)
+        entries = []
+        for part in outputs:
+            asset = SeriesAttachment(id=str(uuid.uuid4()), user_id=user_id, path=part['path'], filename=part['filename'])
+            db.add(asset)
+            entries.append({'message': f"Pages {part['first']}-{part['last']}",
+                            'attachments': [{'id': asset.id, 'filename': asset.filename}]})
+        await db.commit()
+        return JSONResponse({'entries': entries, 'title': Path(file.filename).stem[:120],
+                             'start_page': start_page, 'end_page': outputs[-1]['last']}, status_code=201)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception:
+        for part in outputs: Path(part['path']).unlink(missing_ok=True)
+        raise
+    finally:
+        if source: Path(source).unlink(missing_ok=True)
+
+
+class PlaylistImport(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+    items_per_send: int = Field(default=2, ge=1, le=20)
+
+
+@router.post("/series-playlist")
+async def upload_series_playlist(request: Request, payload: PlaylistImport):
+    require_user(request)
+    try: data = await import_playlist(payload.url, payload.items_per_send)
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+    return JSONResponse(data)
 
 
 class SavedRecipient(BaseModel):
@@ -277,25 +349,35 @@ async def job_progress(request: Request, job_id: int, db: AsyncSession = Depends
     ).order_by(DeliveryAttempt.id))).scalars().all() if run_id else []
     counts = {"sent": 0, "failed": 0, "unknown": 0, "pending": 0}
     recipients = []
+    grouped = {}
     for attempt in attempts:
-        state = attempt.status if attempt.status in counts else "pending"
+        key = attempt.group_id if job.message_mode == 'series' else attempt.id
+        grouped.setdefault(key, []).append(attempt)
+    for parts in grouped.values():
+        states = {part.status for part in parts}
+        state = 'pending' if states & {'pending', 'submitting', 'queued', 'processing'} else (
+            'unknown' if 'unknown' in states else 'failed' if 'failed' in states else 'sent')
         counts[state] += 1
-        error = ""
-        if attempt.status in {"failed", "unknown"} and attempt.response:
+        errors = []
+        for attempt in parts:
+            if attempt.status not in {'failed', 'unknown'} or not attempt.response: continue
             try:
                 data = json.loads(attempt.response)
-                error = (data.get("error") or "") if isinstance(data, dict) else ""
-                if isinstance(error, dict):
-                    error = error.get("message", "")
-                if not isinstance(error, str):
-                    error = ""
-            except ValueError:
-                error = attempt.response
-        recipients.append({"id": attempt.group_id, "name": attempt.group_name or attempt.group_id,
-                           "status": attempt.status, "error": error})
-    return JSONResponse({"job_status": job.status, "trigger_type": job.trigger_type,
-                         "run_id": run_id, "total": len(attempts), "counts": counts, "recipients": recipients},
-                        headers={"Cache-Control": "no-store, private"})
+                error = (data.get('error') or '') if isinstance(data, dict) else ''
+                if isinstance(error, dict): error = error.get('message', '')
+            except ValueError: error = attempt.response
+            if isinstance(error, str) and error:
+                errors.append((attempt.part_label + ': ' if attempt.part_label else '') + error)
+        recipients.append({'id': parts[0].group_id, 'name': parts[0].group_name or parts[0].group_id,
+                           'status': state if job.message_mode == 'series' else parts[0].status, 'error': '\n'.join(errors)})
+    series = None
+    if job.message_mode == 'series':
+        entries = (await db.execute(select(SeriesEntry).where(SeriesEntry.job_id == job.id).order_by(SeriesEntry.position))).scalars().all()
+        series = {'cursor': job.series_cursor, 'total': len(entries), 'active': bool(job.series_active_run),
+                  'entries': [{'position': entry.position, 'status': entry.status} for entry in entries]}
+    return JSONResponse({'job_status': job.status, 'trigger_type': job.trigger_type,
+                         'run_id': run_id, 'total': len(recipients), 'counts': counts, 'recipients': recipients,
+                         'series': series}, headers={'Cache-Control': 'no-store, private'})
 
 
 async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: int) -> Token:
@@ -486,7 +568,9 @@ async def create_job(
     group_ids: list[str] = Form(default=[]),
     group_names: list[str] = Form(default=[]),
     group_id_manual: str = Form(default=""),
-    message: str = Form(...),
+    message: str = Form(default=""),
+    message_mode: str = Form(default="repeat"),
+    series_definition: str = Form(default=""),
     image: UploadFile | None = None,
     trigger_type: str = Form(...),
     trigger_value: str = Form(default=""),
@@ -514,6 +598,19 @@ async def create_job(
     if trigger_type == "cron" and cron_freq == "custom" and not cron_days:
         return redirect_with_flash("/jobs/create", success="Select at least one day.")
 
+
+    plan_data = None
+    try:
+        if message_mode not in {'repeat', 'series'}: raise ValueError('Choose a valid message mode')
+        if message_mode == 'series':
+            if trigger_type not in {'cron', 'trigger'}:
+                raise ValueError('Message series need a recurring schedule or an external trigger')
+            plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, None)
+        elif not message:
+            raise ValueError('Enter a message')
+    except (ValueError, HTTPException) as exc:
+        error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
+        return await job_error_form(request, db, user, error, group_ids, group_names, None)
     try:
         trigger_value = build_trigger_value(
             trigger_type, user_tz,
@@ -528,11 +625,11 @@ async def create_job(
         return await job_error_form(request, db, user, HTTPException(400, str(exc)), group_ids, group_names)
 
     try:
-        image_path = await save_upload(image) if image else None
+        image_path = await save_upload(image) if image and message_mode == "repeat" else None
     except HTTPException as exc:
         return await job_error_form(request, db, user, exc, group_ids, group_names)
     try:
-        validate_job_payload(token, group_ids, message, image_path)
+        if message_mode == "repeat": validate_job_payload(token, group_ids, message, image_path)
     except HTTPException as exc:
         if image_path:
             Path(image_path).unlink(missing_ok=True)
@@ -558,6 +655,7 @@ async def create_job(
         for i, gid in enumerate(group_ids):
             gname = group_names[i] if i < len(group_names) else None
             db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
+        if plan_data: await persist_plan(db, job, *plan_data)
         await register_job(job)
         await db.commit()
     except Exception:
@@ -575,7 +673,7 @@ async def pause_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status in ("active", "retry_scheduled"):
+    if job and (job.status in ("active", "retry_scheduled") or (job.message_mode == "series" and job.status == "queued")):
         await remove_job(job_id)
         job.status = "paused"
         await db.commit()
@@ -594,7 +692,7 @@ async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(g
             job.status = "retry_scheduled"
             await register_retry(job)
         else:
-            job.status = "pending"
+            job.status = "trigger" if job.trigger_type == "trigger" else "pending"
             await register_job(job)
             if job.retry_at:
                 await register_retry(job)
@@ -652,7 +750,7 @@ async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(g
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status in ("pending", "active", "trigger", "retry_scheduled"):
+    if job and (job.status in ("pending", "active", "trigger", "retry_scheduled") or (job.message_mode == "series" and job.status == "queued")):
         await remove_job(job_id)
         job.status = "cancelled"
         await db.commit()
@@ -667,11 +765,12 @@ async def delete_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job:
-        if job.image_path:
-            await delete_media_if_unreferenced(db, job.image_path, job.id)
+        paths = (await db.execute(select(SeriesAttachment.path).join(SeriesEntry).where(SeriesEntry.job_id == job.id))).scalars().all()
+        paths = set(paths) | ({job.image_path} if job.image_path else set())
         await remove_job(job_id)
         await db.delete(job)
         await db.commit()
+        for path in paths: await delete_unreferenced_path(db, path)
     return redirect_with_flash("/jobs", success="Job deleted")
 
 
@@ -680,7 +779,7 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     user = require_user(request)
     user_id = int(user["sub"])
 
-    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups)))
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups), selectinload(Job.series_entries).selectinload(SeriesEntry.attachments)))
     job = result.scalar_one_or_none()
     if not job:
         return redirect_with_flash("/jobs", success="Job cloned")  # will just redirect with message
@@ -692,6 +791,9 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         group_id=job.group_id,
         group_name=job.group_name,
         message=job.message,
+        message_mode=job.message_mode,
+        series_plan=job.series_plan,
+        series_total=job.series_total,
         image_path=job.image_path,
         image_filename=job.image_filename,
         trigger_type=job.trigger_type,
@@ -704,6 +806,20 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     await db.refresh(clone)
     for jg in job.job_groups:
         db.add(JobGroup(job_id=clone.id, group_id=jg.group_id, group_name=jg.group_name))
+    mapping = {}
+    for original in job.series_entries:
+        entry = SeriesEntry(job_id=clone.id, position=original.position, message=original.message, status='pending')
+        db.add(entry); await db.flush()
+        for asset in original.attachments:
+            copied = SeriesAttachment(id=str(uuid.uuid4()), user_id=job.user_id, entry_id=entry.id,
+                                      path=asset.path, filename=asset.filename, position=asset.position)
+            db.add(copied); mapping[asset.id] = copied.id
+    if clone.series_plan:
+        plan = json.loads(clone.series_plan)
+        for source in plan['sources']:
+            for entry in source['entries']:
+                for asset in entry['attachments']: asset['id'] = mapping.get(asset['id'], asset['id'])
+        clone.series_plan = json.dumps(plan, ensure_ascii=False)
     await db.commit()
     await register_job(clone)
     await db.commit()
@@ -736,7 +852,7 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
     user_id = int(user["sub"])
     user_tz = user.get("tz", "UTC")
 
-    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups)))
+    result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups), selectinload(Job.series_entries).selectinload(SeriesEntry.attachments)))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -795,6 +911,9 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    if job.message_mode == 'series' and job.series_cursor:
+        return redirect_with_flash(f'/jobs/{job.id}', success='This series has started. Pause it or clone it to create a new sequence.')
+
     result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
     tokens = result.scalars().all()
 
@@ -832,7 +951,9 @@ async def edit_job(
     group_ids: list[str] = Form(default=[]),
     group_names: list[str] = Form(default=[]),
     group_id_manual: str = Form(default=""),
-    message: str = Form(...),
+    message: str = Form(default=""),
+    message_mode: str = Form(default="repeat"),
+    series_definition: str = Form(default=""),
     image: UploadFile | None = None,
     trigger_type: str = Form(...),
     trigger_value: str = Form(default=""),
@@ -865,9 +986,31 @@ async def edit_job(
     if trigger_type == "cron" and cron_freq == "custom" and not cron_days:
         return redirect_with_flash(f"/jobs/{job_id}/edit", success="Select at least one day.")
 
-    image_path = job.image_path
+    if job.message_mode == 'series' and job.series_cursor:
+        return await job_error_form(request, db, user, HTTPException(400, 'This series has started. Pause it or clone it to create a new sequence.'), group_ids, group_names, job)
+
+    if job.message_mode == 'series' or message_mode == 'series':
+        edit_claim = await db.execute(update(Job).where(
+            Job.id == job.id, Job.series_cursor == 0, Job.series_active_run.is_(None),
+        ).values(series_active_run='edit-' + uuid.uuid4().hex[:31]))
+        if not edit_claim.rowcount:
+            return await job_error_form(request, db, user, HTTPException(409, 'This series has started. Refresh the page before editing.'), group_ids, group_names, job)
+    plan_data = None
+    try:
+        if message_mode not in {'repeat', 'series'}: raise ValueError('Choose a valid message mode')
+        if message_mode == 'series':
+            if trigger_type not in {'cron', 'trigger'}:
+                raise ValueError('Message series need a recurring schedule or an external trigger')
+            plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, job)
+        elif not message:
+            raise ValueError('Enter a message')
+    except (ValueError, HTTPException) as exc:
+        error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
+        return await job_error_form(request, db, user, error, group_ids, group_names, job)
+    old_image_path = job.image_path
+    image_path = job.image_path if message_mode == "repeat" else None
     new_path = None
-    if image and image.filename:
+    if image and image.filename and message_mode == "repeat":
         try:
             new_path = await save_upload(image)
         except HTTPException as exc:
@@ -876,7 +1019,7 @@ async def edit_job(
             image_path = new_path
 
     try:
-        validate_job_payload(token, group_ids, message, image_path)
+        if message_mode == "repeat": validate_job_payload(token, group_ids, message, image_path)
         trigger_value = build_trigger_value(
             trigger_type, user_tz,
             trigger_value_date=trigger_value_date,
@@ -916,8 +1059,22 @@ async def edit_job(
     for i, gid in enumerate(group_ids):
         gname = group_names[i] if i < len(group_names) else None
         db.add(JobGroup(job_id=job.id, group_id=gid, group_name=gname or None))
+    removed_paths = []
+    if plan_data:
+        removed_paths = await persist_plan(db, job, *plan_data)
+    elif job.message_mode == 'series':
+        assets = (await db.execute(select(SeriesAttachment).join(SeriesEntry).where(SeriesEntry.job_id == job.id))).scalars().all()
+        removed_paths = [asset.path for asset in assets]
+        entries = (await db.execute(select(SeriesEntry).where(SeriesEntry.job_id == job.id))).scalars().all()
+        for entry in entries: await db.delete(entry)
+        job.message_mode, job.series_plan = 'repeat', None
+        job.series_total = 0
+        job.series_cursor = 0
+        job.series_active_run = None
     await remove_job(job_id)
     await register_job(job)
     await db.commit()
+    if old_image_path and old_image_path != image_path: removed_paths.append(old_image_path)
+    for path in set(removed_paths): await delete_unreferenced_path(db, path)
 
     return redirect_with_flash("/jobs", success="Job updated")

@@ -122,10 +122,17 @@ async def send_job(job_id: int, retry_only: bool = False):
             select(Token).where(Token.id == job.token_id, Token.user_id == job.user_id, Token.is_active.is_(True))
         )
         token = token_result.scalar_one_or_none()
+        if job.message_mode == "series":
+            from app.services.series import submit_series
+            await submit_series(db, job, token, groups)
+            return
         if token and token.provider == "native":
             from app.services.native_jobs import submit_job
             await submit_job(db, job, token, groups)
             return
+        from app.services.message_variables import render_message
+        if not retry_only: job.send_count = (job.send_count or 0) + 1
+        message = render_message(job.message, job.send_count, None, job.schedule_timezone)
         run_id = str(uuid.uuid4())
         attempt_number = job.retry_count + 1 if retry_only else 1
         results: list[str] = []
@@ -143,7 +150,7 @@ async def send_job(job_id: int, retry_only: bool = False):
             sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
             for group in groups:
                 try:
-                    response = await sender.send(group.group_id, job.message, job.image_path, job.image_filename)
+                    response = await sender.send(group.group_id, message, job.image_path, job.image_filename)
                     results.append(f"{group.group_id}: sent")
                     db.add(DeliveryAttempt(
                         job_id=job.id, run_id=run_id, group_id=group.group_id, group_name=group.group_name,
@@ -184,13 +191,29 @@ async def send_job(job_id: int, retry_only: bool = False):
         )
 
 
+async def series_result_for_job(job):
+    from app.services.series import series_result
+    async with async_session() as db:
+        return await series_result(db, job)
+
+
 async def register_job(job: Job):
-    if job.status not in ("pending", "active", "retry_scheduled"):
+    series = job.message_mode == "series"
+    if series and job.series_cursor and not job.series_active_run:
+        total = job.series_total
+        if total and job.series_cursor >= total:
+            job.status = await series_result_for_job(job)
+            await remove_job(job.id)
+            return
+    if job.status not in ("pending", "active", "retry_scheduled") and not (series and job.status == "queued"):
         return
     trigger = build_trigger(job)
     if trigger:
         scheduler.add_job(send_job, trigger=trigger, args=[job.id, False], id=str(job.id), replace_existing=True)
-        job.status = "active"
+        if not series or not job.series_active_run:
+            job.status = "active"
+        elif series:
+            job.status = "queued"
 
 
 async def register_retry(job: Job):
@@ -219,9 +242,11 @@ async def remove_job(job_id: int):
 
 async def load_all_jobs():
     from app.services.native_jobs import poll_deliveries
+    from app.services.series_imports import cleanup_imports
+    scheduler.add_job(cleanup_imports, "interval", hours=1, id="series:cleanup-imports", replace_existing=True)
     scheduler.add_job(poll_deliveries, "interval", seconds=10, id="whatsapp:delivery-status", replace_existing=True)
     async with async_session() as db:
-        result = await db.execute(select(Job).where(Job.status.in_(["pending", "active", "retry_scheduled"])))
+        result = await db.execute(select(Job).where(Job.status.in_(["pending", "active", "retry_scheduled", "queued"])))
         jobs = result.scalars().all()
         for job in jobs:
             if job.trigger_type in {"now", "date"} and job.status == "retry_scheduled":

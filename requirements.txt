@@ -12,3 +12,5 @@ httpx==0.28.1
 apscheduler==3.11.3
 tzdata==2026.3
 alembic==1.16.5
+pypdf==6.20.1
+yt-dlp==2026.8.19

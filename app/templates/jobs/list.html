@@ -34,7 +34,7 @@
       <div class="job-card-main">
         <a href="/jobs/{{ job.id }}" class="job-avatar" aria-label="{{ _('Open message') }}">{{ (job.label or job.group_name or 'M')[0]|upper }}</a>
         <div class="job-identity">
-          <div class="job-title-line"><a href="/jobs/{{ job.id }}">{{ job.label or job.group_name or _('Untitled message') }}</a><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span></div>
+          <div class="job-title-line"><a href="/jobs/{{ job.id }}">{{ job.label or job.group_name or _('Untitled message') }}</a><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span>{% if job.message_mode == 'series' %}<span class="badge badge-active">{{ _('Plan') }} {{ job.series_cursor }}/{{ job.series_total }}</span>{% endif %}</div>
           <span class="job-meta">#{{ job.id }} · {{ tz(job.created_at, user_tz) }}</span>
         </div>
         <div class="job-info-block">
@@ -52,12 +52,12 @@
           {% if job.skip_count > 0 and job.trigger_type not in ('trigger', 'now') %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
         </div>
         <div class="job-primary-actions">
-          {% if job.status in ('pending', 'active', 'trigger', 'retry_scheduled') and job.trigger_type != 'now' %}<a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>{% elif job.status == 'paused' %}<form method="POST" action="/jobs/{{ job.id }}/resume"><button class="btn btn-sm btn-primary">{{ _('Resume') }}</button></form>{% endif %}
+          {% if job.status in ('pending', 'active', 'trigger', 'retry_scheduled') and job.trigger_type != 'now' and not (job.message_mode == 'series' and job.series_cursor) %}<a href="/jobs/{{ job.id }}/edit" class="btn btn-sm btn-primary">{{ _('Edit') }}</a>{% elif job.status == 'paused' %}<form method="POST" action="/jobs/{{ job.id }}/resume"><button class="btn btn-sm btn-primary">{{ _('Resume') }}</button></form>{% endif %}
           {% if job.trigger_type == 'trigger' and job.status in ('pending', 'trigger') %}<form method="POST" action="/jobs/{{ job.id }}/send-now"><button class="btn btn-sm btn-primary">{{ _('Send Now') }}</button></form>{% endif %}
           <details class="job-menu"><summary aria-label="{{ _('More actions') }}">•••</summary><div class="job-menu-popover">
             <a href="/jobs/{{ job.id }}">{{ _('View details') }}</a><a href="/logs?job_id={{ job.id }}">{{ _('View logs') }}</a>
             <form method="POST" action="/jobs/{{ job.id }}/clone"><button>{{ _('Clone') }}</button></form>
-            {% if job.status in ('pending', 'active', 'retry_scheduled') and job.trigger_type not in ('trigger', 'now') %}<form method="POST" action="/jobs/{{ job.id }}/pause"><button>{{ _('Pause') }}</button></form><form method="POST" action="/jobs/{{ job.id }}/skip"><button>{{ _('Skip') }}{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button></form>{% if job.skip_count > 0 %}<form method="POST" action="/jobs/{{ job.id }}/skip-clear"><button>{{ _('Clear skips') }}</button></form>{% endif %}<form method="POST" action="/jobs/{{ job.id }}/cancel"><button class="danger-text">{{ _('Cancel') }}</button></form>{% elif job.trigger_type == 'trigger' and job.status in ('pending', 'trigger') %}<form method="POST" action="/jobs/{{ job.id }}/cancel"><button class="danger-text">{{ _('Cancel') }}</button></form>{% endif %}
+            {% if (job.status in ('pending', 'active', 'retry_scheduled') and job.trigger_type not in ('trigger', 'now')) or (job.message_mode == 'series' and job.status == 'queued') %}<form method="POST" action="/jobs/{{ job.id }}/pause"><button>{{ _('Pause') }}</button></form><form method="POST" action="/jobs/{{ job.id }}/skip"><button>{{ _('Skip') }}{% if job.skip_count > 0 %} ({{ job.skip_count }}){% endif %}</button></form>{% if job.skip_count > 0 %}<form method="POST" action="/jobs/{{ job.id }}/skip-clear"><button>{{ _('Clear skips') }}</button></form>{% endif %}<form method="POST" action="/jobs/{{ job.id }}/cancel"><button class="danger-text">{{ _('Cancel') }}</button></form>{% elif job.trigger_type == 'trigger' and job.status in ('pending', 'trigger') %}<form method="POST" action="/jobs/{{ job.id }}/cancel"><button class="danger-text">{{ _('Cancel') }}</button></form>{% endif %}
             <form method="POST" action="/jobs/{{ job.id }}/delete" data-confirm="{{ _('Delete this message?') }}"><button class="danger-text">{{ _('Delete') }}</button></form>
           </div></details>
         </div>

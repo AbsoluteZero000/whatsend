@@ -101,14 +101,14 @@
     <div class="detail-card-header">{{ _('Actions') }}</div>
     <div class="detail-body">
       <div class="detail-actions">
-        {% if job.status in ("pending", "active", "trigger", "retry_scheduled") and job.trigger_type != "now" %}
-        <a href="/jobs/{{ job.id }}/edit" class="btn btn-primary">{{ _('Edit') }}</a>
+        {% if job.status in ("pending", "active", "trigger", "retry_scheduled") and job.trigger_type != "now" and not (job.message_mode == "series" and job.series_cursor) %}
+        <a href="/jobs/{{ job.id }}/edit" data-series-edit class="btn btn-primary">{{ _('Edit') }}</a>
         {% endif %}
         <a href="/logs?job_id={{ job.id }}" class="btn btn-secondary">{{ _('Logs') }}</a>
         <form method="POST" action="/jobs/{{ job.id }}/clone">
           <button class="btn btn-secondary">{{ _('Clone') }}</button>
         </form>
-        {% if job.status in ("pending", "active", "retry_scheduled") and job.trigger_type not in ("trigger", "now") %}
+        {% if (job.status in ("pending", "active", "retry_scheduled") and job.trigger_type not in ("trigger", "now")) or (job.message_mode == "series" and job.status == "queued") %}
         <form method="POST" action="/jobs/{{ job.id }}/pause">
           <button class="btn btn-secondary">{{ _('Pause') }}</button>
         </form>
@@ -143,11 +143,27 @@
   </div>
 </div>
 
+{% if job.message_mode == 'series' %}
+<div class="series-detail section-gap">
+  <div class="header-row"><h2>{{ _('Finite message plan') }}</h2><span class="badge badge-active" id="series_position">{{ job.series_cursor }} / {{ job.series_total }}</span></div>
+  <p class="field-note">{{ _('One batch per scheduled occurrence. The schedule finishes when every source is done.') }}</p>
+  <p class="field-note">{{ _('Pausing preserves the next batch. Skipping delays it without discarding content. Clone a started plan to change its sequence.') }}</p>
+  <details><summary>{{ _('View scheduled sends') }}</summary>
+    {% for entry in job.series_entries %}
+    <div class="series-preview-row"><strong>{{ _('Send') }} #{{ entry.position }}</strong> <span class="badge badge-{{ 'completed' if entry.status == 'sent' else entry.status }}" data-series-entry="{{ entry.position }}">{{ _(entry.status) }}</span>
+      <p>{{ entry.message }}</p>
+      {% for attachment in entry.attachments %}<a href="/jobs/series-files/{{ attachment.id }}" target="_blank" rel="noopener">{{ attachment.filename }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+    </div>
+    {% endfor %}
+  </details>
+</div>
+{% endif %}
+
 {% set progress_labels = {} %}
 {% for state in ['sent', 'pending', 'failed', 'unknown', 'submitting', 'queued', 'processing', 'completed', 'active', 'trigger', 'paused', 'cancelled', 'retry_scheduled'] %}
 {% set _unused = progress_labels.update({state: _(state)}) %}
 {% endfor %}
-{% set _unused = progress_labels.update({'waiting': _('Waiting for the next send'), 'error': _('Updates paused. Retrying shortly…')}) %}
+{% set _unused = progress_labels.update({'waiting': _('Waiting for the next send'), 'error': _('Updates paused. Retrying shortly…'), 'series_send': _('Send'), 'series_of': _('of')}) %}
 <div id="delivery_progress" class="delivery-progress section-gap" data-url="/jobs/{{ job.id }}/progress" data-labels="{{ progress_labels | tojson | forceescape }}">
   <div class="header-row"><h2>{{ _('Sending progress') }}</h2><button type="button" class="btn-clear" data-action="refresh">{{ _('Refresh') }}</button></div>
   <p role="status">{{ _('Loading delivery status…') }}</p>

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.job import Job
+from app.models.job_series import SeriesAttachment
 from app.routers.auth import require_user
 from app.routers.jobs import MEDIA_SIGNATURES, UPLOAD_DIR
 
@@ -27,7 +28,11 @@ async def get_media(filename: str, request: Request, db: AsyncSession = Depends(
         select(Job.id).where(Job.user_id == int(user["sub"]), Job.image_path == str(path)).limit(1)
     )
     if result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=404, detail="Media not found")
+        asset = await db.scalar(select(SeriesAttachment.id).where(
+            SeriesAttachment.user_id == int(user['sub']), SeriesAttachment.path == str(path),
+        ).limit(1))
+        if asset is None:
+            raise HTTPException(status_code=404, detail="Media not found")
 
     media_type = MEDIA_SIGNATURES.get(path.suffix.lower(), ("application/octet-stream", None))[0]
     return FileResponse(path, media_type=media_type, headers={"Cache-Control": "private, max-age=300"})

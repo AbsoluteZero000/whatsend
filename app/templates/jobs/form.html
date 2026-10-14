@@ -60,9 +60,36 @@
     <label for="label">{{ _('Label (optional)') }}</label>
     <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if job is defined and job.label %}value="{{ job.label }}"{% endif %}>
 
+    <label for="message_mode">{{ _('Message mode') }}</label>
+    <select id="message_mode" name="message_mode">
+      <option value="repeat" {% if job is not defined or job.message_mode != 'series' %}selected{% endif %}>{{ _('Repeat the same message') }}</option>
+      <option value="series" {% if job is defined and job.message_mode == 'series' %}selected{% endif %}>{{ _('Finite message plan') }}</option>
+    </select>
+    <p class="field-note">{{ _('In a finite plan, each scheduled occurrence sends the next content. The schedule stops when all sources finish.') }}</p>
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
 
+    <div class="message-variables">
+      <span>{{ _('Insert variable') }}</span>
+      {% for variable in ['send_number', 'total_sends', 'today', 'time'] %}<button type="button" class="btn-clear" data-message-variable="{{ variable }}">{{ '{' ~ variable ~ '}' }}</button>{% endfor %}
+    </div>
+    <p class="field-note">{{ _('For plans, this message is included in every send. Dates and times use the schedule timezone when the send runs.') }}</p>
+    <div id="series_builder" hidden>
+      <label for="series_strategy">{{ _('How sources run') }}</label>
+      <select id="series_strategy"><option value="sequential">{{ _('One after another') }}</option><option value="parallel">{{ _('Together on each occurrence') }}</option></select>
+      <p class="field-note">{{ _('Together: take the next batch from each unfinished source. One after another: finish each source in order.') }}</p>
+      <div class="series-source-buttons">
+        <button type="button" class="btn btn-secondary" data-series-source="messages">+ {{ _('Messages and documents') }}</button>
+        <button type="button" class="btn btn-secondary" data-series-source="pdf">+ {{ _('PDF page chunks') }}</button>
+        <button type="button" class="btn btn-secondary" data-series-source="playlist">+ {{ _('YouTube / SoundCloud playlist') }}</button>
+      </div>
+      <div id="series_sources"></div>
+      <input type="hidden" id="series_definition" name="series_definition">
+      <p id="series_summary" class="field-note"></p><p id="series_status" role="status"></p>
+      <button type="button" class="btn btn-secondary" data-action="preview">{{ _('Preview scheduled sends') }}</button>
+      <div id="series_preview" hidden></div>
+    </div>
+    <div id="repeat_attachment">
     <label for="image">{{ _('Attachment (optional, max 50MB)') }}</label>
     <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip">
     <p id="upload_error" role="alert" class="form-error" style="display:none;"></p>
@@ -87,6 +114,7 @@
     </div>
     {% endif %}
     <small class="field-note">{{ _('Supported: images, videos, PDF, Office, OpenDocument, text, CSV, RTF, and ZIP — up to 50MB') }}</small>
+    </div>
 
     <h2 class="composer-section">{{ _('Timing') }}</h2>
     <label for="trigger_type">{{ _('When to send') }}</label>
@@ -183,6 +211,7 @@
     </div>
   </form>
 </div>
+<script src="/static/js/message-series.js?v={{ asset_versions['js/message-series.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/recipient-lists.js?v={{ asset_versions['js/recipient-lists.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/group-picker.js?v={{ asset_versions['js/group-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
@@ -376,6 +405,27 @@
       confirmDelete: {{ _('Delete recipient list') | tojson }}, deleted: {{ _('Recipient list deleted') | tojson }}
     }
   });
+  const messageSeries = createMessageSeries({
+    plan: {{ (job.series_plan if job is defined else '') | default('', true) | tojson }},
+    timing: () => { toggleTriggerValue(); toggleCronFields(); },
+    labels: {
+      scheduledSends: {{ _('scheduled sends') | tojson }}, sources: {{ _('sources') | tojson }},
+      send: {{ _('Send') | tojson }}, batch: {{ _('Batch') | tojson }}, message: {{ _('Message') | tojson }},
+      remove: {{ _('Remove') | tojson }}, sourceName: {{ _('Source name') | tojson }},
+      entryMessage: {{ _('Message for this batch (optional with documents)') | tojson }}, addAttachments: {{ _('Add attachments') | tojson }},
+      pdfFile: {{ _('PDF file') | tojson }}, startPage: {{ _('Start page') | tojson }}, endPage: {{ _('End page') | tojson }},
+      lastPage: {{ _('Last page') | tojson }}, pagesPerSend: {{ _('Pages per send') | tojson }},
+      splitPdf: {{ _('Split PDF into sends') | tojson }}, choosePdf: {{ _('Choose a PDF file first.') | tojson }},
+      pdfHint: {{ _('PDF sources up to 100MB. Page numbers start at 1. Leave end page empty to use the last page.') | tojson }},
+      playlistUrl: {{ _('Public playlist URL') | tojson }}, itemsPerSend: {{ _('Items per send') | tojson }},
+      importPlaylist: {{ _('Import playlist') | tojson }}, playlistHint: {{ _('Imports titled links in playlist order. The current playlist is saved as a snapshot; media files are not downloaded.') | tojson }},
+      unavailableSkipped: {{ _('unavailable playlist items skipped') | tojson }}, batches: {{ _('batches') | tojson }},
+      addBatch: {{ _('Add batch') | tojson }}, messages: {{ _('Messages') | tojson }}, pdfChunks: {{ _('PDF chunks') | tojson }}, playlist: {{ _('Playlist') | tojson }},
+      importing: {{ _('Preparing source…') | tojson }}, imported: {{ _('Source ready') | tojson }}, importError: {{ _('Could not prepare this source. Try again.') | tojson }},
+      limit: {{ _('Plans support up to 20 sources and 1000 scheduled sends.') | tojson }},
+      completeImports: {{ _('Finish importing every source before scheduling.') | tojson }}, emptyEntry: {{ _('Every send needs a message or an attachment.') | tojson }}
+    }
+  });
   window.composerDraftConfig = {
     owner: {{ draft_owner | default('') | string | tojson }}, validationError: {{ 'true' if form_error else 'false' }},
     selected: () => _selectedGroups,
@@ -383,6 +433,7 @@
       _selectedGroups = recipients; renderChips();
       toggleTriggerValue(); toggleCronFields(); updateCronDayPicker();
       loadTokenGroups(false); savedLists.load();
+      messageSeries.restore(document.getElementById('series_definition').value);
     },
     labels: {
       saving: {{ _('Saving draft…') | tojson }}, saved: {{ _('Draft saved on this device') | tojson }},
@@ -393,6 +444,7 @@
   };
 
   document.getElementById('message-form').addEventListener('submit', function(e) {
+    if (!messageSeries.validate()) { e.preventDefault(); return; }
     const attachment = document.getElementById('image').files[0];
     const uploadError = document.getElementById('upload_error');
     uploadError.style.display = 'none';
