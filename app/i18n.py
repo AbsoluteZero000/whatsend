@@ -1,6 +1,8 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        'Lines run together': 'تعمل المسارات معاً',
+        'Use one line to send content in sequence. Add another line to run a separate queue in parallel.': 'استخدم مساراً واحداً لإرسال المحتوى بالتتابع. أضف مساراً آخر لتشغيل قائمة مستقلة بالتوازي.',
         'Your content, one occurrence at a time': 'محتواك، خطوة في كل موعد',
         'Build your sending plan': 'أنشئ خطة الإرسال',
         'Create lines for books, playlists, or messages. Run the lines together, with each line moving through its own content in order.': 'أنشئ مسارات للكتب أو قوائم التشغيل أو الرسائل. شغّلها معاً، مع انتقال كل مسار بين محتوياته بالترتيب.',

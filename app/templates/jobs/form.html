@@ -81,14 +81,7 @@
         <p>{{ _('Create lines for books, playlists, or messages. Run the lines together, with each line moving through its own content in order.') }}</p>
       </div>
       <div class="series-plan-controls">
-        <div>
-          <span class="series-control-title" id="series_flow_label">{{ _('How lines run') }}</span>
-          <div class="series-flow-switch" role="group" aria-labelledby="series_flow_label">
-            <button type="button" data-plan-strategy="parallel" aria-pressed="true">{{ _('Together on each occurrence') }}</button>
-            <button type="button" data-plan-strategy="sequential" aria-pressed="false">{{ _('One after another') }}</button>
-          </div>
-          <select id="series_strategy" hidden aria-label="{{ _('How lines run') }}"><option value="sequential">{{ _('One after another') }}</option><option value="parallel" selected>{{ _('Together on each occurrence') }}</option></select>
-        </div>
+        <div class="series-parallel-note"><span aria-hidden="true">⇉</span><div><strong>{{ _('Lines run together') }}</strong><p>{{ _('Use one line to send content in sequence. Add another line to run a separate queue in parallel.') }}</p></div></div>
         <p class="field-note">{{ _('Example: Playlist A → Playlist B in one line, and Book A → Book B in another. Both lines progress on the same schedule.') }}</p>
       </div>
       <div id="series_sources"></div>

@@ -3,7 +3,6 @@ window.createMessageSeries = function(config) {
   const panel = document.getElementById('series_builder');
   const root = document.getElementById('series_sources');
   const definition = document.getElementById('series_definition');
-  const strategy = document.getElementById('series_strategy');
   const status = document.getElementById('series_status');
   const summary = document.getElementById('series_summary');
   const preview = document.getElementById('series_preview');
@@ -42,12 +41,11 @@ window.createMessageSeries = function(config) {
     return lanes.map(lane=>combine(sources.filter(source=>source.lane_id===lane.id).map(source=>
       source.entries.map(entry=>({...entry,parts:[{name:source.name,...entry}]}))),lane.strategy));
   }
-  function flattened() { return combine(lineStreams(),strategy.value); }
+  function flattened() { return combine(lineStreams(),'parallel'); }
   function sync() {
-    definition.value = JSON.stringify({strategy:strategy.value,lanes,sources});
-    const streams=lineStreams(), entries=combine(streams,strategy.value);
+    definition.value = JSON.stringify({strategy:'parallel',lanes,sources});
+    const streams=lineStreams(), entries=combine(streams,'parallel');
     summary.textContent = entries.length + ' ' + labels.scheduledSends + ' · ' + lanes.length + ' ' + labels.lines + ' · ' + sources.length + ' ' + labels.sources;
-    panel.querySelectorAll('[data-plan-strategy]').forEach(element=>element.setAttribute('aria-pressed',String(element.dataset.planStrategy===strategy.value)));
     panel.querySelectorAll('[data-line-count]').forEach(element=>{
       const i=lanes.findIndex(lane=>lane.id===element.dataset.lineCount);
       element.textContent=(streams[i]?.length||0)+' '+labels.batches;
@@ -61,12 +59,11 @@ window.createMessageSeries = function(config) {
       lanes.forEach((lane,i)=>{const th=node('th',lane.name||labels.line);th.scope='col';th.dataset.color=i%5;header.append(th);});
       head.append(header);table.append(head);
       const body=node('tbody');
-      let offset=0;const offsets=streams.map(stream=>{const start=offset;offset+=stream.length;return start;});
       entries.forEach((entry,i)=>{
         const row=node('tr',undefined,'series-preview-row'),th=node('th',labels.send+' #'+(i+1));th.scope='row';row.append(th);
         streams.forEach((stream,j)=>{
           const cell=node('td');cell.dataset.color=j%5;
-          const item=stream[strategy.value==='parallel'?i:i-offsets[j]];
+          const item=stream[i];
           if(item) for(const part of item.parts) {
             const block=node('div',undefined,'series-preview-part');block.append(node('strong',part.name));
             if(part.message)block.append(node('p',part.message));
@@ -279,12 +276,22 @@ window.createMessageSeries = function(config) {
   function restore(raw) {
     try {
       const plan=typeof raw==='string'?JSON.parse(raw):raw;
-      sources=plan.sources||[];lanes=plan.lanes||[];strategy.value=plan.strategy||'parallel';
-      if(!lanes.length&&sources.length) {
+      sources=plan.sources||[];lanes=plan.lanes||[];
+      if(lanes.length&&plan.strategy==='sequential') {
+        const ordered=lanes.flatMap(lane=>{
+          const members=sources.filter(source=>source.lane_id===lane.id);
+          if(lane.strategy!=='parallel')return members;
+          return [{kind:'messages',name:lane.name,entries:combine(members.map(source=>source.entries),'parallel')}];
+        });
+        const lane=newLane();lanes=[lane];sources=ordered;sources.forEach(source=>source.lane_id=lane.id);
+      }
+      if(!lanes.length&&sources.length&&plan.strategy==='sequential') {
+        const lane=newLane();lanes=[lane];sources.forEach(source=>source.lane_id=lane.id);
+      } else if(!lanes.length&&sources.length) {
         lanes=sources.map((source,i)=>({id:crypto.randomUUID(),name:source.name||labels.line+' '+(i+1),strategy:'sequential'}));
         sources.forEach((source,i)=>source.lane_id=lanes[i].id);
       }
-    } catch { sources=[];lanes=[];strategy.value='parallel'; }
+    } catch { sources=[];lanes=[]; }
     if(!lanes.length) {
       const lane=newLane();lanes=[lane];sources=[{kind:'messages',lane_id:lane.id,name:labels.messages,entries:[{message:'',attachments:[]}]}];
     }
@@ -294,14 +301,11 @@ window.createMessageSeries = function(config) {
     if(lanes.length>=20){status.textContent=labels.limit;return;}
     lanes.push(newLane());render();sync();
   });
-  panel.querySelectorAll('[data-plan-strategy]').forEach(element=>element.addEventListener('click',()=>{
-    strategy.value=element.dataset.planStrategy;sync();
-  }));
   panel.querySelector('[data-action="preview"]').addEventListener('click',event=>{
     preview.hidden=!preview.hidden;event.currentTarget.setAttribute('aria-expanded',String(!preview.hidden));sync();
     if(!preview.hidden)preview.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
-  strategy.addEventListener('change',sync);message.addEventListener('input',sync);mode.addEventListener('change',toggle);
+  message.addEventListener('input',sync);mode.addEventListener('change',toggle);
   document.querySelectorAll('[data-message-variable]').forEach(element=>element.addEventListener('click',()=>{
     const variable='{'+element.dataset.messageVariable+'}';message.setRangeText(variable,message.selectionStart,message.selectionEnd,'end');message.focus();message.dispatchEvent(new Event('input',{bubbles:true}));
   }));

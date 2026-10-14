@@ -52,6 +52,7 @@ class SeriesPlan(BaseModel):
     @model_validator(mode='after')
     def validate_lanes(self):
         if self.lanes:
+            self.strategy = 'parallel'
             ids = {lane.id for lane in self.lanes}
             assigned = {source.lane_id for source in self.sources}
             if len(ids) != len(self.lanes) or ids != assigned:
@@ -78,7 +79,7 @@ def flatten_plan(plan):
         return combine_streams([source.entries for source in plan.sources], plan.strategy)
     streams = [combine_streams([source.entries for source in plan.sources if source.lane_id == lane.id], lane.strategy)
                for lane in plan.lanes]
-    return combine_streams(streams, plan.strategy)
+    return combine_streams(streams, 'parallel')
 
 
 async def validate_plan(db, raw, user_id, token, recipients, common_message, job=None):

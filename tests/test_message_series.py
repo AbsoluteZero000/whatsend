@@ -74,10 +74,20 @@ def mixed_lines(strategy='parallel', inside='sequential'):
 
 @pytest.mark.parametrize('strategy,inside,expected',[
     ('parallel','sequential',['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4']),
-    ('sequential','sequential',['A1','A2','B1','B2','C1','D1','D2','D3','D4']),
+    ('sequential','sequential',['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4']),
     ('parallel','parallel',['A1\n\nB1\n\nC1','A2\n\nB2\n\nD1','D2','D3','D4'])])
 def test_lines_combine_parallel_and_sequential_content(strategy,inside,expected):
-    assert [entry.message for entry in flatten_plan(SeriesPlan.model_validate(mixed_lines(strategy,inside)))] == expected
+    parsed = SeriesPlan.model_validate(mixed_lines(strategy,inside))
+    assert parsed.strategy == 'parallel'
+    assert [entry.message for entry in flatten_plan(parsed)] == expected
+
+
+def test_single_line_runs_all_sources_in_sequence():
+    definition=mixed_lines()
+    definition['lanes']=[{'id':'only','name':'One sequence'}]
+    for source in definition['sources']: source['lane_id']='only'
+    parsed=SeriesPlan.model_validate(definition)
+    assert [entry.message for entry in flatten_plan(parsed)] == ['A1','A2','B1','B2','C1','D1','D2','D3','D4']
 
 
 @pytest.mark.parametrize('mutation',['duplicate','empty','missing','unassigned','orphan'])
