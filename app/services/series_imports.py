@@ -123,22 +123,30 @@ async def import_playlist(value, batch_size):
             'skipped': playlist['skipped'], 'source_url': url}
 
 
-def split_pdf(path, directory, filename, start, end, pages_per_send):
+def split_pdf(path, directory, filename, start, end, pages_per_send, ranges=None):
     outputs = []
     try:
         reader = PdfReader(path)
         if reader.is_encrypted:
             raise ValueError('Remove the PDF password before importing it')
         count = len(reader.pages)
-        end = end or count
-        if not 1 <= start <= end <= count:
-            raise ValueError(f'Choose a page range between 1 and {count}')
-        if not 1 <= pages_per_send <= 500 or (end - start + pages_per_send) // pages_per_send > MAX_ENTRIES:
-            raise ValueError('Choose 1–500 pages per send, with at most 1000 sends')
         if count > 10000:
             raise ValueError('PDFs may contain up to 10000 pages')
-        for first in range(start, end + 1, pages_per_send):
-            last = min(first + pages_per_send - 1, end)
+        if ranges is None:
+            end = count if end is None else end
+            if not 1 <= start <= end <= count:
+                raise ValueError(f'Choose a page range between 1 and {count}')
+            if not 1 <= pages_per_send <= 500 or (end - start + pages_per_send) // pages_per_send > MAX_ENTRIES:
+                raise ValueError('Choose 1–500 pages per send, with at most 1000 sends')
+            ranges = [{'start': first, 'end': min(first + pages_per_send - 1, end)}
+                      for first in range(start, end + 1, pages_per_send)]
+        if not 1 <= len(ranges) <= MAX_ENTRIES:
+            raise ValueError('Add between 1 and 1000 custom page ranges')
+        for index, selection in enumerate(ranges, 1):
+            if not 1 <= selection['start'] <= selection['end'] <= count:
+                raise ValueError(f'Range #{index}: choose start and end pages between 1 and {count}, with start before end')
+        for selection in ranges:
+            first, last = selection['start'], selection['end']
             writer = PdfWriter()
             for index in range(first - 1, last): writer.add_page(reader.pages[index])
             output = directory / (uuid4().hex + '.pdf')

@@ -748,6 +748,11 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .series-source-actions { display:flex; flex-shrink:0; gap:.35rem; }
 .series-source .btn-clear,.message-variables .btn-clear { color:var(--text-secondary); min-height:30px; padding:.4rem .55rem; }
 .series-import-grid { display:flex; flex-wrap:wrap; gap:.7rem; align-items:end; margin:.85rem 0; }
+.series-pdf-options { flex-basis:100%; min-width:0; }
+.series-pdf-options[hidden] { display:none; }
+.series-range-list { display:flex; flex-direction:column; gap:.6rem; margin-bottom:.7rem; }
+.series-range-row { display:flex; flex-wrap:wrap; align-items:end; gap:.6rem; padding:.7rem; border:1px solid var(--border); border-radius:9px; background:var(--bg-card); }
+.series-range-row > strong { flex-basis:100%; font-size:.8rem; }
 .series-field { display:flex; flex-direction:column; gap:.25rem; flex:1; min-width:110px; }
 .form-card .series-field { margin:0; font-size:.78rem; }
 .form-card .series-field input { margin:0; }

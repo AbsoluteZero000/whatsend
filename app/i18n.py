@@ -1,6 +1,11 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        'PDF splitting': 'تقسيم PDF',
+        'Automatic chunks': 'تقسيم تلقائي',
+        'Custom page ranges': 'نطاقات صفحات مخصصة',
+        'Add page range': 'إضافة نطاق صفحات',
+        'One range per batch, in the order shown. Both endpoints are included; overlaps and gaps are allowed. Split the PDF again to apply changes.': 'نطاق واحد لكل دفعة بالترتيب المعروض. تُضمّن صفحتا البداية والنهاية؛ يُسمح بالتداخل والفجوات. قسّم PDF مجدداً لتطبيق التغييرات.',
         "Message details": "تفاصيل الرسالة",
         "Open message": "فتح الرسالة",
         "total messages": "إجمالي الرسائل",

@@ -18,6 +18,11 @@ class EntryDefinition(BaseModel):
     attachments: list[AttachmentRef] = Field(default_factory=list, max_length=20)
 
 
+class PageRange(BaseModel):
+    start: int = Field(ge=1, strict=True)
+    end: int = Field(ge=1, strict=True)
+
+
 class SourceDefinition(BaseModel):
     kind: Literal['messages', 'pdf', 'playlist'] = 'messages'
     name: str = Field(default='Messages', max_length=120)
@@ -25,6 +30,8 @@ class SourceDefinition(BaseModel):
     start_page: int = Field(default=1, ge=1)
     end_page: int | None = Field(default=None, ge=1)
     pages_per_send: int = Field(default=5, ge=1, le=500)
+    range_mode: Literal['chunks', 'custom'] = 'chunks'
+    ranges: list[PageRange] = Field(default_factory=list, max_length=1000)
     items_per_send: int = Field(default=2, ge=1, le=20)
     skipped: int = Field(default=0, ge=0)
     entries: list[EntryDefinition] = Field(min_length=1, max_length=1000)

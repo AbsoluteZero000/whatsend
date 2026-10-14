@@ -11,7 +11,7 @@ from pathlib import Path
 
 from urllib.parse import urlencode
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.job import Job, JobGroup
 from app.models.job_series import SeriesEntry, SeriesAttachment
-from app.services.series_forms import validate_plan, persist_plan
+from app.services.series_forms import validate_plan, persist_plan, PageRange
 from app.services.series_imports import import_playlist, split_pdf, MAX_PDF_BYTES, PDF_SPLIT_LOCK, delete_unreferenced_path
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
@@ -238,14 +238,26 @@ async def read_series_file(request: Request, attachment_id: str, db: AsyncSessio
 @router.post("/series-pdf")
 async def upload_series_pdf(request: Request, file: UploadFile, start_page: int = Form(1),
                             end_page: int | None = Form(None), pages_per_send: int = Form(5),
+                            range_mode: str = Form('chunks'), custom_ranges: str = Form('[]'),
                             db: AsyncSession = Depends(get_db)):
     user_id = int(require_user(request)['sub'])
     if Path(file.filename or '').suffix.lower() != '.pdf': raise HTTPException(400, 'Choose a PDF file')
+    if range_mode not in {'chunks', 'custom'}:
+        raise HTTPException(400, 'Choose automatic chunks or custom page ranges')
+    ranges = None
+    if range_mode == 'custom':
+        try:
+            if len(custom_ranges.encode('utf-8')) > 100000: raise ValueError()
+            parsed = TypeAdapter(list[PageRange]).validate_json(custom_ranges)
+            if not 1 <= len(parsed) <= 1000: raise ValueError()
+            ranges = [selection.model_dump() for selection in parsed]
+        except (ValidationError, ValueError):
+            raise HTTPException(400, 'Add 1–1000 custom ranges with whole-number start and end pages greater than zero')
     source = await save_upload(file, max_size=MAX_PDF_BYTES)
     outputs = []
     try:
         async with PDF_SPLIT_LOCK:
-            outputs = await asyncio.to_thread(split_pdf, source, UPLOAD_DIR, file.filename, start_page, end_page, pages_per_send)
+            outputs = await asyncio.to_thread(split_pdf, source, UPLOAD_DIR, file.filename, start_page, end_page, pages_per_send, ranges)
         entries = []
         for part in outputs:
             asset = SeriesAttachment(id=str(uuid.uuid4()), user_id=user_id, path=part['path'], filename=part['filename'])
@@ -254,7 +266,8 @@ async def upload_series_pdf(request: Request, file: UploadFile, start_page: int 
                             'attachments': [{'id': asset.id, 'filename': asset.filename}]})
         await db.commit()
         return JSONResponse({'entries': entries, 'title': Path(file.filename).stem[:120],
-                             'start_page': start_page, 'end_page': outputs[-1]['last']}, status_code=201)
+                             'start_page': outputs[0]['first'], 'end_page': outputs[-1]['last'],
+                             'range_mode': range_mode, 'ranges': ranges or [], 'pages_per_send': pages_per_send}, status_code=201)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except Exception:

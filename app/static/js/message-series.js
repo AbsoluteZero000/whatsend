@@ -105,15 +105,57 @@ window.createMessageSeries = function(config) {
       if(source.kind==='pdf') {
         const controls=node('div',undefined,'series-import-grid');
         const pdf=field(controls,labels.pdfFile,'','file');pdf.accept='.pdf';
-        const start=field(controls,labels.startPage,source.start_page||1,'number');start.min=1;
-        const end=field(controls,labels.endPage,source.end_page||'','number');end.min=1;end.placeholder=labels.lastPage;
-        const pages=field(controls,labels.pagesPerSend,source.pages_per_send||5,'number');pages.min=1;pages.max=500;
+        const modeLabel=node('label',undefined,'series-field');modeLabel.append(node('span',labels.pdfMode));
+        const rangeMode=node('select');
+        for(const [value,text] of [['chunks',labels.automaticChunks],['custom',labels.customRanges]]) {
+          const option=node('option',text);option.value=value;rangeMode.append(option);
+        }
+        rangeMode.value=source.range_mode||'chunks';modeLabel.append(rangeMode);controls.append(modeLabel);
+        const automatic=node('div',undefined,'series-import-grid series-pdf-options');
+        const start=field(automatic,labels.startPage,source.start_page||1,'number');start.min=1;
+        const end=field(automatic,labels.endPage,source.end_page||'','number');end.min=1;end.placeholder=labels.lastPage;
+        const pages=field(automatic,labels.pagesPerSend,source.pages_per_send||5,'number');pages.min=1;pages.max=500;
+        for(const input of [start,end,pages])input.addEventListener('input',()=>{
+          source.start_page=Number(start.value);source.end_page=end.value?Number(end.value):null;source.pages_per_send=Number(pages.value);sync();
+        });
+        const custom=node('div',undefined,'series-pdf-options');
+        const rangeList=node('div',undefined,'series-range-list');custom.append(rangeList);
+        source.ranges=source.ranges||[];
+        function drawRanges() {
+          rangeList.replaceChildren();
+          source.ranges.forEach((selection,i)=>{
+            const row=node('div',undefined,'series-range-row');row.append(node('strong',labels.batch+' #'+(i+1)));
+            const first=field(row,labels.startPage,selection.start??'','number');first.min=1;
+            const last=field(row,labels.endPage,selection.end??'','number');last.min=1;
+            first.addEventListener('input',()=>{selection.start=first.value?Number(first.value):null;sync();});
+            last.addEventListener('input',()=>{selection.end=last.value?Number(last.value):null;sync();});
+            row.append(button(labels.remove,()=>{source.ranges.splice(i,1);drawRanges();sync();}));rangeList.append(row);
+          });
+        }
+        custom.append(button(labels.addRange,()=>{
+          if(source.ranges.length>=1000){status.textContent=labels.limit;return;}
+          source.ranges.push({start:null,end:null});drawRanges();sync();
+        },'btn btn-secondary'));
+        custom.append(node('p',labels.rangeHint,'field-note'));
+        function toggleRanges() {
+          source.range_mode=rangeMode.value;
+          automatic.hidden=rangeMode.value==='custom';custom.hidden=!automatic.hidden;
+          automatic.querySelectorAll('input').forEach(input=>input.disabled=automatic.hidden);
+          custom.querySelectorAll('input').forEach(input=>input.disabled=custom.hidden);
+        }
+        rangeMode.addEventListener('change',()=>{toggleRanges();sync();});
+        drawRanges();toggleRanges();controls.append(automatic,custom);
         const load=button(labels.splitPdf,()=>task(async()=>{
           if(!pdf.files[0])throw new Error(labels.choosePdf);
-          const body=new FormData();body.set('file',pdf.files[0]);body.set('start_page',start.value);body.set('pages_per_send',pages.value);
-          if(end.value)body.set('end_page',end.value);
+          const body=new FormData();body.set('file',pdf.files[0]);body.set('range_mode',rangeMode.value);
+          if(rangeMode.value==='custom')body.set('custom_ranges',JSON.stringify(source.ranges));
+          else {
+            body.set('start_page',start.value);body.set('pages_per_send',pages.value);
+            if(end.value)body.set('end_page',end.value);
+          }
           const data=await api('/jobs/series-pdf',{method:'POST',body});
-          source.entries=data.entries;source.name=data.title;source.start_page=Number(start.value);source.end_page=data.end_page;source.pages_per_send=Number(pages.value);
+          source.entries=data.entries;source.name=data.title;source.start_page=data.start_page;source.end_page=data.end_page;
+          source.pages_per_send=data.pages_per_send;source.range_mode=data.range_mode;source.ranges=data.ranges;
           render();
         }),'btn btn-secondary');controls.append(load);card.append(controls);card.append(node('p',labels.pdfHint,'field-note'));
       } else if(source.kind==='playlist') {

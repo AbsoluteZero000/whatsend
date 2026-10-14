@@ -138,6 +138,59 @@ def test_pdf_import_preserves_selected_pages_and_private_access(tmp_path, monkey
     asyncio.run(exercise(tmp_path, monkeypatch, lambda request: httpx.Response(500), scenario))
 
 
+def test_custom_pdf_ranges_preserve_order_overlap_and_parallel_plan(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, 'UPLOAD_DIR', tmp_path)
+    monkeypatch.setattr(jobs, 'register_job', no_schedule)
+    ranges = [{'start':20,'end':30}, {'start':30,'end':50}, {'start':2,'end':3}]
+    async def scenario(client, sessions, context):
+        result = await client.post('/jobs/series-pdf', data={'range_mode':'custom','custom_ranges':json.dumps(ranges)},
+                                   files={'file':('Book.pdf',pdf_bytes(300),'application/pdf')}, headers=HEADERS)
+        assert result.status_code == 201, result.text
+        imported = result.json()
+        assert imported['ranges'] == ranges and imported['range_mode'] == 'custom'
+        entries = imported['entries']
+        for entry, selection in zip(entries, ranges, strict=True):
+            response = await client.get('/jobs/series-files/' + entry['attachments'][0]['id'])
+            reader = PdfReader(io.BytesIO(response.content))
+            assert [page.extract_text() for page in reader.pages] == [f'Source page {i}' for i in range(selection['start'],selection['end']+1)]
+            assert tuple(reader.pages[0].mediabox) == (0,0,300,400)
+        definition = {'strategy':'parallel','sources':[
+            {'kind':'pdf','name':'Book','range_mode':'custom','ranges':ranges,'entries':entries},
+            {'kind':'playlist','name':'Videos','entries':[{'message':f'Video {i}','attachments':[]} for i in range(5)]}]}
+        created = await create_series(client, definition)
+        assert created.status_code == 303
+        async with sessions() as db:
+            job_id = (await db.execute(select(Job.id))).scalar_one()
+            job = await db.get(Job, job_id)
+            assert job.series_total == 5
+            assert json.loads(job.series_plan)['sources'][0]['ranges'] == ranges
+            entries_saved = (await db.execute(select(SeriesEntry).where(SeriesEntry.job_id==job_id).order_by(SeriesEntry.position))).scalars().all()
+            assert entries_saved[0].message == 'Pages 20-30\n\nVideo 0'
+            assert entries_saved[3].message == 'Video 3'
+        clone = await client.post(f'/jobs/{job_id}/clone', headers=HEADERS)
+        assert clone.status_code == 303
+        async with sessions() as db:
+            cloned = (await db.execute(select(Job).where(Job.id != job_id))).scalar_one()
+            assert json.loads(cloned.series_plan)['sources'][0]['ranges'] == ranges
+    asyncio.run(exercise(tmp_path, monkeypatch, lambda request: httpx.Response(500), scenario))
+
+
+@pytest.mark.parametrize('ranges', ['bad', '{}', '[]', '[true]', '[{"start":true,"end":2}]',
+    '[{"start":1.5,"end":2}]', '[{"start":0,"end":2}]', '[{"start":2,"end":1}]',
+    '[{"start":1,"end":9}]', '[{"start":1,"end":2},{"start":7,"end":9}]',
+    json.dumps([{'start':1,'end':1}]*1001)])
+def test_custom_pdf_ranges_reject_invalid_input_without_leaving_files(tmp_path, monkeypatch, ranges):
+    monkeypatch.setattr(jobs, 'UPLOAD_DIR', tmp_path)
+    async def scenario(client, sessions, context):
+        result = await client.post('/jobs/series-pdf', data={'range_mode':'custom','custom_ranges':ranges},
+                                   files={'file':('Book.pdf',pdf_bytes(),'application/pdf')}, headers=HEADERS)
+        assert result.status_code == 400, result.text
+        assert not list(tmp_path.glob('*.pdf'))
+        async with sessions() as db:
+            assert not (await db.execute(select(SeriesAttachment))).scalars().all()
+    asyncio.run(exercise(tmp_path, monkeypatch, lambda request: httpx.Response(500), scenario))
+
+
 def test_edit_clone_and_delete_keep_shared_series_files_safe(tmp_path, monkeypatch):
     monkeypatch.setattr(jobs, 'UPLOAD_DIR', tmp_path); monkeypatch.setattr(jobs, 'register_job', no_schedule)
     async def scenario(client, sessions, context):
