@@ -26,7 +26,7 @@
       <label class="auth-label" for="password">{{ _('Password') }}</label>
       <input id="password" type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="new-password">
       <label class="auth-label" for="timezone">{{ _('Your timezone') }}</label>
-      <input id="timezone" class="timezone-picker" type="text" name="timezone" value="{{ selected_timezone|default('') }}" list="timezone-options" placeholder="{{ _('Search by city or region…') }}" required autocomplete="off" aria-describedby="timezone-help">
+      <input id="timezone" class="timezone-picker" type="text" name="timezone" value="{{ selected_timezone|default('') }}" list="timezone-options" placeholder="{{ _('Search by city or region…') }}" required autocomplete="off" aria-describedby="timezone-help" data-empty-text="{{ _('No matching timezones') }}" data-detected-text="{{ _('Detected') }}">
       <datalist id="timezone-options">
         {% for tz in timezones %}
         <option value="{{ tz }}"></option>
@@ -37,15 +37,8 @@
     </form>
     <p class="alt-link">{{ _('Already have an account?') }} <a href="/auth/signin">{{ _('Sign in') }}</a></p>
   </div>
-<script nonce="{{ csp_nonce }}">
-const timezone = document.getElementById('timezone');
-if (!timezone.value) {
-  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const supported = Array.from(document.getElementById('timezone-options').options, option => option.value);
-  timezone.value = supported.includes(detectedTimezone) ? detectedTimezone : 'UTC';
-}
-</script>
 <script src="/static/js/security.js?v=1"></script>
 <script src="/static/js/theme.js?v=1"></script>
+<script src="/static/js/timezone-picker.js?v={{ asset_versions['js/timezone-picker.js'] }}"></script>
 </body>
 </html>

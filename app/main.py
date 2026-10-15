@@ -35,7 +35,7 @@ _jinja_env = Environment(
 _static_dir = Path(__file__).resolve().parent / "static"
 _jinja_env.globals["asset_versions"] = {
     path: hashlib.sha256((_static_dir / path).read_bytes()).hexdigest()[:12]
-    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js")
+    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js")
 }
 
 
