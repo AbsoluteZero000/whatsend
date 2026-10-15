@@ -46,7 +46,8 @@ window.createMessageSeries = function(config) {
   function sync() {
     definition.value = JSON.stringify({strategy:'parallel',lanes,sources});
     const streams=lineStreams(), entries=combine(streams,'parallel');
-    summary.textContent = entries.length + ' ' + labels.scheduledSends + ' · ' + lanes.length + ' ' + labels.lines + ' · ' + sources.length + ' ' + labels.sources;
+    summary.textContent = (entries.length ? labels.summary.replace('{count}', entries.length) : labels.summaryEmpty)
+      + (lanes.length > 1 ? ' · ' + lanes.length + ' ' + labels.tracks : '');
     panel.querySelectorAll('[data-line-count]').forEach(element=>{
       const i=lanes.findIndex(lane=>lane.id===element.dataset.lineCount);
       element.textContent=(streams[i]?.length||0)+' '+labels.batches;
@@ -163,18 +164,22 @@ window.createMessageSeries = function(config) {
       const name=node('input');name.value=lane.name;name.maxLength=120;name.setAttribute('aria-label',labels.lineName);
       name.addEventListener('input',()=>{lane.name=name.value;sync();});header.append(name);
       const count=node('span',undefined,'series-count');count.dataset.lineCount=lane.id;header.append(count);
-      const actions=node('div',undefined,'series-source-actions');
-      for(const [delta,text,title] of [[-1,'↑',labels.moveUp],[1,'↓',labels.moveDown]]) {
-        const move=button(text,()=>{[lanes[i],lanes[i+delta]]=[lanes[i+delta],lanes[i]];render();sync();});
-        move.disabled=i+delta<0||i+delta>=lanes.length;move.setAttribute('aria-label',title);actions.append(move);
+      // With a single track, reordering and removing it only get in the way.
+      if(lanes.length>1) {
+        const actions=node('div',undefined,'series-source-actions');
+        for(const [delta,text,title] of [[-1,'↑',labels.moveUp],[1,'↓',labels.moveDown]]) {
+          const move=button(text,()=>{[lanes[i],lanes[i+delta]]=[lanes[i+delta],lanes[i]];render();sync();});
+          move.disabled=i+delta<0||i+delta>=lanes.length;move.setAttribute('aria-label',title);actions.append(move);
+        }
+        actions.append(button(labels.remove,()=>{
+          sources=sources.filter(source=>source.lane_id!==lane.id);lanes.splice(i,1);render();sync();
+        }));header.append(actions);
       }
-      actions.append(button(labels.remove,()=>{
-        sources=sources.filter(source=>source.lane_id!==lane.id);lanes.splice(i,1);render();sync();
-      }));header.append(actions);line.append(header);
-      const settings=node('div',undefined,'series-line-settings');
-      settings.append(node('strong',labels.inOrder,'series-line-sequence'));
-      settings.append(node('p',labels.lineHint,'field-note'));line.append(settings);
+      line.append(header);
+      const hasContent=sources.some(source=>source.lane_id===lane.id);
+      if(hasContent) line.append(node('p',labels.lineHint,'field-note series-line-hint'));
       const container=node('div',undefined,'series-line-sources');containers.set(lane.id,container);line.append(container);
+      if(!hasContent) line.append(node('p',labels.emptyLine,'series-empty'));
       const addButtons=node('div',undefined,'series-source-buttons');
       for(const [kind,text] of [['messages',labels.messages],['pdf',labels.book],['playlist',labels.playlist]]) {
         const addButton=button('+ '+text,()=>add(kind,lane.id),'btn btn-secondary');addButton.dataset.seriesSource=kind;addButtons.append(addButton);
@@ -197,7 +202,7 @@ window.createMessageSeries = function(config) {
       }
       actions.append(button(labels.remove,()=>{sources.splice(index,1);render();sync();}));header.append(actions);card.append(header);
       const editor=node('details',undefined,'series-source-editor');editor.open=!source.entries.length||source.kind==='messages';
-      editor.append(node('summary',source.entries.length?labels.editSource:labels.prepareSource));
+      editor.append(node('summary',source.entries.length||source.kind==='messages'?labels.editSource:labels.prepareSource));
       const settings=node('div',undefined,'series-source-settings');editor.append(settings);card.append(editor);
       if(lanes.length>1) {
         const destination=choose(settings,labels.moveToLine,source.lane_id,lanes.map(lane=>[lane.id,lane.name]));
@@ -273,7 +278,7 @@ window.createMessageSeries = function(config) {
         if(source.skipped)settings.append(node('p',source.skipped+' '+labels.unavailableSkipped,'field-note'));
       }
       const content=node('details',undefined,'series-batches'); content.open=source.kind==='messages';
-      content.append(node('summary',source.entries.length+' '+labels.batches));
+      const contentSummary=node('summary',source.entries.length+' '+labels.batches);contentSummary.dataset.sourceCount=index;content.append(contentSummary);
       const entries=node('div');renderEntries(source,entries);content.append(entries);
       content.append(button(labels.addBatch,()=>{source.entries.push({message:'',attachments:[]});renderEntries(source,entries);sync();},'btn btn-secondary'));
       settings.append(content);containers.get(source.lane_id).append(card);
@@ -287,6 +292,11 @@ window.createMessageSeries = function(config) {
   }
   function toggle() {
     const series=mode.value==='series';panel.hidden=!series;document.querySelector('.form-card').classList.toggle('plan-composer',series);
+    // Start with one track so the first step is choosing what to send.
+    if(series&&!lanes.length){lanes.push(newLane());render();}
+    const help=document.getElementById('message_mode_help'),messageLabel=document.getElementById('message_label');
+    if(help)help.textContent=help.dataset[series?'series':'repeat'];
+    if(messageLabel)messageLabel.textContent=messageLabel.dataset[series?'series':'repeat'];
     document.getElementById('repeat_attachment').hidden=series;singleFile.disabled=series;
     message.required=!series;
     for(const option of trigger.options) if(['now','date'].includes(option.value))option.disabled=series;

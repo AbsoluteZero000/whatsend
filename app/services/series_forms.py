@@ -58,9 +58,9 @@ class SeriesPlan(BaseModel):
             ids = {lane.id for lane in self.lanes}
             assigned = {source.lane_id for source in self.sources}
             if len(ids) != len(self.lanes) or ids != assigned:
-                raise ValueError('Each line needs a unique ID and at least one source; every source must belong to a line')
+                raise ValueError('Every track needs at least one item, and every item must belong to a track')
         elif any(source.lane_id is not None for source in self.sources):
-            raise ValueError('The source belongs to a missing line')
+            raise ValueError('An item belongs to a track that no longer exists')
         return self
 
 
@@ -86,16 +86,16 @@ def flatten_plan(plan):
 
 async def validate_plan(db, raw, user_id, token, recipients, common_message, job=None):
     if token.provider not in {'native', 'whatsapp'}:
-        raise ValueError('Finite plans need a WhatsApp QR or Whapi connection')
+        raise ValueError('Message series need a WhatsApp QR or Whapi connection')
     if len(raw.encode('utf-8')) > 800000:
-        raise ValueError('This plan is too large. Use fewer entries or shorter messages.')
+        raise ValueError('This series is too large. Use fewer parts or shorter messages.')
     try:
         plan = SeriesPlan.model_validate_json(raw)
         entries = flatten_plan(plan)
     except (ValidationError, TypeError):
-        raise ValueError('Every line needs a valid source with content. Each send supports up to 20 attachments.')
+        raise ValueError('Every track needs content. Each part can have up to 20 attachments.')
     if not 1 <= len(entries) <= 1000:
-        raise ValueError('Plans must contain between 1 and 1000 scheduled sends')
+        raise ValueError('A series needs between 1 and 1000 parts')
     ids = {attachment.id for entry in entries for attachment in entry.attachments}
     assets = (await db.execute(select(SeriesAttachment).where(
         SeriesAttachment.id.in_(ids), SeriesAttachment.user_id == user_id,
@@ -107,7 +107,7 @@ async def validate_plan(db, raw, user_id, token, recipients, common_message, job
         if asset.entry_id is not None:
             owner_job = await db.scalar(select(SeriesEntry.job_id).where(SeriesEntry.id == asset.entry_id))
             if not job or owner_job != job.id:
-                raise ValueError('This attachment is already part of another plan. Upload it again or clone that plan.')
+                raise ValueError('This attachment is already used in another series. Upload it again or duplicate that series.')
     for index, entry in enumerate(entries, 1):
         text = '\n\n'.join(part for part in [common_message, entry.message] if part)
         text = render_message(text, index, len(entries), 'UTC')

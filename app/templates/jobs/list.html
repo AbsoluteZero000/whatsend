@@ -34,7 +34,7 @@
       <div class="job-card-main">
         <a href="/jobs/{{ job.id }}" class="job-avatar" aria-label="{{ _('Open message') }}">{{ (job.label or job.group_name or 'M')[0]|upper }}</a>
         <div class="job-identity">
-          <div class="job-title-line"><a href="/jobs/{{ job.id }}">{{ job.label or job.group_name or _('Untitled message') }}</a><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span>{% if job.message_mode == 'series' %}<span class="badge badge-active">{{ _('Plan') }} {{ job.series_cursor }}/{{ job.series_total }}</span>{% endif %}</div>
+          <div class="job-title-line"><a href="/jobs/{{ job.id }}">{{ job.label or job.group_name or _('Untitled message') }}</a><span class="badge badge-{{ job.status }}">{{ _(job.status) }}</span>{% if job.message_mode == 'series' %}<span class="badge badge-active">{{ _('Series') }} {{ job.series_cursor }}/{{ job.series_total }}</span>{% endif %}</div>
           <span class="job-meta">#{{ job.id }} · {{ tz(job.created_at, user_tz) }}</span>
         </div>
         <div class="job-info-block">

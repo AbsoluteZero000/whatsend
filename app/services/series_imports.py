@@ -106,7 +106,7 @@ def extract_playlist(url, source):
 async def import_playlist(value, batch_size):
     url, source = playlist_url(value)
     if not 1 <= batch_size <= 20:
-        raise ValueError('Choose between 1 and 20 playlist items per send')
+        raise ValueError('Choose between 1 and 20 videos in each part')
     try:
         playlist = await asyncio.wait_for(asyncio.to_thread(extract_playlist, url, source), timeout=60)
     except ValueError:
@@ -117,7 +117,7 @@ async def import_playlist(value, batch_size):
     for offset in range(0, len(playlist['items']), batch_size):
         message = '\n\n'.join(item['title'] + '\n' + item['url'] for item in playlist['items'][offset:offset + batch_size])
         if len(message.encode('utf-8')) > 4096:
-            raise ValueError('This batch exceeds WhatsApp’s text limit. Choose fewer items per send.')
+            raise ValueError('A part is longer than WhatsApp allows. Choose fewer videos in each part.')
         entries.append({'message': message, 'attachments': []})
     return {'entries': entries, 'title': playlist['title'], 'item_count': len(playlist['items']),
             'skipped': playlist['skipped'], 'source_url': url}
@@ -137,11 +137,11 @@ def split_pdf(path, directory, filename, start, end, pages_per_send, ranges=None
             if not 1 <= start <= end <= count:
                 raise ValueError(f'Choose a page range between 1 and {count}')
             if not 1 <= pages_per_send <= 500 or (end - start + pages_per_send) // pages_per_send > MAX_ENTRIES:
-                raise ValueError('Choose 1–500 pages per send, with at most 1000 sends')
+                raise ValueError('Choose 1–500 pages in each part, with at most 1000 parts')
             ranges = [{'start': first, 'end': min(first + pages_per_send - 1, end)}
                       for first in range(start, end + 1, pages_per_send)]
         if not 1 <= len(ranges) <= MAX_ENTRIES:
-            raise ValueError('Add between 1 and 1000 custom page ranges')
+            raise ValueError('Add between 1 and 1000 parts')
         for index, selection in enumerate(ranges, 1):
             if not 1 <= selection['start'] <= selection['end'] <= count:
                 raise ValueError(f'Range #{index}: choose start and end pages between 1 and {count}, with start before end')
@@ -154,7 +154,7 @@ def split_pdf(path, directory, filename, start, end, pages_per_send, ranges=None
                             'first': first, 'last': last})
             with output.open('wb') as stream: writer.write(stream)
             if output.stat().st_size > 50 * 1024 * 1024:
-                raise ValueError('A PDF chunk exceeds 50MB. Choose fewer pages per send.')
+                raise ValueError('A part is larger than 50MB. Choose fewer pages in each part.')
         return outputs
     except Exception as exc:
         for item in outputs: Path(item['path']).unlink(missing_ok=True)
