@@ -35,6 +35,28 @@
     </div>
   </form>
 </div>
+{% if not force_password_change %}
+<details class="form-card developer-settings" {% if composer_extras %}open{% endif %}>
+  <summary>{{ _('Advanced settings') }}</summary>
+  <div class="setting-row">
+    <div>
+      <strong id="composer-extras-label">{{ _('Message plans and variables') }}</strong>
+      <p id="composer-extras-help">{{ _('Show the message mode and insert variable options when creating a message.') }}</p>
+    </div>
+    <button type="button" id="composer-extras-toggle" class="toggle-switch" role="switch" aria-checked="{{ 'true' if composer_extras else 'false' }}" aria-labelledby="composer-extras-label" aria-describedby="composer-extras-help"><span class="toggle-switch-thumb" aria-hidden="true"></span></button>
+  </div>
+</details>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  const toggle = document.getElementById('composer-extras-toggle');
+  toggle.addEventListener('click', function () {
+    const on = toggle.getAttribute('aria-checked') !== 'true';
+    toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+    document.cookie = 'composer_extras=' + (on ? '1' : '0') + '; path=/; max-age=31536000; samesite=lax';
+  });
+})();
+</script>
+{% endif %}
 {% if api_keys_enabled and not is_admin and not force_password_change %}
 <details class="form-card developer-settings">
   <summary>{{ _('Developer settings') }}</summary>

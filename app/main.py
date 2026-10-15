@@ -135,6 +135,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
     context.setdefault("lang", lang)
     context.setdefault("cron_to_text", lambda *args, **kwargs: cron_to_text(*args, lang=lang, **kwargs))
     context.setdefault("api_keys_enabled", settings.api_keys_enabled)
+    context.setdefault("composer_extras", request.cookies.get("composer_extras") == "1")
     context.setdefault("is_admin", bool(user and user.get("is_admin")))
     csrf_token, csrf_is_new = get_or_create_csrf_token(request)
     context.setdefault("csrf_token", csrf_token)

@@ -60,15 +60,18 @@
     <label for="label">{{ _('Label (optional)') }}</label>
     <input type="text" id="label" name="label" placeholder="{{ _('e.g. Monday morning report') }}" {% if job is defined and job.label %}value="{{ job.label }}"{% endif %}>
 
+    {% set show_extras = composer_extras or (job is defined and job.message_mode == 'series') %}
+    <div class="composer-extras" {% if not show_extras %}hidden{% endif %}>
     <label for="message_mode">{{ _('Message mode') }}</label>
     <select id="message_mode" name="message_mode">
       <option value="repeat" {% if job is not defined or job.message_mode != 'series' %}selected{% endif %}>{{ _('Repeat the same message') }}</option>
       <option value="series" {% if job is defined and job.message_mode == 'series' %}selected{% endif %}>{{ _('Finite message plan') }}</option>
     </select>
+    </div>
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
 
-    <div class="message-variables">
+    <div class="message-variables" {% if not show_extras %}hidden{% endif %}>
       <span>{{ _('Insert variable') }}</span>
       {% for variable in ['send_number', 'total_sends', 'today', 'time'] %}<button type="button" class="btn-clear" data-message-variable="{{ variable }}">{{ '{' ~ variable ~ '}' }}</button>{% endfor %}
     </div>

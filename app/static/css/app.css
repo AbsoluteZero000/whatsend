@@ -872,3 +872,14 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 /* Let dropdowns (timezone picker) extend past the auth card; keep the top accent rounded. */
 .auth-card { overflow: visible; }
 .auth-card::before { border-radius: 18px 18px 0 0; }
+
+/* Advanced settings toggles */
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .75rem; }
+.setting-row p { margin: .2rem 0 0; }
+.toggle-switch { flex: none; position: relative; width: 48px; height: 28px; padding: 0; background: var(--bg-progress); border: 1px solid var(--border-light); border-radius: 999px; cursor: pointer; direction: ltr; transition: background .2s, border-color .2s; }
+.toggle-switch-thumb { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s ease; }
+.toggle-switch[aria-checked="true"] { background: var(--primary); border-color: var(--primary); }
+.toggle-switch[aria-checked="true"] .toggle-switch-thumb { transform: translateX(20px); }
+.toggle-switch:hover { border-color: var(--primary); }
+.toggle-switch:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .toggle-switch, .toggle-switch-thumb { transition: none; } }
