@@ -3,6 +3,7 @@
 {% block content %}
 <div class="section-header">
   <h1>{{ _('Change Timezone') }}</h1>
+  <p>{{ _('Used to show and schedule messages in your local time.') }}</p>
 </div>
 <div class="form-card">
   {% if error %}
@@ -10,15 +11,18 @@
   {% endif %}
   <form method="POST" action="/auth/timezone">
     <label for="timezone">{{ _('Timezone') }}</label>
-    <input id="timezone" class="timezone-picker" type="text" name="timezone" value="{{ current_tz }}" list="timezone-options" placeholder="{{ _('Search by city or region…') }}" required autocomplete="off" aria-describedby="timezone-help">
+    <input id="timezone" class="timezone-picker" type="text" name="timezone" value="{{ current_tz }}" list="timezone-options" placeholder="{{ _('Search by city or region…') }}" required autocomplete="off" aria-describedby="timezone-help" data-empty-text="{{ _('No matching timezones') }}" data-detected-text="{{ _('Detected') }}">
     <datalist id="timezone-options">
       {% for tz in timezones %}
       <option value="{{ tz }}"></option>
       {% endfor %}
     </datalist>
-    <small id="timezone-help" class="field-help">{{ _('Used to show and schedule messages in your local time.') }}</small>
-    <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
-    <a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>
+    <small id="timezone-help" class="field-help">{{ _('Search by city, region, or UTC offset.') }}</small>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
+      <a href="/dashboard" class="btn btn-secondary">{{ _('Cancel') }}</a>
+    </div>
   </form>
 </div>
+<script src="/static/js/timezone-picker.js?v={{ asset_versions['js/timezone-picker.js'] }}" defer></script>
 {% endblock %}
