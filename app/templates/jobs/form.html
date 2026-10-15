@@ -65,7 +65,6 @@
       <option value="repeat" {% if job is not defined or job.message_mode != 'series' %}selected{% endif %}>{{ _('Repeat the same message') }}</option>
       <option value="series" {% if job is defined and job.message_mode == 'series' %}selected{% endif %}>{{ _('Finite message plan') }}</option>
     </select>
-    <p class="field-note">{{ _('In a finite plan, each scheduled occurrence sends the next content. The schedule stops when all sources finish.') }}</p>
     <label for="message">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
 
@@ -73,12 +72,10 @@
       <span>{{ _('Insert variable') }}</span>
       {% for variable in ['send_number', 'total_sends', 'today', 'time'] %}<button type="button" class="btn-clear" data-message-variable="{{ variable }}">{{ '{' ~ variable ~ '}' }}</button>{% endfor %}
     </div>
-    <p class="field-note">{{ _('For plans, this message is included in every send. Dates and times use the schedule timezone when the send runs.') }}</p>
     <div id="series_builder" hidden>
       <div class="series-hero">
         <span class="series-kicker">{{ _('Your content, one occurrence at a time') }}</span>
         <h2>{{ _('Build your sending plan') }}</h2>
-        <p>{{ _('Create lines for books, playlists, or messages. Run the lines together, with each line moving through its own content in order.') }}</p>
       </div>
       <div class="series-plan-controls">
         <div class="series-parallel-note"><span aria-hidden="true">⇉</span><div><strong>{{ _('Lines run together') }}</strong><p>{{ _('Use one line to send content in sequence. Add another line to run a separate queue in parallel.') }}</p></div></div>
@@ -298,7 +295,6 @@
     if (!tokenPicker.value) return;
     const relay = tokenPicker.selectedOptions[0].dataset.provider === 'native';
     document.getElementById('image').accept = relay ? '.jpg,.jpeg,.png,.webp,.mp4,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip' : '.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.mkv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.ods,.odp,.zip';
-    help.textContent = relay ? {{ _('WhatsApp supports JPEG, PNG and WebP up to 16MB; MP4, PDF, Office, OpenDocument, text, CSV, RTF and ZIP up to 50MB. Connect WhatsApp before sending.') | tojson }} : '';
     try {
       const response = await fetch('/jobs/groups?token_id=' + encodeURIComponent(tokenPicker.value), {cache: 'no-store'});
       if (!response.ok || response.redirected) throw new Error();

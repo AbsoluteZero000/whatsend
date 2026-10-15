@@ -741,6 +741,7 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 
 /* Finite plans and source batches */
 #series_builder[hidden],#series_preview[hidden],#repeat_attachment[hidden] { display:none; }
+#token_help:empty { display:none; }
 .series-source-buttons { display:flex; flex-wrap:wrap; gap:.5rem; margin:.85rem 0; }
 .series-source { border:1px solid var(--border); border-radius:12px; margin:.9rem 0; padding:1rem; background:var(--bg-table-th); }
 .series-source-header { display:flex; gap:.6rem; align-items:center; }
