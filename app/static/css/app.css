@@ -851,24 +851,3 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
  .form-card .series-add-line { width:calc(100% - 2rem); margin:0 1rem 1rem; }
  .series-plan-footer { padding:1rem; }
 }
-
-/* Timezone picker */
-.tz-combobox { position: relative; }
-.tz-combobox .timezone-picker { width: 100%; }
-.tz-panel { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; right: 0; max-height: 320px; overflow-y: auto; margin: 0; padding: 0.3rem; list-style: none; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-auth); overscroll-behavior: contain; }
-.tz-option { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.6rem; border-radius: 7px; cursor: pointer; }
-.tz-option.is-active { background: var(--bg-table-hover); }
-.tz-option[aria-selected="true"] { background: var(--primary-soft); }
-.tz-option[aria-selected="true"] .tz-option-main strong { color: var(--primary); }
-.tz-option-main, .tz-option-meta { display: flex; flex-direction: column; min-width: 0; }
-.tz-option-main strong { display: flex; align-items: center; gap: 0.4rem; color: var(--text); font-size: 0.86rem; font-weight: 750; }
-.tz-option-main small { overflow: hidden; color: var(--text-muted); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
-.tz-option-meta { flex: none; align-items: flex-end; text-align: end; }
-.tz-option-meta strong { color: var(--text-secondary); font-size: 0.82rem; font-variant-numeric: tabular-nums; direction: ltr; }
-.tz-option-meta small { color: var(--text-muted); font-size: 0.7rem; direction: ltr; }
-.tz-tag { padding: 0.05rem 0.4rem; color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-border); border-radius: 999px; font-size: 0.62rem; font-weight: 800; }
-.tz-empty { padding: 0.9rem 0.6rem; color: var(--text-muted); font-size: 0.82rem; text-align: center; }
-.timezone-picker[aria-expanded="true"] { border-color: var(--primary); box-shadow: 0 0 0 4px var(--ring); }
-/* Let dropdowns (timezone picker) extend past the auth card; keep the top accent rounded. */
-.auth-card { overflow: visible; }
-.auth-card::before { border-radius: 18px 18px 0 0; }

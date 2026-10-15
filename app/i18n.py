@@ -624,9 +624,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "WhatsApp connections used to send your messages.": "اتصالات واتساب المستخدمة لإرسال رسائلك.",
         "Delete this token? Jobs that use it will also be deleted.": "هل تريد حذف هذا الرمز؟ سيتم أيضاً حذف المهام التي تستخدمه.",
         "Dark mode": "الوضع الداكن",
-        "No matching timezones": "لا توجد مناطق زمنية مطابقة",
-        "Detected": "تم اكتشافها",
-        "Search by city, region, or UTC offset.": "ابحث بالمدينة أو المنطقة أو فرق التوقيت عن UTC.",
     },
 }
 
