@@ -11,6 +11,7 @@ window.createMessageSeries = function(config) {
   const singleFile = document.getElementById('image');
   const submit = document.getElementById('submit_btn');
   let sources = [], lanes = [], pending = 0;
+  const preparing = new Set(), importControls = new WeakMap();
   const labels = config.labels;
   function node(tag, text, className) {
     const element = document.createElement(tag);
@@ -96,11 +97,35 @@ window.createMessageSeries = function(config) {
     if(!response.ok||response.redirected) throw new Error(typeof data.detail==='string'?data.detail:labels.importError);
     return data;
   }
-  async function task(action) {
-    pending++; submit.disabled=true; status.textContent=labels.importing;
-    try { await action(); status.textContent=labels.imported; }
-    catch(error) { status.textContent=error.message||labels.importError; }
-    finally { pending--; submit.disabled=!!pending; sync(); }
+  function spinner() {
+    const indicator=node('span',undefined,'spinner series-spinner');indicator.setAttribute('aria-hidden','true');return indicator;
+  }
+  function importButton(label, source, action) {
+    const control=button(label,()=>task(action,source),'btn btn-secondary');control.dataset.label=label;
+    importControls.set(source,control);updateImportButton(source);return control;
+  }
+  function updateImportButton(source) {
+    const control=importControls.get(source);if(!control)return;
+    const busy=preparing.has(source);control.disabled=busy;control.setAttribute('aria-busy',String(busy));
+    control.classList.toggle('series-importing',busy);
+    const progress=source.kind==='pdf'?labels.splittingPdf:labels.fetchingPlaylist;
+    control.replaceChildren(...(busy?[spinner(),node('span',progress)]:[document.createTextNode(control.dataset.label)]));
+  }
+  function importStatus(text, busy) {
+    status.setAttribute('aria-busy',String(busy));status.classList.toggle('series-importing',busy);
+    status.replaceChildren(...(busy?[spinner(),node('span',text)]:[document.createTextNode(text)]));
+  }
+  async function task(action, source) {
+    if(source&&preparing.has(source))return;
+    if(source){preparing.add(source);updateImportButton(source);}
+    pending++; submit.disabled=true;importStatus(labels.importing,true);
+    let result=labels.imported;
+    try { await action(); }
+    catch(error) { result=error.message||labels.importError; }
+    finally {
+      if(source){preparing.delete(source);updateImportButton(source);}
+      pending--;submit.disabled=!!pending;importStatus(pending?labels.importing:result,!!pending);sync();
+    }
   }
   function renderEntries(source, container) {
     container.replaceChildren();
@@ -222,7 +247,7 @@ window.createMessageSeries = function(config) {
         }
         rangeMode.addEventListener('change',()=>{toggleRanges();sync();});
         drawRanges();toggleRanges();controls.append(automatic,custom);
-        const load=button(labels.splitPdf,()=>task(async()=>{
+        const load=importButton(labels.splitPdf,source,async()=>{
           if(!pdf.files[0])throw new Error(labels.choosePdf);
           const body=new FormData();body.set('file',pdf.files[0]);body.set('range_mode',rangeMode.value);
           if(rangeMode.value==='custom')body.set('custom_ranges',JSON.stringify(source.ranges));
@@ -234,17 +259,17 @@ window.createMessageSeries = function(config) {
           source.entries=data.entries;source.name=data.title;source.start_page=data.start_page;source.end_page=data.end_page;
           source.pages_per_send=data.pages_per_send;source.range_mode=data.range_mode;source.ranges=data.ranges;
           render();
-        }),'btn btn-secondary');controls.append(load);settings.append(controls);settings.append(node('p',labels.pdfHint,'field-note'));
+        });controls.append(load);settings.append(controls);settings.append(node('p',labels.pdfHint,'field-note'));
       } else if(source.kind==='playlist') {
         const controls=node('div',undefined,'series-import-grid');
         const url=field(controls,labels.playlistUrl,source.source_url||'','url');url.placeholder='https://www.youtube.com/playlist?list=…';
         const batch=field(controls,labels.itemsPerSend,source.items_per_send||2,'number');batch.min=1;batch.max=20;
         url.addEventListener('input',()=>{source.source_url=url.value;sync();});
         batch.addEventListener('input',()=>{source.items_per_send=Number(batch.value);sync();});
-        controls.append(button(labels.importPlaylist,()=>task(async()=>{
+        controls.append(importButton(labels.importPlaylist,source,async()=>{
           const data=await api('/jobs/series-playlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value,items_per_send:Number(batch.value)})});
           source.entries=data.entries;source.name=data.title;source.source_url=data.source_url;source.items_per_send=Number(batch.value);source.skipped=data.skipped;render();
-        }),'btn btn-secondary'));settings.append(controls);settings.append(node('p',labels.playlistHint,'field-note'));
+        }));settings.append(controls);settings.append(node('p',labels.playlistHint,'field-note'));
         if(source.skipped)settings.append(node('p',source.skipped+' '+labels.unavailableSkipped,'field-note'));
       }
       const content=node('details',undefined,'series-batches'); content.open=source.kind==='messages';

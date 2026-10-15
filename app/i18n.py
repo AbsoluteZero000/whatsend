@@ -1,6 +1,8 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        'Splitting PDF…': 'جارٍ تقسيم PDF…',
+        'Fetching playlist…': 'جارٍ جلب قائمة التشغيل…',
         'Lines run together': 'تعمل المسارات معاً',
         'Use one line to send content in sequence. Add another line to run a separate queue in parallel.': 'استخدم مساراً واحداً لإرسال المحتوى بالتتابع. أضف مساراً آخر لتشغيل قائمة مستقلة بالتوازي.',
         'Your content, one occurrence at a time': 'محتواك، خطوة في كل موعد',
