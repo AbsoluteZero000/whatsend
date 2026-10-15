@@ -256,11 +256,8 @@ window.createMessageSeries = function(config) {
   }
   function add(kind, laneId) {
     if(sources.length>=20){status.textContent=labels.limit;return;}
-    const members=sources.filter(source=>source.lane_id===laneId);
-    if(kind!=='messages'&&members.length===1&&members[0].kind==='messages'&&members[0].entries.length===1&&!members[0].entries[0].message&&!members[0].entries[0].attachments.length)
-      sources=sources.filter(source=>source!==members[0]);
     sources.push({kind,lane_id:laneId,name:kind==='messages'?labels.messages:kind==='pdf'?labels.pdfChunks:labels.playlist,
-      entries:kind==='messages'?[{message:'',attachments:[]}]:[]});
+      entries:[]});
     render();sync();
   }
   function toggle() {
@@ -298,9 +295,6 @@ window.createMessageSeries = function(config) {
         sources.forEach((source,i)=>source.lane_id=lanes[i].id);
       }
     } catch { sources=[];lanes=[]; }
-    if(!lanes.length) {
-      const lane=newLane();lanes=[lane];sources=[{kind:'messages',lane_id:lane.id,name:labels.messages,entries:[{message:'',attachments:[]}]}];
-    }
     render();toggle();
   }
   panel.querySelector('[data-action="add-line"]').addEventListener('click',()=>{
