@@ -75,10 +75,11 @@ def mixed_lines(strategy='parallel', inside='sequential'):
 @pytest.mark.parametrize('strategy,inside,expected',[
     ('parallel','sequential',['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4']),
     ('sequential','sequential',['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4']),
-    ('parallel','parallel',['A1\n\nB1\n\nC1','A2\n\nB2\n\nD1','D2','D3','D4'])])
+    ('parallel','parallel',['A1\n\nC1','A2\n\nD1','B1\n\nD2','B2\n\nD3','D4'])])
 def test_lines_combine_parallel_and_sequential_content(strategy,inside,expected):
     parsed = SeriesPlan.model_validate(mixed_lines(strategy,inside))
     assert parsed.strategy == 'parallel'
+    assert all(lane.strategy == 'sequential' for lane in parsed.lanes)
     assert [entry.message for entry in flatten_plan(parsed)] == expected
 
 

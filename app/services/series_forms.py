@@ -53,6 +53,8 @@ class SeriesPlan(BaseModel):
     def validate_lanes(self):
         if self.lanes:
             self.strategy = 'parallel'
+            for lane in self.lanes:
+                lane.strategy = 'sequential'
             ids = {lane.id for lane in self.lanes}
             assigned = {source.lane_id for source in self.sources}
             if len(ids) != len(self.lanes) or ids != assigned:
@@ -77,7 +79,7 @@ def flatten_plan(plan):
     # Plans saved before lines were introduced retain their original behavior.
     if not plan.lanes:
         return combine_streams([source.entries for source in plan.sources], plan.strategy)
-    streams = [combine_streams([source.entries for source in plan.sources if source.lane_id == lane.id], lane.strategy)
+    streams = [combine_streams([source.entries for source in plan.sources if source.lane_id == lane.id], 'sequential')
                for lane in plan.lanes]
     return combine_streams(streams, 'parallel')
 

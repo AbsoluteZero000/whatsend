@@ -808,6 +808,7 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .series-line .btn-clear { background:transparent; border:1px solid var(--line-border); border-radius:7px; padding:.4rem .6rem; color:var(--text-secondary); cursor:pointer; min-height:34px; }
 .series-line .btn-clear:disabled { opacity:.35; cursor:default; }
 .series-line-settings { display:grid; grid-template-columns:minmax(220px,1fr) 1fr; align-items:end; gap:1rem; margin:.8rem 0 1rem; }
+.series-line-sequence { font-size:.8rem; color:var(--line-color); }
 .series-line .series-source { background:var(--bg-card); border-radius:12px; margin:.7rem 0; padding:.85rem; box-shadow:0 2px 8px rgba(0,0,0,.02); }
 .series-source-icon { display:grid; place-items:center; flex-shrink:0; width:36px; height:36px; border-radius:9px; font-size:.7rem; font-weight:800; color:var(--line-color); background:var(--line-soft); }
 .series-source-editor > summary { cursor:pointer; margin-top:.6rem; color:var(--text-secondary); font-size:.75rem; font-weight:600; padding:.35rem 0; }

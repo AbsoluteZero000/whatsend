@@ -39,7 +39,7 @@ window.createMessageSeries = function(config) {
   }
   function lineStreams() {
     return lanes.map(lane=>combine(sources.filter(source=>source.lane_id===lane.id).map(source=>
-      source.entries.map(entry=>({...entry,parts:[{name:source.name,...entry}]}))),lane.strategy));
+      source.entries.map(entry=>({...entry,parts:[{name:source.name,...entry}]}))),'sequential'));
   }
   function flattened() { return combine(lineStreams(),'parallel'); }
   function sync() {
@@ -88,7 +88,6 @@ window.createMessageSeries = function(config) {
     options.forEach(([id,text])=>{const option=node('option',text);option.value=id;select.append(option);});
     select.value=value;wrap.append(select);parent.append(wrap);return select;
   }
-  function flowOptions() { return [['sequential',labels.inOrder],['parallel',labels.together]]; }
   function newLane() { return {id:crypto.randomUUID(),name:labels.line+' '+(lanes.length+1),strategy:'sequential'}; }
   async function api(url, options) {
     options.headers={...(options.headers||{}),'X-CSRF-Token':document.querySelector('meta[name="csrf-token"]').content};
@@ -148,8 +147,7 @@ window.createMessageSeries = function(config) {
         sources=sources.filter(source=>source.lane_id!==lane.id);lanes.splice(i,1);render();sync();
       }));header.append(actions);line.append(header);
       const settings=node('div',undefined,'series-line-settings');
-      const flow=choose(settings,labels.insideLine,lane.strategy,flowOptions());
-      flow.addEventListener('change',()=>{lane.strategy=flow.value;sync();});
+      settings.append(node('strong',labels.inOrder,'series-line-sequence'));
       settings.append(node('p',labels.lineHint,'field-note'));line.append(settings);
       const container=node('div',undefined,'series-line-sources');containers.set(lane.id,container);line.append(container);
       const addButtons=node('div',undefined,'series-source-buttons');
@@ -285,6 +283,14 @@ window.createMessageSeries = function(config) {
         });
         const lane=newLane();lanes=[lane];sources=ordered;sources.forEach(source=>source.lane_id=lane.id);
       }
+      // Older parallel sources become separate lines, preserving their send order.
+      lanes=lanes.flatMap(lane=>{
+        if(lane.strategy!=='parallel')return [{...lane,strategy:'sequential'}];
+        return sources.filter(source=>source.lane_id===lane.id).map(source=>{
+          const replacement={id:crypto.randomUUID(),name:(lane.name+' · '+source.name).slice(0,120),strategy:'sequential'};
+          source.lane_id=replacement.id;return replacement;
+        });
+      });
       if(!lanes.length&&sources.length&&plan.strategy==='sequential') {
         const lane=newLane();lanes=[lane];sources.forEach(source=>source.lane_id=lane.id);
       } else if(!lanes.length&&sources.length) {
