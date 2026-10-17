@@ -29,8 +29,14 @@ export class WhatsAppManager {
     if (!isSessionId(id)) throw new ClientError(400, 'invalid_session', 'Invalid WhatsApp connection.');
     if (this.sessions.has(id)) return this.sessions.get(id);
     const directory = join(this.root, id);
-    const auth = this.store.read(join(directory, 'auth.enc'), {creds: initAuthCreds(), keys: {}});
-    const journal = this.store.read(join(directory, 'messages.enc'), {});
+    let auth, journal;
+    try {
+      auth = this.store.read(join(directory, 'auth.enc'), {creds: initAuthCreds(), keys: {}});
+      journal = this.store.read(join(directory, 'messages.enc'), {});
+    } catch {
+      // Preserve unreadable files, including the journal that prevents replay.
+      throw new ClientError(503, 'session_storage_unavailable', 'Saved WhatsApp session could not be read. Contact the administrator to recover its storage key or backup.');
+    }
     // A process may have died after writing to WhatsApp. Never replay those sends.
     for (const operation of Object.values(journal)) {
       if (operation.status === 'processing') {
@@ -312,7 +318,13 @@ export class WhatsAppManager {
   }
   async restore() {
     for (const id of readdirSync(this.root).filter(isSessionId)) {
-      const s = this.session(id);
+      let s;
+      try { s = this.session(id); }
+      catch (error) {
+        if (!(error instanceof ClientError) || error.code !== 'session_storage_unavailable') throw error;
+        console.error(`WhatsApp session ${id} could not be restored; saved files were preserved.`);
+        continue;
+      }
       // QR pairing stores `me`; `registered` is set by the pairing-code flow.
       if (s.auth.creds.me?.id) void this.connect(id).catch(() => { s.state = 'failed'; });
     }

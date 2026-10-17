@@ -368,3 +368,23 @@ test('recipients queued during an in-flight send are drained exactly once', asyn
   await manager.drain(manager.session(id));
   assert.equal(sends.length, 3);
 });
+
+for (const file of ['auth.enc', 'messages.enc']) {
+  test(`unreadable ${file} does not block other sessions or overwrite saved files`, async t => {
+    const {manager, root} = setup(t);
+    const broken = randomUUID(), healthy = randomUUID();
+    const wrongKey = new EncryptedStore('old-unavailable-key');
+    const path = join(root, broken, file);
+    wrongKey.write(path, {saved: 'preserve this data'});
+    const before = readFileSync(path);
+    manager.store.write(join(root, healthy, 'auth.enc'), {creds: {registered: false}, keys: {}});
+    await manager.restore();
+    assert.equal(manager.status(healthy).state, 'disconnected');
+    assert.equal(manager.sessions.has(broken), false);
+    assert.throws(() => manager.status(broken), error => error.status === 503 && error.code === 'session_storage_unavailable');
+    assert.throws(() => manager.enqueue(broken, 'do-not-replay', {recipient: '+201234567890', text: 'Hello'}));
+    await manager.close();
+    assert.deepEqual(readFileSync(path), before);
+    assert.deepEqual(wrongKey.read(path), {saved: 'preserve this data'});
+  });
+}
