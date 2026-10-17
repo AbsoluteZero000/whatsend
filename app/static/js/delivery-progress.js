@@ -19,6 +19,10 @@
       const data = await response.json();
       error.textContent = '';
       if (data.series) {
+        document.querySelectorAll('[data-series-send-now]').forEach(form => {
+          form.hidden = data.series.cursor >= data.series.total || !['pending', 'active', 'trigger', 'queued'].includes(data.job_status);
+          form.querySelector('button').disabled = data.series.active || data.job_status === 'queued';
+        });
         document.querySelectorAll('[data-series-edit]').forEach(link => { link.hidden = data.series.cursor > 0; });
         if (data.series.cursor >= data.series.total && !data.series.active) {
           document.querySelectorAll('.detail-actions form').forEach(form => {
@@ -47,6 +51,11 @@
       const rows = document.createDocumentFragment();
       if (recipientSignature !== previousRecipients) for (const recipient of data.recipients) {
         const row = document.createElement('tr');
+        if (data.series) {
+          const send = document.createElement('td');
+          send.textContent = recipient.send_number == null ? '—' : '#' + recipient.send_number;
+          row.append(send);
+        }
         const name = document.createElement('td'); name.textContent = recipient.name;
         const state = document.createElement('td');
         const badge = document.createElement('span');

@@ -78,9 +78,10 @@
   </div>
 
   <div class="detail-card">
-    <div class="detail-card-header">{{ _('Message') }}</div>
+    <div class="detail-card-header">{{ _('Shared header (optional)') if job.message_mode == 'series' else _('Message') }}</div>
     <div class="detail-body">
       <div class="detail-message">{{ job.message }}</div>
+      {% if job.message_mode == 'series' and series_footer %}<h3>{{ _('Shared footer (optional)') }}</h3><div class="detail-message">{{ series_footer }}</div>{% endif %}
       {% if media_available %}
       <div class="detail-image">
         {% if media_is_video %}
@@ -105,6 +106,11 @@
         <a href="/jobs/{{ job.id }}/edit" data-series-edit class="btn btn-primary">{{ _('Edit') }}</a>
         {% endif %}
         <a href="/logs?job_id={{ job.id }}" class="btn btn-secondary">{{ _('Logs') }}</a>
+        {% if job.message_mode == 'series' and job.status in ('pending', 'active', 'trigger', 'queued') and job.series_cursor < job.series_total %}
+        <form method="POST" action="/jobs/{{ job.id }}/send-now" data-series-send-now>
+          <button class="btn btn-primary" {% if job.series_active_run or job.status == 'queued' %}disabled{% endif %}>{{ _('Send Now') }}</button>
+        </form>
+        {% endif %}
         <form method="POST" action="/jobs/{{ job.id }}/clone">
           <button class="btn btn-secondary">{{ _('Clone') }}</button>
         </form>
@@ -124,9 +130,11 @@
           <button class="btn btn-danger-outline">{{ _('Cancel') }}</button>
         </form>
         {% elif job.trigger_type == "trigger" and job.status in ("pending", "trigger") %}
+        {% if job.message_mode != 'series' %}
         <form method="POST" action="/jobs/{{ job.id }}/send-now">
           <button class="btn btn-primary">{{ _('Send Now') }}</button>
         </form>
+        {% endif %}
         <form method="POST" action="/jobs/{{ job.id }}/cancel">
           <button class="btn btn-danger-outline">{{ _('Cancel') }}</button>
         </form>
@@ -151,7 +159,7 @@
   <details><summary>{{ _('See every part') }}</summary>
     {% for entry in job.series_entries %}
     <div class="series-preview-row"><strong>{{ _('Send') }} #{{ entry.position }}</strong> <span class="badge badge-{{ 'completed' if entry.status == 'sent' else entry.status }}" data-series-entry="{{ entry.position }}">{{ _(entry.status) }}</span>
-      <p>{{ entry.message }}</p>
+      <p class="series-final-message">{% if job.message %}{{ job.message }}{{ '\n\n' }}{% endif %}{{ entry.message }}{% if series_footer %}{{ '\n\n' }}{{ series_footer }}{% endif %}</p>
       {% for attachment in entry.attachments %}<a href="/jobs/series-files/{{ attachment.id }}" target="_blank" rel="noopener">{{ attachment.filename }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
     </div>
     {% endfor %}
@@ -166,13 +174,14 @@
 {% set _unused = progress_labels.update({'waiting': _('Waiting for the next send'), 'error': _('Updates paused. Retrying shortly…'), 'series_send': _('Send'), 'series_of': _('of')}) %}
 <div id="delivery_progress" class="delivery-progress section-gap" data-url="/jobs/{{ job.id }}/progress" data-labels="{{ progress_labels | tojson | forceescape }}">
   <div class="header-row"><h2>{{ _('Sending progress') }}</h2><button type="button" class="btn-clear" data-action="refresh">{{ _('Refresh') }}</button></div>
+  {% if job.message_mode == 'series' %}<p class="field-note">{{ _('Includes all runs in this plan. Each row shows one send to one recipient.') }}</p>{% endif %}
   <p role="status">{{ _('Loading delivery status…') }}</p>
   <progress max="1" value="0" hidden aria-label="{{ _('Sending progress') }}"></progress>
   <div class="delivery-counts"></div>
   <p class="field-note">{{ _('Sent means WhatsApp accepted the message; it does not confirm it was read.') }}</p>
   <p class="delivery-refresh-note field-note"></p>
   <div class="table-wrap" hidden><table>
-    <thead><tr><th>{{ _('Recipient') }}</th><th>{{ _('Status') }}</th><th>{{ _('Details') }}</th></tr></thead>
+    <thead><tr>{% if job.message_mode == 'series' %}<th>{{ _('Send') }}</th>{% endif %}<th>{{ _('Recipient') }}</th><th>{{ _('Status') }}</th><th>{{ _('Details') }}</th></tr></thead>
     <tbody></tbody>
   </table></div>
 </div>

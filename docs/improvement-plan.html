@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>whatsend — Product &amp; Engineering Improvement Plan</title>
+  <style>
+    :root {
+      --bg: #f4f7f5;
+      --surface: #fff;
+      --soft: #edf5f0;
+      --text: #10231a;
+      --muted: #617068;
+      --line: #d8e4dc;
+      --brand: #137a42;
+      --brand-2: #22a85d;
+      --brand-soft: #dff5e7;
+      --p0: #b42318;
+      --p0-soft: #fee4e2;
+      --p1: #a15c00;
+      --p1-soft: #fff0cc;
+      --p2: #175cd3;
+      --p2-soft: #e1ebff;
+      --shadow: 0 16px 44px rgba(20, 56, 37, .08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1410;
+        --surface: #151f19;
+        --soft: #1c2a22;
+        --text: #edf7f0;
+        --muted: #9eb0a4;
+        --line: #2c3c32;
+        --brand: #55d98b;
+        --brand-2: #38bd72;
+        --brand-soft: #153c25;
+        --p0: #fda29b;
+        --p0-soft: #49201e;
+        --p1: #fec84b;
+        --p1-soft: #46340e;
+        --p2: #84adff;
+        --p2-soft: #192f59;
+        --shadow: 0 18px 48px rgba(0, 0, 0, .24);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    a { color: var(--brand); }
+    code { padding: .08rem .34rem; border: 1px solid var(--line); border-radius: 5px; background: var(--soft); font: .86em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .wrap { width: min(1180px, calc(100% - 2rem)); margin-inline: auto; }
+    .hero { padding: 4.5rem 0 3.2rem; color: #fff; background: radial-gradient(circle at 82% 18%, rgba(70, 235, 137, .28), transparent 28%), linear-gradient(135deg, #092d1a, #0e5a31 58%, #128345); }
+    .eyebrow { font-size: .74rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
+    h1 { max-width: 850px; margin: .5rem 0 .8rem; font-size: clamp(2.35rem, 6vw, 4.6rem); line-height: 1.02; letter-spacing: -.05em; }
+    .hero p { max-width: 790px; margin: 0; color: #d8f4e2; font-size: 1.08rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.4rem; }
+    .chips span { padding: .3rem .65rem; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.08); font-size: .77rem; }
+    .layout { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 2rem; padding: 2rem 0 5rem; }
+    nav { position: sticky; top: 1rem; align-self: start; padding: .9rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+    nav strong { display: block; margin: .15rem .45rem .55rem; color: var(--muted); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
+    nav a { display: block; padding: .42rem .5rem; border-radius: 7px; color: var(--text); font-size: .84rem; text-decoration: none; }
+    nav a:hover { color: var(--brand); background: var(--brand-soft); }
+    main { min-width: 0; }
+    section { margin-bottom: 2.6rem; scroll-margin-top: 1rem; }
+    h2 { margin: 0 0 .75rem; font-size: 1.65rem; letter-spacing: -.025em; }
+    .intro { max-width: 820px; margin: -.35rem 0 1.15rem; color: var(--muted); }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+    .metric, .card, .phase, .baseline { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+    .metric { padding: 1rem; }
+    .metric b { display: block; font-size: 1.6rem; line-height: 1.1; }
+    .metric span { display: block; margin-top: .35rem; color: var(--muted); font-size: .76rem; }
+    .baseline { display: grid; grid-template-columns: auto 1fr; gap: .85rem; margin-top: 1rem; padding: 1rem; border-color: #86d9a5; background: var(--brand-soft); }
+    .baseline > span { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; color: #fff; background: var(--brand-2); font-weight: 900; }
+    .baseline p { margin: .2rem 0 0; color: var(--muted); font-size: .86rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: .55rem; margin: 1rem 0; }
+    .pill { display: inline-flex; align-items: center; padding: .2rem .55rem; border-radius: 999px; font-size: .69rem; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
+    .p0 { color: var(--p0); background: var(--p0-soft); }
+    .p1 { color: var(--p1); background: var(--p1-soft); }
+    .p2 { color: var(--p2); background: var(--p2-soft); }
+    .cards { display: grid; gap: .9rem; }
+    .card { overflow: hidden; }
+    .card-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .75rem; align-items: center; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line); }
+    .num { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; color: var(--muted); background: var(--soft); font-weight: 850; }
+    .card h3 { margin: 0; font-size: 1rem; line-height: 1.3; }
+    .card-body { padding: 1rem 1.1rem 1.15rem; }
+    .card-body p { margin: 0 0 .72rem; }
+    .card-body p:last-child { margin-bottom: 0; }
+    .label { display: inline-block; min-width: 5.3rem; color: var(--muted); font-size: .7rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .evidence { padding: .72rem; border-radius: 8px; color: var(--muted); background: var(--soft); font-size: .8rem; }
+    .accept { margin: .55rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: .86rem; }
+    .accept li + li { margin-top: .25rem; }
+    .roadmap { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; }
+    .phase { padding: 1rem; }
+    .phase small { color: var(--brand); font-size: .68rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .phase h3 { margin: .25rem 0 .55rem; font-size: 1rem; }
+    .phase ol { margin: 0; padding-left: 1.15rem; color: var(--muted); font-size: .82rem; }
+    .phase li + li { margin-top: .28rem; }
+    .gate { margin-top: 1rem; padding: 1rem; border-left: 4px solid var(--p1); border-radius: 0 10px 10px 0; background: var(--p1-soft); }
+    .gate strong { display: block; color: var(--p1); }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    th, td { padding: .72rem .8rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: var(--soft); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; }
+    td { font-size: .84rem; }
+    tr:last-child td { border-bottom: 0; }
+    footer { padding: 1.3rem 0 2.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .78rem; }
+    @media (max-width: 980px) { .roadmap { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } nav { position: static; display: flex; flex-wrap: wrap; gap: .2rem; } nav strong { width: 100%; } .metrics { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .hero { padding: 3rem 0 2.5rem; } .roadmap { grid-template-columns: 1fr; } .card-head { grid-template-columns: auto 1fr; } .card-head .pill { grid-column: 2; justify-self: start; } table { display: block; overflow-x: auto; } }
+    @media print { .hero { padding: 1.5rem 0; background: #0e5a31 !important; print-color-adjust: exact; } .layout { display: block; padding-top: 1rem; } nav { display: none; } .card, .phase, .metric { break-inside: avoid; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <span class="eyebrow">Product &amp; engineering plan · 14 August 2026</span>
+      <h1>Make delivery trustworthy, then make growth easy.</h1>
+      <p>A code-backed improvement plan for whatsend across features, scheduling logic, security, UI, accessibility, and operations.</p>
+      <div class="chips">
+        <span>FastAPI + SQLAlchemy</span><span>APScheduler + SQLite</span><span>Jinja2 + vanilla JS</span><span>Whapi.Cloud</span><span>English + Arabic RTL</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="Plan sections">
+      <strong>Contents</strong>
+      <a href="#summary">Executive summary</a>
+      <a href="#logic">Logic &amp; reliability</a>
+      <a href="#security">Security</a>
+      <a href="#ui">UI &amp; accessibility</a>
+      <a href="#features">Feature opportunities</a>
+      <a href="#roadmap">Delivery roadmap</a>
+      <a href="#quality">Quality gates</a>
+    </nav>
+
+    <main>
+      <section id="summary">
+        <h2>Executive summary</h2>
+        <p class="intro">The current architecture is sensible for a single-machine product and the earlier high-risk gaps—CSRF, tenant token checks, private media, upload signatures, retries, migrations, health checks, and encrypted tokens—are implemented. The next release should focus on overlapping delivery runs, request-path network calls, abuse controls, and workflow clarity.</p>
+        <div class="metrics">
+          <div class="metric"><b>30/30</b><span>Tests passing at review time</span></div>
+          <div class="metric"><b>4</b><span>Recommended workstreams</span></div>
+          <div class="metric"><b>3</b><span>P0 reliability/security items</span></div>
+          <div class="metric"><b>4</b><span>Suggested delivery phases</span></div>
+        </div>
+        <div class="baseline"><span>✓</span><div><strong>Preserve the current safety baseline</strong><p>Keep account-scoped queries, CSRF dependencies, signature-checked uploads, authenticated media, CSP nonces, Alembic release migrations, scheduler readiness, encrypted tokens, and per-recipient delivery attempts covered by regression tests.</p></div></div>
+        <div class="legend"><span class="pill p0">P0 · before growth</span><span class="pill p1">P1 · next release</span><span class="pill p2">P2 · product expansion</span></div>
+      </section>
+
+      <section id="logic">
+        <h2>Logic and delivery reliability</h2>
+        <p class="intro">A scheduler is judged by duplicate prevention and explainable state. These changes make each run independently traceable and safe under retries, restarts, and slow upstream calls.</p>
+        <div class="cards">
+          <article class="card"><div class="card-head"><span class="num">1</span><h3>Model delivery runs instead of storing retry state on the job</h3><span class="pill p0">P0</span></div><div class="card-body">
+            <p><span class="label">Why</span>A recurring APScheduler job and its separately named retry job can execute concurrently. Both mutate the same <code>retry_count</code>, <code>retry_at</code>, and <code>retry_group_ids</code>, so a new scheduled run can overwrite an older run’s retry state.</p>
+            <p><span class="label">Change</span>Add <code>delivery_runs</code> with an immutable scheduled timestamp, status, lease, and idempotency key. Attach attempts and retries to a run; enforce a unique key such as <code>(job_id, scheduled_for, group_id, attempt_number)</code>. Use one per-job lock/lease across primary and retry execution.</p>
+            <ul class="accept"><li>A slow cron run and a retry cannot send the same recipient twice.</li><li>Restarting during a send produces a recoverable run, not ambiguous job state.</li><li>The UI can explain which recipients succeeded, failed, or are retrying for each run.</li></ul>
+            <p class="evidence">Evidence: <a href="../app/services/scheduler.py#L64">scheduler.py:64–89</a> and <a href="../app/services/scheduler.py#L92">92–176</a>; retry state currently lives in <a href="../app/models/job.py#L36">job.py:36–38</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">2</span><h3>Remove upstream API calls and database repairs from GET pages</h3><span class="pill p0">P0</span></div><div class="card-body">
+            <p><span class="label">Why</span>The jobs list calls Whapi when group names are missing and writes the repaired names during a GET. Create/edit pages also fetch groups serially before rendering. A slow provider therefore makes core navigation slow and failures are silently swallowed.</p>
+            <p><span class="label">Change</span>Create an account-scoped group cache with <code>synced_at</code>, an explicit “Refresh groups” action, a short timeout, and visible stale/error states. Render forms immediately from cached groups and refresh asynchronously.</p>
+            <ul class="accept"><li>Jobs list performs no external network calls and no writes.</li><li>Create/edit pages render within the local database latency budget.</li><li>Provider failures show an actionable message while manual group entry remains available.</li></ul>
+            <p class="evidence">Evidence: <a href="../app/routers/jobs.py#L187">jobs.py:187–215</a> and <a href="../app/routers/jobs.py#L226">226–243</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">3</span><h3>Centralize validation and scheduling policy</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Why</span>Large form handlers accept unbounded labels, messages, group arrays, and group names. Duplicate group IDs can create duplicate sends. Monthly days 29–31 also need a clearly documented “skip missing months” rule.</p>
+            <p><span class="label">Change</span>Introduce typed command models shared by create/edit/API paths. Normalize and deduplicate recipients, cap recipient count and message length, validate WhatsApp group IDs, and make minimum recurrence/quiet-hour policy explicit. Store <code>next_run_at</code> and <code>last_run_at</code> for consistent UI and recovery.</p>
+            <p class="evidence">Evidence: the form boundary begins at <a href="../app/routers/jobs.py#L294">jobs.py:294</a>; schedule construction is in <a href="../app/routers/jobs.py#L250">250–290</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">4</span><h3>Separate scheduling, sending, and persistence responsibilities</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Change</span>Split the 700+ line jobs router into command/service modules: form parsing, schedule policy, media storage, job repository, provider group sync, and delivery orchestration. Keep routers thin and make state transitions an explicit enum/state machine.</p>
+            <p><span class="label">Benefit</span>Unit tests can exercise state transitions without FastAPI forms or a live scheduler, and provider-specific behavior stops leaking into page handlers.</p>
+            <p class="evidence">Evidence: <a href="../app/routers/jobs.py">app/routers/jobs.py</a> currently owns upload storage, cron parsing, remote group discovery, CRUD, scheduler mutation, and presentation helpers.</p>
+          </div></article>
+        </div>
+      </section>
+
+      <section id="security">
+        <h2>Security and abuse resistance</h2>
+        <p class="intro">The project has a good browser-security foundation. The remaining work is mostly revocation, quotas, distributed enforcement, and operational secret hygiene.</p>
+        <div class="cards">
+          <article class="card"><div class="card-head"><span class="num">5</span><h3>Add session revocation and active-user verification</h3><span class="pill p0">P0</span></div><div class="card-body">
+            <p><span class="label">Why</span>Authenticated pages trust JWT claims until expiry and do not reload the user. Disabling an account or changing a password does not invalidate other existing sessions.</p>
+            <p><span class="label">Change</span>Add <code>session_version</code> or a sessions table, include the version/JTI in JWTs, and validate it against the user on protected requests with a short cache. Increment it on password change, account disable, or “sign out everywhere.”</p>
+            <p class="evidence">Evidence: <a href="../app/routers/auth.py#L33">auth.py:33–47</a> trusts decoded claims; password changes occur at <a href="../app/routers/auth.py#L229">229–243</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">6</span><h3>Protect API keys, sends, and webhooks with shared limits</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Why</span>Only signin/signup use the in-memory limiter. API-key verification performs an expensive bcrypt check, sends have no per-key quota, and webhook bodies are read without an application limit. In-memory counters reset on restart and cannot support multiple processes.</p>
+            <p><span class="label">Change</span>Add per-IP and per-key token buckets for authentication, group listing, sending, and webhooks; enforce body limits at the proxy/app boundary; return <code>Retry-After</code>; add API-key scopes and optional expiry. Move limits to Redis or another shared store before horizontal scaling.</p>
+            <p class="evidence">Evidence: <a href="../app/services/rate_limit.py#L8">rate_limit.py:8–36</a>, <a href="../app/routers/api.py#L85">api.py:85–143</a>, and <a href="../app/routers/webhooks.py#L25">webhooks.py:25–35</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">7</span><h3>Tighten CSP and dependency delivery</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Why</span>CSP nonces are present, but <code>style-src 'unsafe-inline'</code> remains necessary because templates contain many inline styles. HTMX is loaded from a third-party CDN on every page.</p>
+            <p><span class="label">Change</span>Move inline styles and page scripts into versioned static files, self-host the pinned HTMX asset, remove <code>unsafe-inline</code>, and add an automated CSP/security-header regression test.</p>
+            <p class="evidence">Evidence: CSP is assembled in <a href="../app/main.py#L124">main.py:124–128</a>; shared inline code begins at <a href="../app/templates/base.html#L59">base.html:59</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">8</span><h3>Make key rotation and audit events first-class</h3><span class="pill p2">P2</span></div><div class="card-body">
+            <p><span class="label">Change</span>Require a dedicated encryption key in production, support an ordered key ring with key IDs, re-encrypt tokens after successful fallback decryption, and log security events for login failures, API-key changes, token changes, exports, and destructive job actions.</p>
+            <p><span class="label">Also</span>Redact upstream response bodies and identifiers in logs by policy; set retention limits for logs and delivery attempts.</p>
+            <p class="evidence">Evidence: token encryption currently falls back to the session secret in <a href="../app/services/crypto.py#L14">crypto.py:14–20</a>.</p>
+          </div></article>
+        </div>
+      </section>
+
+      <section id="ui">
+        <h2>UI, mobile, and accessibility</h2>
+        <p class="intro">The refreshed dashboard, RTL support, dark mode, keyboard focus styling, and responsive job cards are strong foundations. The next pass should simplify navigation and make async states and dialogs accessible.</p>
+        <div class="cards">
+          <article class="card"><div class="card-head"><span class="num">9</span><h3>Turn the wrapped mobile nav into a deliberate menu</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Change</span>Use a compact mobile header with a labelled menu button, current-page indicator, and grouped secondary actions for language, theme, timezone, profile, and sign-out. Keep the primary “New job” action visible.</p>
+            <p><span class="label">Measure</span>No two-row wall of navigation links at 320–768 px; all controls have at least 44 px touch targets and a visible focus state.</p>
+            <p class="evidence">Evidence: <a href="../app/templates/base.html#L14">base.html:14–35</a> and current wrapping behavior in <a href="../app/static/css/app.css#L388">app.css:388–424</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">10</span><h3>Finish the accessible interaction layer</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Change</span>Give the confirmation modal <code>role="dialog"</code>, <code>aria-modal</code>, focus trapping/restoration, and labelled buttons. Add <code>aria-live</code> to toasts and validation summaries, accessible names to icon-only theme/chip controls, loading announcements, and <code>prefers-reduced-motion</code> fallbacks.</p>
+            <p><span class="label">Test</span>Keyboard-only flows for sign-in, job creation, delete confirmation, filters, menus, and language switching; automated axe checks for representative English and Arabic pages.</p>
+            <p class="evidence">Evidence: modal markup and behavior are in <a href="../app/templates/base.html#L48">base.html:48–115</a>; chip remove controls are created in <a href="../app/templates/jobs/form.html#L215">form.html:215–238</a>.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">11</span><h3>Make job creation a previewable workflow</h3><span class="pill p1">P1</span></div><div class="card-body">
+            <p><span class="label">Change</span>Add a sticky summary showing recipients, message/media preview, timezone, next three occurrences, and DST/month-end behavior. Preserve entered values after server validation errors, show upload progress, and disable repeat submissions.</p>
+            <p><span class="label">Benefit</span>Users confirm exactly what will be sent, where, and when before committing—reducing the most expensive class of product error.</p>
+          </div></article>
+
+          <article class="card"><div class="card-head"><span class="num">12</span><h3>Consolidate the front-end foundation</h3><span class="pill p2">P2</span></div><div class="card-body">
+            <p><span class="label">Change</span>Split the 500+ line stylesheet into tokens, layout, components, and page modules; remove inline style attributes; move shared scripts from templates to static modules; and document component patterns for buttons, fields, badges, empty states, tables, dialogs, and feedback.</p>
+            <p><span class="label">Guardrail</span>Keep the zero-build-step approach unless bundle complexity clearly justifies a toolchain. A small server-rendered product does not need a SPA rewrite.</p>
+            <p class="evidence">Evidence: <a href="../app/static/css/app.css">app/static/css/app.css</a> and <a href="../app/templates/base.html">app/templates/base.html</a>.</p>
+          </div></article>
+        </div>
+      </section>
+
+      <section id="features">
+        <h2>Feature opportunities</h2>
+        <p class="intro">Build these after run-level reliability is in place. They reuse existing jobs, attempts, tokens, localization, and provider adapters rather than creating parallel concepts.</p>
+        <div class="cards">
+          <article class="card"><div class="card-head"><span class="num">13</span><h3>Delivery center and actionable alerts</h3><span class="pill p1">P1</span></div><div class="card-body"><p>Add a run-centric delivery view with recipient status, provider error categories, latency, retry countdown, and “retry failed recipients” action. Offer failure notifications by email or signed outbound webhook, plus daily/weekly delivery summaries.</p></div></article>
+          <article class="card"><div class="card-head"><span class="num">14</span><h3>Templates, drafts, and safe personalization</h3><span class="pill p2">P2</span></div><div class="card-body"><p>Add reusable message templates and drafts, with previewed variables from an allow-list such as group name and scheduled date. Validate expansion length and show the final per-recipient payload before scheduling.</p></div></article>
+          <article class="card"><div class="card-head"><span class="num">15</span><h3>Schedule controls for real operations</h3><span class="pill p2">P2</span></div><div class="card-body"><p>Add quiet hours, holiday exclusions, start/end dates, pause windows, bulk pause/resume, schedule export, and an upcoming calendar. For high-impact sends, add optional maker/checker approval.</p></div></article>
+          <article class="card"><div class="card-head"><span class="num">16</span><h3>Provider-ready architecture</h3><span class="pill p2">P2</span></div><div class="card-body"><p>Promote sender capabilities into an explicit interface—text, media types, group discovery, delivery receipts, limits, and normalized errors. Keep the Meta adapter behind a flag until account eligibility and webhook contracts are proven; make <code>whapi_base_url</code> flow through the sender factory for testability.</p></div></article>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <h2>Recommended delivery roadmap</h2>
+        <p class="intro">Sequence work by risk reduction and dependency. Estimates assume one engineer familiar with the codebase and include tests.</p>
+        <div class="roadmap">
+          <div class="phase"><small>Phase 0 · 2–3 days</small><h3>Quick controls</h3><ol><li>Cap/deduplicate inputs.</li><li>Add API and webhook limits.</li><li>Expose group-fetch errors.</li><li>Add dialog/toast ARIA fixes.</li></ol></div>
+          <div class="phase"><small>Phase 1 · 1–2 weeks</small><h3>Trustworthy runs</h3><ol><li>Add delivery-run schema.</li><li>Add leases and idempotency.</li><li>Isolate retry state.</li><li>Add concurrency/restart tests.</li></ol></div>
+          <div class="phase"><small>Phase 2 · 1 week</small><h3>Fast, clear workflow</h3><ol><li>Cache and refresh groups.</li><li>Add schedule preview.</li><li>Improve mobile navigation.</li><li>Extract static UI assets.</li></ol></div>
+          <div class="phase"><small>Phase 3 · 1–2 weeks</small><h3>Product leverage</h3><ol><li>Delivery center and alerts.</li><li>Templates and drafts.</li><li>Quiet hours/calendar.</li><li>Provider capability contract.</li></ol></div>
+        </div>
+        <div class="gate"><strong>Scaling gate</strong>Do not run multiple application processes or machines while SQLite and the in-process scheduler own execution. Before horizontal scaling, move scheduled execution to a single elected worker or durable queue, use PostgreSQL/shared state, and replace in-memory rate limits.</div>
+      </section>
+
+      <section id="quality">
+        <h2>Quality gates and success measures</h2>
+        <table>
+          <thead><tr><th>Area</th><th>Release gate</th><th>Suggested measure</th></tr></thead>
+          <tbody>
+            <tr><td>Delivery</td><td>No duplicate send under concurrent cron/retry/restart tests.</td><td>Unique run/recipient keys; 100% terminal run reconciliation.</td></tr>
+            <tr><td>Performance</td><td>GET pages contain no provider calls or hidden writes.</td><td>P95 local page response &lt; 300 ms excluding asset transfer.</td></tr>
+            <tr><td>Security</td><td>Revoked user/session/API key stops working promptly; quotas return 429.</td><td>Security regression suite plus dependency and secret scans in CI.</td></tr>
+            <tr><td>Accessibility</td><td>Core flows work by keyboard and screen reader in English and Arabic.</td><td>No serious axe violations; touch targets ≥ 44 px on mobile.</td></tr>
+            <tr><td>Operations</td><td>Every run has structured identifiers, duration, outcome, and failure category.</td><td>Alerts on scheduler health and sustained failure-rate thresholds.</td></tr>
+            <tr><td>Tests</td><td>Keep existing 30 tests green while adding workflow-level coverage.</td><td>Create/edit/auth/media/API integration tests plus scheduler race tests.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <footer><div class="wrap">whatsend improvement plan · Based on repository inspection and a 30-test passing baseline · Previous review preserved at <a href="codebase-review.html">codebase-review.html</a></div></footer>
+</body>
+</html>

@@ -1,3 +1,15 @@
+window.renderArabicOrdinal = function(number, words) {
+  if(number<1||number>1000)return String(number);
+  if(number<20)return words.units[number];
+  if(number<100) {
+    const tens=Math.floor(number/10),unit=number%10;
+    return unit?(unit===1?words.compound_first:words.units[unit])+' و'+words.tens[tens]:words.tens[tens];
+  }
+  if(number===1000)return words.thousand;
+  const hundreds=Math.floor(number/100),remainder=number%100;
+  const base=hundreds===2&&remainder?words.two_hundred_after:words.hundreds[hundreds];
+  return remainder?window.renderArabicOrdinal(remainder,words)+' '+words.after+' '+base:base;
+};
 window.createMessageSeries = function(config) {
   const mode = document.getElementById('message_mode');
   const panel = document.getElementById('series_builder');
@@ -7,6 +19,9 @@ window.createMessageSeries = function(config) {
   const summary = document.getElementById('series_summary');
   const preview = document.getElementById('series_preview');
   const message = document.getElementById('message');
+  const footer = document.getElementById('series_footer');
+  const messageLabel = document.getElementById('message_label');
+  const originalMessageLabel = messageLabel.textContent;
   const trigger = document.getElementById('trigger_type');
   const singleFile = document.getElementById('image');
   const submit = document.getElementById('submit_btn');
@@ -33,18 +48,29 @@ window.createMessageSeries = function(config) {
     const entries=[];
     for(let i=0;i<Math.max(0,...streams.map(stream=>stream.length));i++) {
       const current=streams.map(stream=>stream[i]).filter(Boolean);
-      entries.push({message:current.map(entry=>entry.message).filter(Boolean).join('\n\n'),
+      entries.push({message:current.map(entry=>entry.message).filter(text=>text.trim()).join('\n\n'),
         attachments:current.flatMap(entry=>entry.attachments),parts:current.flatMap(entry=>entry.parts||[])});
     }
     return entries;
   }
   function lineStreams() {
     return lanes.map(lane=>combine(sources.filter(source=>source.lane_id===lane.id).map(source=>
-      source.entries.map(entry=>({...entry,parts:[{name:source.name,...entry}]}))),'sequential'));
+      source.entries.map((entry,index)=>{
+        const values={content:entry.message,source_name:source.name,batch_number:String(index+1)};
+        if(source.kind==='pdf') {
+          values.book_name=source.name;
+          const legacy=entry.start_page==null&&entry.end_page==null?entry.message.match(/^Pages (\d+)-(\d+)$/):null;
+          const first=entry.start_page??(legacy?Number(legacy[1]):null),last=entry.end_page??(legacy?Number(legacy[2]):null);
+          if(first!=null&&last!=null){values.start_page=String(first);values.end_page=String(last);}
+        }
+        const template=source.message_template??'{content}';
+        const text=template.replace(/\{(content|source_name|batch_number|book_name|start_page|end_page)\}/g,(match,key)=>values[key]??match);
+        return {...entry,message:text,parts:[{name:source.name,...entry,message:text}]};
+      })),'sequential'));
   }
   function flattened() { return combine(lineStreams(),'parallel'); }
   function sync() {
-    definition.value = JSON.stringify({strategy:'parallel',lanes,sources});
+    definition.value = JSON.stringify({strategy:'parallel',lanes,sources,footer:footer.value});
     const streams=lineStreams(), entries=combine(streams,'parallel');
     summary.textContent = (entries.length ? labels.summary.replace('{count}', entries.length) : labels.summaryEmpty)
       + (lanes.length > 1 ? ' · ' + lanes.length + ' ' + labels.tracks : '');
@@ -59,6 +85,7 @@ window.createMessageSeries = function(config) {
       const table=node('table',undefined,'series-plan-table'),head=node('thead'),header=node('tr');
       const number=node('th',labels.send);number.scope='col';header.append(number);
       lanes.forEach((lane,i)=>{const th=node('th',lane.name||labels.line);th.scope='col';th.dataset.color=i%5;header.append(th);});
+      const finalHeader=node('th',labels.finalMessage);finalHeader.scope='col';header.append(finalHeader);
       head.append(header);table.append(head);
       const body=node('tbody');
       entries.forEach((entry,i)=>{
@@ -73,22 +100,20 @@ window.createMessageSeries = function(config) {
             cell.append(block);
           } else cell.append(node('span','—','series-inactive'));
           row.append(cell);
-        });body.append(row);
+        });
+        const final=node('td');
+        const text=[message.value,entry.message,footer.value].filter(part=>part.trim()).join('\n\n')
+          .replace(/\{(send_number|send_ordinal_ar|counter|total_sends)\}/g,(_,key)=>key==='send_ordinal_ar'?window.renderArabicOrdinal(i+1,config.arabicOrdinals):String(key==='total_sends'?entries.length:i+1));
+        final.append(node('p',text,'series-final-message'));
+        if(entry.attachments.length)final.append(node('small',entry.attachments.map(asset=>asset.filename).join(' · ')));
+        row.append(final);body.append(row);
       });
       table.append(body);
-      const note=node('p',labels.commonPreview,'field-note');
-      if(message.value) {note.append(node('span',message.value,'series-common-preview'));}
+      const note=node('p',labels.previewHint,'field-note');
       const wrap=node('div',undefined,'series-plan-table-wrap');wrap.tabIndex=0;wrap.setAttribute('aria-label',labels.preview);wrap.append(table);
       preview.replaceChildren(note,wrap);
     }
     document.getElementById('message-form').dispatchEvent(new Event('composer:change'));
-  }
-  function choose(parent,label,value,options) {
-    const wrap=node('label',undefined,'series-field');wrap.append(node('span',label));
-    const select=node('select');
-    select.setAttribute('aria-label',label);
-    options.forEach(([id,text])=>{const option=node('option',text);option.value=id;select.append(option);});
-    select.value=value;wrap.append(select);parent.append(wrap);return select;
   }
   function newLane() { return {id:crypto.randomUUID(),name:labels.line+' '+(lanes.length+1),strategy:'sequential'}; }
   async function api(url, options) {
@@ -133,25 +158,14 @@ window.createMessageSeries = function(config) {
     source.entries.forEach((entry,index)=>{
       const card=node('div',undefined,'series-entry');
       const header=node('div',undefined,'series-entry-header'); header.append(node('strong',labels.batch+' #'+(index+1)));
-      header.append(button(labels.remove,()=>{source.entries.splice(index,1);renderEntries(source,container);sync();})); card.append(header);
-      const textarea=node('textarea'); textarea.value=entry.message; textarea.rows=3; textarea.placeholder=labels.entryMessage;
-      textarea.setAttribute('aria-label',labels.batch+' '+(index+1)+' '+labels.message);
-      textarea.addEventListener('input',()=>{entry.message=textarea.value;sync();});card.append(textarea);
+      card.append(header,node('p',entry.message,'series-final-message'));
       const files=node('div',undefined,'series-file-list');
       entry.attachments.forEach((asset,assetIndex)=>{
         const chip=node('span',undefined,'series-file'); const link=node('a',asset.filename);
         link.href='/jobs/series-files/'+encodeURIComponent(asset.id);link.target='_blank';link.rel='noopener';chip.append(link);
-        chip.append(button('×',()=>{entry.attachments.splice(assetIndex,1);renderEntries(source,container);sync();}));files.append(chip);
+        files.append(chip);
       });card.append(files);
-      const upload=node('input');upload.type='file';upload.multiple=true;upload.accept=singleFile.accept;
-      upload.setAttribute('aria-label',labels.addAttachments);
-      upload.addEventListener('change',()=>task(async()=>{
-        for(const file of upload.files) {
-          const body=new FormData();body.set('file',file);
-          entry.attachments.push(await api('/jobs/series-files',{method:'POST',body}));
-        }
-        renderEntries(source,container);
-      }));card.append(upload);container.append(card);
+      container.append(card);
     });
   }
   function render() {
@@ -204,11 +218,22 @@ window.createMessageSeries = function(config) {
       const editor=node('details',undefined,'series-source-editor');editor.open=!source.entries.length||source.kind==='messages';
       editor.append(node('summary',source.entries.length||source.kind==='messages'?labels.editSource:labels.prepareSource));
       const settings=node('div',undefined,'series-source-settings');editor.append(settings);card.append(editor);
-      if(lanes.length>1) {
-        const destination=choose(settings,labels.moveToLine,source.lane_id,lanes.map(lane=>[lane.id,lane.name]));
-        destination.addEventListener('change',()=>{source.lane_id=destination.value;render();sync();});
+      const templateLabel=node('label',labels.sourceTemplate,'series-field'),template=node('textarea');
+      template.rows=3;template.maxLength=4096;template.value=source.message_template??'{content}';
+      template.addEventListener('input',()=>{source.message_template=template.value;sync();});
+      templateLabel.append(template);settings.append(templateLabel,node('p',labels.templateHint,'field-note'));
+      settings.append(node('p',labels.sharedBatchTemplateHint,'field-note'));
+      if(source.kind==='messages') {
+        const bulkLabel=node('label',labels.messagesContent,'series-field'),bulk=node('textarea');
+        bulk.rows=6;bulk.value=source.entries.map(entry=>entry.message).join('\n---\n');
+        bulk.addEventListener('input',()=>{
+          source.entries=bulk.value?bulk.value.split(/\r?\n---\r?\n/).map((text,i)=>({message:text,attachments:source.entries[i]?.attachments||[]})):[];
+          renderEntries(source,entries);sync();
+        });
+        bulkLabel.append(bulk);settings.append(bulkLabel,node('p',labels.messagesContentHint,'field-note'));
       }
       if(source.kind==='pdf') {
+        settings.append(node('p',labels.pdfTemplateHint,'field-note'));
         const controls=node('div',undefined,'series-import-grid');
         const pdf=field(controls,labels.pdfFile,'','file');pdf.accept='.pdf';
         const modeLabel=node('label',undefined,'series-field');modeLabel.append(node('span',labels.pdfMode));
@@ -267,7 +292,7 @@ window.createMessageSeries = function(config) {
         });controls.append(load);settings.append(controls);settings.append(node('p',labels.pdfHint,'field-note'));
       } else if(source.kind==='playlist') {
         const controls=node('div',undefined,'series-import-grid');
-        const url=field(controls,labels.playlistUrl,source.source_url||'','url');url.placeholder='https://www.youtube.com/playlist?list=…';
+        const url=field(controls,labels.playlistUrl,source.source_url||'','url');url.placeholder='https://youtu.be/…';
         const batch=field(controls,labels.itemsPerSend,source.items_per_send||2,'number');batch.min=1;batch.max=20;
         url.addEventListener('input',()=>{source.source_url=url.value;sync();});
         batch.addEventListener('input',()=>{source.items_per_send=Number(batch.value);sync();});
@@ -280,13 +305,13 @@ window.createMessageSeries = function(config) {
       const content=node('details',undefined,'series-batches'); content.open=source.kind==='messages';
       const contentSummary=node('summary',source.entries.length+' '+labels.batches);contentSummary.dataset.sourceCount=index;content.append(contentSummary);
       const entries=node('div');renderEntries(source,entries);content.append(entries);
-      content.append(button(labels.addBatch,()=>{source.entries.push({message:'',attachments:[]});renderEntries(source,entries);sync();},'btn btn-secondary'));
       settings.append(content);containers.get(source.lane_id).append(card);
     });
   }
   function add(kind, laneId) {
     if(sources.length>=20){status.textContent=labels.limit;return;}
     sources.push({kind,lane_id:laneId,name:kind==='messages'?labels.messages:kind==='pdf'?labels.pdfChunks:labels.playlist,
+      message_template:kind==='pdf'?'{book_name}\nمن صفحة {start_page} إلى صفحة {end_page}':'{content}',
       entries:[]});
     render();sync();
   }
@@ -294,11 +319,11 @@ window.createMessageSeries = function(config) {
     const series=mode.value==='series';panel.hidden=!series;document.querySelector('.form-card').classList.toggle('plan-composer',series);
     // Start with one track so the first step is choosing what to send.
     if(series&&!lanes.length){lanes.push(newLane());render();}
-    const help=document.getElementById('message_mode_help'),messageLabel=document.getElementById('message_label');
+    const help=document.getElementById('message_mode_help');
     if(help)help.textContent=help.dataset[series?'series':'repeat'];
-    if(messageLabel)messageLabel.textContent=messageLabel.dataset[series?'series':'repeat'];
     document.getElementById('repeat_attachment').hidden=series;singleFile.disabled=series;
     message.required=!series;
+    messageLabel.textContent=series?labels.header:originalMessageLabel;
     for(const option of trigger.options) if(['now','date'].includes(option.value))option.disabled=series;
     if(series&&['now','date'].includes(trigger.value))trigger.value='cron';
     config.timing();sync();
@@ -306,6 +331,7 @@ window.createMessageSeries = function(config) {
   function restore(raw) {
     try {
       const plan=typeof raw==='string'?JSON.parse(raw):raw;
+      footer.value=plan.footer||'';
       sources=plan.sources||[];lanes=plan.lanes||[];
       if(lanes.length&&plan.strategy==='sequential') {
         const ordered=lanes.flatMap(lane=>{
@@ -329,7 +355,7 @@ window.createMessageSeries = function(config) {
         lanes=sources.map((source,i)=>({id:crypto.randomUUID(),name:source.name||labels.line+' '+(i+1),strategy:'sequential'}));
         sources.forEach((source,i)=>source.lane_id=lanes[i].id);
       }
-    } catch { sources=[];lanes=[]; }
+    } catch { sources=[];lanes=[];footer.value=''; }
     render();toggle();
   }
   panel.querySelector('[data-action="add-line"]').addEventListener('click',()=>{
@@ -340,7 +366,7 @@ window.createMessageSeries = function(config) {
     preview.hidden=!preview.hidden;event.currentTarget.setAttribute('aria-expanded',String(!preview.hidden));sync();
     if(!preview.hidden)preview.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
-  message.addEventListener('input',sync);mode.addEventListener('change',toggle);
+  message.addEventListener('input',sync);footer.addEventListener('input',sync);mode.addEventListener('change',toggle);
   document.querySelectorAll('[data-message-variable]').forEach(element=>element.addEventListener('click',()=>{
     const variable='{'+element.dataset.messageVariable+'}';message.setRangeText(variable,message.selectionStart,message.selectionEnd,'end');message.focus();message.dispatchEvent(new Event('input',{bubbles:true}));
   }));
@@ -349,7 +375,7 @@ window.createMessageSeries = function(config) {
     if(mode.value!=='series')return true;
     if(flattened().length>1000||sources.length>20){status.textContent=labels.limit;return false;}
     if(pending||lanes.some(lane=>!sources.some(source=>source.lane_id===lane.id))||sources.some(source=>!source.entries.length)||!sources.length){status.textContent=labels.completeImports;panel.scrollIntoView({block:'center'});return false;}
-    if(flattened().some(entry=>!message.value.trim()&&!entry.message.trim()&&!entry.attachments.length)){status.textContent=labels.emptyEntry;return false;}
+    if(flattened().some(entry=>!message.value.trim()&&!entry.message.trim()&&!footer.value.trim()&&!entry.attachments.length)){status.textContent=labels.emptyEntry;return false;}
     sync();return true;
   }};
 };

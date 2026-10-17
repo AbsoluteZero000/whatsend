@@ -74,8 +74,9 @@
 
     <div class="message-variables" {% if not show_extras %}hidden{% endif %}>
       <span>{{ _('Insert variable') }}</span>
-      {% for variable in ['send_number', 'total_sends', 'today', 'time'] %}<button type="button" class="btn-clear" data-message-variable="{{ variable }}">{{ '{' ~ variable ~ '}' }}</button>{% endfor %}
+      {% for variable in ['send_number', 'send_ordinal_ar', 'total_sends', 'today', 'time'] %}<button type="button" class="btn-clear" data-message-variable="{{ variable }}">{{ '{' ~ variable ~ '}' }}</button>{% endfor %}
     </div>
+    <p class="field-note" {% if not show_extras %}hidden{% endif %}>{{ _('Use {send_ordinal_ar} for الأول، الثاني، الثالث… Example: الدرس {send_ordinal_ar}.') }}</p>
     <div id="series_builder" hidden>
       <div class="series-hero">
         <span class="series-kicker">{{ _('Message series') }}</span>
@@ -86,8 +87,13 @@
         <li><strong>{{ _('Pick a schedule') }}</strong><span>{{ _('Each scheduled time sends the next part.') }}</span></li>
         <li><strong>{{ _('It stops by itself') }}</strong><span>{{ _('When everything has been sent, the series ends.') }}</span></li>
       </ol>
+      <p class="field-note series-composition-note">{{ _('The header appears first, followed by each line’s current batch, then the footer. Everything is merged into one text message.') }}</p>
       <div id="series_sources"></div>
       <button type="button" class="series-add-line" data-action="add-line">+ {{ _('Add another track') }} <span>{{ _('Run a second series side by side. Each scheduled time sends the next part from every track.') }}</span></button>
+      <div class="series-footer-editor">
+        <label for="series_footer">{{ _('Shared footer (optional)') }}</label>
+        <textarea id="series_footer" rows="3" placeholder="{{ _('Text to include at the end of every send') }}"></textarea>
+      </div>
       <input type="hidden" id="series_definition" name="series_definition">
       <div class="series-plan-footer"><p id="series_summary"></p><button type="button" class="btn btn-secondary" data-action="preview" aria-expanded="false" aria-controls="series_preview">{{ _('Preview what will be sent') }}</button></div>
       <p id="series_status" role="status" aria-live="polite"></p>
@@ -409,15 +415,23 @@
     }
   });
   const messageSeries = createMessageSeries({
+    arabicOrdinals: {{ arabic_ordinals | tojson }},
     plan: {{ (job.series_plan if job is defined else '') | default('', true) | tojson }},
     timing: () => { toggleTriggerValue(); toggleCronFields(); },
     labels: {
+      header: {{ _('Shared header (optional)') | tojson }}, finalMessage: {{ _('Final merged message') | tojson }},
+      previewHint: {{ _('Each send combines the header, active lines, and footer. Date and time variables resolve when sending. Attachments accompany the text.') | tojson }},
+      sourceTemplate: {{ _('Template for this source') | tojson }},
+      templateHint: {{ _('Use {content} for batch text, {source_name} for the source name, and {batch_number} for its batch number. You can also use {send_number}, {send_ordinal_ar}, {total_sends}, {today}, and {time}.') | tojson }},
+      sharedBatchTemplateHint: {{ _('This template applies to every batch in this source. Batches below are read-only previews.') | tojson }},
+      messagesContent: {{ _('Messages for this source') | tojson }}, messagesContentHint: {{ _('Separate batches with --- on its own line.') | tojson }},
+      pdfTemplateHint: {{ _('PDF templates also support {book_name}, {start_page}, and {end_page}. Example: من صفحة {start_page} إلى صفحة {end_page}.') | tojson }},
       summary: {{ _('Sends {count} times, then stops') | tojson }}, summaryEmpty: {{ _('Add content to see how many times this sends.') | tojson }},
       tracks: {{ _('tracks') | tojson }}, line: {{ _('Track') | tojson }}, lineName: {{ _('Track name') | tojson }},
       lineHint: {{ _('Sent from top to bottom, one part at each scheduled time.') | tojson }},
       emptyLine: {{ _('What do you want to send?') | tojson }},
       moveUp: {{ _('Move up') | tojson }}, moveDown: {{ _('Move down') | tojson }}, moveToLine: {{ _('Move to track') | tojson }},
-      editSource: {{ _('Edit') | tojson }}, prepareSource: {{ _('Set up') | tojson }}, book: {{ _('PDF book') | tojson }},
+      editSource: {{ _('Edit source and template') | tojson }}, prepareSource: {{ _('Prepare this source') | tojson }}, book: {{ _('PDF book') | tojson }},
       preview: {{ _('What will be sent') | tojson }}, commonPreview: {{ _('This text is added to every part:') | tojson }},
       send: {{ _('Send') | tojson }}, batch: {{ _('Part') | tojson }}, message: {{ _('Message') | tojson }},
       remove: {{ _('Remove') | tojson }}, sourceName: {{ _('Name') | tojson }},
@@ -429,12 +443,12 @@
       rangeHint: {{ _('Each row is one part, sent in this order. Click Split PDF again after changing pages.') | tojson }},
       splitPdf: {{ _('Split PDF') | tojson }}, choosePdf: {{ _('Choose a PDF file first.') | tojson }},
       pdfHint: {{ _('Up to 100MB. Leave the end page empty to go to the last page.') | tojson }},
-      playlistUrl: {{ _('Playlist link (YouTube or SoundCloud)') | tojson }}, itemsPerSend: {{ _('Videos in each part') | tojson }},
-      importPlaylist: {{ _('Load playlist') | tojson }}, playlistHint: {{ _('Sends the video titles and links in playlist order. Videos are not downloaded.') | tojson }},
+      playlistUrl: {{ _('Public video, track, or playlist URL') | tojson }}, itemsPerSend: {{ _('Items per send') | tojson }},
+      importPlaylist: {{ _('Import links') | tojson }}, playlistHint: {{ _('Accepts individual YouTube videos, SoundCloud tracks, and playlists. Imports titled links; playlists keep their order. Media files are not downloaded.') | tojson }},
       unavailableSkipped: {{ _('unavailable playlist items skipped') | tojson }}, batches: {{ _('parts') | tojson }},
-      addBatch: {{ _('Add a part') | tojson }}, messages: {{ _('Messages') | tojson }}, pdfChunks: {{ _('PDF book') | tojson }}, playlist: {{ _('Playlist') | tojson }},
+      addBatch: {{ _('Add a part') | tojson }}, messages: {{ _('Messages') | tojson }}, pdfChunks: {{ _('PDF book') | tojson }}, playlist: {{ _('YouTube / SoundCloud') | tojson }},
       importing: {{ _('Loading…') | tojson }}, imported: {{ _('Ready') | tojson }}, importError: {{ _('Could not load this. Try again.') | tojson }},
-      splittingPdf: {{ _('Splitting PDF…') | tojson }}, fetchingPlaylist: {{ _('Fetching playlist…') | tojson }},
+      splittingPdf: {{ _('Splitting PDF…') | tojson }}, fetchingPlaylist: {{ _('Fetching links…') | tojson }},
       limit: {{ _('A series can have up to 20 items and 1000 sends.') | tojson }},
       completeImports: {{ _('Some content is not ready yet. Every track needs at least one part, and PDFs and playlists must be loaded.') | tojson }},
       emptyEntry: {{ _('Every part needs a message or an attachment.') | tojson }}

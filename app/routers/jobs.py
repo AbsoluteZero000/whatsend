@@ -25,6 +25,7 @@ from app.database import get_db
 from app.models.job import Job, JobGroup
 from app.models.job_series import SeriesEntry, SeriesAttachment
 from app.services.series_forms import validate_plan, persist_plan, PageRange
+from app.services.message_variables import ARABIC_ORDINAL_WORDS
 from app.services.series_imports import import_playlist, split_pdf, MAX_PDF_BYTES, PDF_SPLIT_LOCK, delete_unreferenced_path
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
@@ -33,7 +34,7 @@ from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
 from app.services.csrf import csrf_protect
-from app.services.scheduler import register_job, register_retry, remove_job, send_job
+from app.services.scheduler import build_trigger, register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
 from app.services.sender import WhatsAppSender, get_sender
 from app.services.native_sender import NativeSender
@@ -156,7 +157,7 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
                             message_mode=form.get('message_mode', 'repeat'), series_cursor=job.series_cursor if job else 0,
                             series_plan=form.get('series_definition', ''))
     response = request.app.state.render(
-        request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail),
+        request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail), arabic_ordinals=ARABIC_ORDINAL_WORDS,
         draft_owner=user["sub"], tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
         selected_groups=[{"id": gid, "name": (group_names[i] or gid) if i < len(group_names) else gid}
                          for i, gid in enumerate(group_ids)],
@@ -240,7 +241,9 @@ async def upload_series_pdf(request: Request, file: UploadFile, start_page: int 
                             end_page: int | None = Form(None), pages_per_send: int = Form(5),
                             range_mode: str = Form('chunks'), custom_ranges: str = Form('[]'),
                             db: AsyncSession = Depends(get_db)):
-    user_id = int(require_user(request)['sub'])
+    user = require_user(request)
+    user_id = int(user['sub'])
+    arabic = request.cookies.get('lang', user.get('lang', 'en')) == 'ar'
     if Path(file.filename or '').suffix.lower() != '.pdf': raise HTTPException(400, 'Choose a PDF file')
     if range_mode not in {'chunks', 'custom'}:
         raise HTTPException(400, 'Choose automatic chunks or custom page ranges')
@@ -262,7 +265,8 @@ async def upload_series_pdf(request: Request, file: UploadFile, start_page: int 
         for part in outputs:
             asset = SeriesAttachment(id=str(uuid.uuid4()), user_id=user_id, path=part['path'], filename=part['filename'])
             db.add(asset)
-            entries.append({'message': f"Pages {part['first']}-{part['last']}",
+            text = f"من صفحة {part['first']} إلى صفحة {part['last']}" if arabic else f"Pages {part['first']}-{part['last']}"
+            entries.append({'message': text, 'start_page': part['first'], 'end_page': part['last'],
                             'attachments': [{'id': asset.id, 'filename': asset.filename}]})
         await db.commit()
         return JSONResponse({'entries': entries, 'title': Path(file.filename).stem[:120],
@@ -357,14 +361,18 @@ async def job_progress(request: Request, job_id: int, db: AsyncSession = Depends
         raise HTTPException(404, "Job not found")
     run_id = await db.scalar(select(DeliveryAttempt.run_id).where(DeliveryAttempt.job_id == job_id)
                              .order_by(DeliveryAttempt.id.desc()).limit(1))
-    attempts = (await db.execute(select(DeliveryAttempt).where(
-        DeliveryAttempt.job_id == job_id, DeliveryAttempt.run_id == run_id,
-    ).order_by(DeliveryAttempt.id))).scalars().all() if run_id else []
+    attempt_query = select(DeliveryAttempt).where(DeliveryAttempt.job_id == job_id)
+    if job.message_mode != 'series':
+        attempt_query = attempt_query.where(DeliveryAttempt.run_id == run_id)
+    attempts = (await db.execute(attempt_query.order_by(DeliveryAttempt.id))).scalars().all()
+    entries = (await db.execute(select(SeriesEntry).where(SeriesEntry.job_id == job.id)
+                               .order_by(SeriesEntry.position))).scalars().all() if job.message_mode == 'series' else []
+    positions = {entry.id: entry.position for entry in entries}
     counts = {"sent": 0, "failed": 0, "unknown": 0, "pending": 0}
     recipients = []
     grouped = {}
     for attempt in attempts:
-        key = attempt.group_id if job.message_mode == 'series' else attempt.id
+        key = (attempt.run_id, attempt.group_id) if job.message_mode == 'series' else attempt.id
         grouped.setdefault(key, []).append(attempt)
     for parts in grouped.values():
         states = {part.status for part in parts}
@@ -382,10 +390,10 @@ async def job_progress(request: Request, job_id: int, db: AsyncSession = Depends
             if isinstance(error, str) and error:
                 errors.append((attempt.part_label + ': ' if attempt.part_label else '') + error)
         recipients.append({'id': parts[0].group_id, 'name': parts[0].group_name or parts[0].group_id,
-                           'status': state if job.message_mode == 'series' else parts[0].status, 'error': '\n'.join(errors)})
+                           'status': state if job.message_mode == 'series' else parts[0].status, 'error': '\n'.join(errors),
+                           'send_number': positions.get(parts[0].series_entry_id)})
     series = None
     if job.message_mode == 'series':
-        entries = (await db.execute(select(SeriesEntry).where(SeriesEntry.job_id == job.id).order_by(SeriesEntry.position))).scalars().all()
         series = {'cursor': job.series_cursor, 'total': len(entries), 'active': bool(job.series_active_run),
                   'entries': [{'position': entry.position, 'status': entry.status} for entry in entries]}
     return JSONResponse({'job_status': job.status, 'trigger_type': job.trigger_type,
@@ -526,7 +534,7 @@ async def create_job_page(request: Request, type: str = "now", db: AsyncSession 
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     initial_trigger_type = type if type in {"now", "date", "cron", "trigger"} else "now"
-    return request.app.state.render(request, "jobs/form.html", draft_owner=user["sub"], tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[], initial_trigger_type=initial_trigger_type)
+    return request.app.state.render(request, "jobs/form.html", draft_owner=user["sub"], tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[], initial_trigger_type=initial_trigger_type, arabic_ordinals=ARABIC_ORDINAL_WORDS)
 
 
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
@@ -746,7 +754,11 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status in ("trigger",):
+    if job and job.message_mode == 'series':
+        if job.status not in {'pending', 'active', 'trigger'} or job.series_active_run or job.series_cursor >= job.series_total:
+            return redirect_with_flash(f"/jobs/{job_id}", success="This plan is not ready to send. Check its delivery status or resume it first.")
+        await send_job(job_id, send_now=True)
+    elif job and job.status in ("trigger",):
         await remove_job(job_id)
         job.retry_count = 0
         job.retry_at = None
@@ -795,18 +807,18 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id).options(selectinload(Job.job_groups), selectinload(Job.series_entries).selectinload(SeriesEntry.attachments)))
     job = result.scalar_one_or_none()
     if not job:
-        return redirect_with_flash("/jobs", success="Job cloned")  # will just redirect with message
+        raise HTTPException(404, "Job not found")
 
     clone = Job(
         user_id=job.user_id,
         token_id=job.token_id,
-        label=(job.label + " (copy)") if job.label else None,
+        label=(job.label[:113] + " (copy)") if job.label else None,
         group_id=job.group_id,
         group_name=job.group_name,
         message=job.message,
         message_mode=job.message_mode,
         series_plan=job.series_plan,
-        series_total=job.series_total,
+        series_total=len(job.series_entries) if job.message_mode == 'series' else 0,
         image_path=job.image_path,
         image_filename=job.image_filename,
         trigger_type=job.trigger_type,
@@ -814,9 +826,16 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         schedule_timezone=job.schedule_timezone,
         status="trigger" if job.trigger_type == "trigger" else "pending",
     )
+    # A completed one-time job can still be copied and given a new date.
+    expired_date = False
+    if clone.trigger_type == 'date':
+        try:
+            build_trigger(clone)
+        except ValueError:
+            clone.status = 'paused'
+            expired_date = True
     db.add(clone)
-    await db.commit()
-    await db.refresh(clone)
+    await db.flush()
     for jg in job.job_groups:
         db.add(JobGroup(job_id=clone.id, group_id=jg.group_id, group_name=jg.group_name))
     mapping = {}
@@ -829,13 +848,15 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
             db.add(copied); mapping[asset.id] = copied.id
     if clone.series_plan:
         plan = json.loads(clone.series_plan)
-        for source in plan['sources']:
-            for entry in source['entries']:
-                for asset in entry['attachments']: asset['id'] = mapping.get(asset['id'], asset['id'])
+        for source in plan.get('sources', []):
+            for entry in source.get('entries', []):
+                for asset in entry.get('attachments', []): asset['id'] = mapping[asset['id']]
         clone.series_plan = json.dumps(plan, ensure_ascii=False)
-    await db.commit()
+    await db.flush()
     await register_job(clone)
     await db.commit()
+    if expired_date:
+        return redirect_with_flash(f"/jobs/{clone.id}/edit", success="Job cloned. Choose a new date before resuming.")
     return redirect_with_flash("/jobs", success="Job cloned")
 
 
@@ -909,6 +930,7 @@ async def job_detail(request: Request, job_id: int, db: AsyncSession = Depends(g
 
     return request.app.state.render(request, "jobs/detail.html",
                                      job=job, logs=logs, delivery_attempts=delivery_attempts, next_run=next_run,
+                                     series_footer=json.loads(job.series_plan or '{}').get('footer', ''),
                                      media_available=media_available, media_filename=media_filename,
                                      media_is_video=media_is_video, media_is_document=media_is_document)
 
@@ -949,6 +971,7 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
     if not selected_groups and job.group_id:
         selected_groups = [{"id": job.group_id, "name": job.group_name or job.group_id}]
     return request.app.state.render(request, "jobs/form.html",
+                                     arabic_ordinals=ARABIC_ORDINAL_WORDS,
                                      job=job, draft_owner=user["sub"], tokens=tokens, groups=groups,
                                      now=now, user_tz=user_tz, edit_mode=True,
                                      image_available=image_available,

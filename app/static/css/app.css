@@ -897,3 +897,5 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
   .series-steps { grid-template-columns:1fr; padding:1rem; gap:.8rem; }
 }
 
+.series-final-message { white-space:pre-wrap; overflow-wrap:anywhere; min-width:14rem; }
+.series-footer-editor,.series-composition-note { padding:0 1.5rem; }

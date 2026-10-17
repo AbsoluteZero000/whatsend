@@ -1,4 +1,5 @@
 import json
+import re
 from uuid import uuid4
 from typing import Literal
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -15,6 +16,8 @@ class AttachmentRef(BaseModel):
 
 class EntryDefinition(BaseModel):
     message: str = Field(default='', max_length=4096)
+    start_page: int | None = Field(default=None, ge=1, le=10000)
+    end_page: int | None = Field(default=None, ge=1, le=10000)
     attachments: list[AttachmentRef] = Field(default_factory=list, max_length=20)
 
 
@@ -26,6 +29,7 @@ class PageRange(BaseModel):
 class SourceDefinition(BaseModel):
     kind: Literal['messages', 'pdf', 'playlist'] = 'messages'
     name: str = Field(default='Messages', max_length=120)
+    message_template: str = Field(default='{content}', max_length=4096)
     source_url: str = Field(default='', max_length=2048)
     start_page: int = Field(default=1, ge=1)
     end_page: int | None = Field(default=None, ge=1)
@@ -45,6 +49,7 @@ class LaneDefinition(BaseModel):
 
 
 class SeriesPlan(BaseModel):
+    footer: str = Field(default='', max_length=4096)
     strategy: Literal['sequential', 'parallel'] = 'sequential'
     sources: list[SourceDefinition] = Field(min_length=1, max_length=20)
     lanes: list[LaneDefinition] = Field(default_factory=list, max_length=20)
@@ -70,16 +75,35 @@ def combine_streams(streams, strategy):
     entries = []
     for index in range(max(map(len, streams), default=0)):
         current = [stream[index] for stream in streams if index < len(stream)]
-        entries.append(EntryDefinition(message='\n\n'.join(e.message for e in current if e.message),
+        entries.append(EntryDefinition(message='\n\n'.join(e.message for e in current if e.message.strip()),
                        attachments=[attachment for e in current for attachment in e.attachments]))
+    return entries
+
+
+def source_entries(source):
+    entries = []
+    for index, entry in enumerate(source.entries, 1):
+        template = source.message_template
+        values = {'content': entry.message, 'source_name': source.name, 'batch_number': str(index)}
+        if source.kind == 'pdf':
+            values['book_name'] = source.name
+            first, last = entry.start_page, entry.end_page
+            # Old PDF imports stored their ranges only in their generated text.
+            legacy = re.fullmatch(r'Pages (\d+)-(\d+)', entry.message) if first is None and last is None else None
+            if legacy:
+                first, last = int(legacy[1]), int(legacy[2])
+            if first is not None and last is not None:
+                values.update(start_page=str(first), end_page=str(last))
+        text = re.sub(r'\{(content|source_name|batch_number|book_name|start_page|end_page)\}', lambda match: values.get(match[1], match[0]), template)
+        entries.append(EntryDefinition(message=text, attachments=entry.attachments))
     return entries
 
 
 def flatten_plan(plan):
     # Plans saved before lines were introduced retain their original behavior.
     if not plan.lanes:
-        return combine_streams([source.entries for source in plan.sources], plan.strategy)
-    streams = [combine_streams([source.entries for source in plan.sources if source.lane_id == lane.id], 'sequential')
+        return combine_streams([source_entries(source) for source in plan.sources], plan.strategy)
+    streams = [combine_streams([source_entries(source) for source in plan.sources if source.lane_id == lane.id], 'sequential')
                for lane in plan.lanes]
     return combine_streams(streams, 'parallel')
 
@@ -109,7 +133,7 @@ async def validate_plan(db, raw, user_id, token, recipients, common_message, job
             if not job or owner_job != job.id:
                 raise ValueError('This attachment is already used in another series. Upload it again or duplicate that series.')
     for index, entry in enumerate(entries, 1):
-        text = '\n\n'.join(part for part in [common_message, entry.message] if part)
+        text = '\n\n'.join(part for part in [common_message, entry.message, plan.footer] if part.strip())
         text = render_message(text, index, len(entries), 'UTC')
         if not text and not entry.attachments:
             raise ValueError(f'Send #{index} needs a message or an attachment')

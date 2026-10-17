@@ -62,6 +62,120 @@ def test_variables_use_occurrence_and_schedule_timezone():
     assert render_message('{send_number} {total_sends}', 7, None, 'UTC', now) == '7 ∞'
 
 
+def templated_plan():
+    return {'footer': 'Enjoy lesson {send_number}!', 'lanes': [
+        {'id': 'video', 'name': 'Videos'}, {'id': 'reading', 'name': 'Reading'}], 'sources': [
+        {'kind': 'playlist', 'name': 'Video lessons', 'lane_id': 'video',
+         'message_template': '{source_name} #{batch_number}\n{content}', 'entries': [
+             {'message': 'Video A\nhttps://youtu.be/abcdefghijk'},
+             {'message': 'Video B', 'message_template': 'Special: {content} ({send_number}/{total_sends})'}]},
+        {'kind': 'messages', 'name': 'Book', 'lane_id': 'reading',
+         'message_template': 'Read: {content}', 'entries': [{'message': 'Chapter one'}]}]}
+
+
+@pytest.mark.parametrize('provider', ['native', 'whatsapp'])
+def test_templates_merge_header_lines_footer_and_survive_edit_clone(tmp_path, monkeypatch, provider):
+    monkeypatch.setattr(jobs, 'register_job', no_schedule)
+    calls = []
+    def worker(request):
+        if request.method == 'POST':
+            calls.append(json.loads(request.content)['text' if provider == 'native' else 'body'])
+            return httpx.Response(202, json={'data': {'id': str(uuid4()), 'status': 'pending'}})
+        return httpx.Response(200, json={'data': {'id': request.url.path.rsplit('/', 1)[-1], 'status': 'sent'}})
+
+    async def scenario(client, sessions, context):
+        from app.models.token import Token
+        async with sessions() as db:
+            token = await db.get(Token, 3); token.provider = provider; await db.commit()
+        definition = templated_plan()
+        assert (await create_series(client, definition, group_ids=RECIPIENT, message='Lesson {send_number}/{total_sends}')).status_code == 303
+        async with sessions() as db:
+            job_id = (await db.execute(select(Job.id))).scalar_one()
+        definition['footer'] = 'Thank you #{send_number} — {send_ordinal_ar}'
+        response = await client.post(f'/jobs/{job_id}/edit', data={
+            'token_id': '3', 'group_ids': RECIPIENT, 'message_mode': 'series', 'message': 'Lesson {send_number}/{total_sends}',
+            'trigger_type': 'cron', 'cron_time': '09:00', 'series_definition': json.dumps(definition)}, headers=HEADERS)
+        assert response.status_code == 303
+        assert (await client.post(f'/jobs/{job_id}/clone', headers=HEADERS)).status_code == 303
+        async with sessions() as db:
+            clone = (await db.execute(select(Job).where(Job.id != job_id))).scalar_one()
+            saved = json.loads(clone.series_plan)
+            assert saved['footer'] == definition['footer']
+            assert saved['sources'][0]['message_template'] == '{source_name} #{batch_number}\n{content}'
+            assert 'message_template' not in saved['sources'][0]['entries'][1]
+        for _ in range(2):
+            await scheduler.send_job(job_id)
+            if provider == 'native': await native_jobs.poll_deliveries()
+        assert calls == [
+            'Lesson 1/2\n\nVideo lessons #1\nVideo A\nhttps://youtu.be/abcdefghijk\n\nRead: Chapter one\n\nThank you #1 — الأول',
+            'Lesson 2/2\n\nVideo lessons #2\nVideo B\n\nThank you #2 — الثاني']
+        detail = await client.get(f'/jobs/{job_id}')
+        assert detail.status_code == 200 and 'Thank you' in detail.text
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
+
+
+def test_template_replacements_are_single_pass_and_size_checked(tmp_path, monkeypatch):
+    definition = plan(['literal {source_name}'])
+    definition['sources'][0]['message_template'] = '{content} - {source_name}'
+    assert flatten_plan(SeriesPlan.model_validate(definition))[0].message == 'literal {source_name} - Lessons'
+
+    async def scenario(client, sessions, context):
+        definition['footer'] = 'x' * 4096
+        response = await create_series(client, definition, group_ids=RECIPIENT)
+        assert response.status_code == 400 and '4096' in response.text
+        assert 'literal {source_name}' in response.text  # Failed forms retain the editable plan.
+        async with sessions() as db:
+            assert not (await db.execute(select(Job))).scalars().all()
+    asyncio.run(exercise(tmp_path, monkeypatch, lambda request: httpx.Response(500), scenario))
+
+
+@pytest.mark.parametrize('entry', [
+    {'message': 'Pages 5-500'},
+    {'message': 'My edited batch', 'start_page': 5, 'end_page': 500},
+])
+def test_arabic_pdf_template_uses_batch_pages(entry):
+    definition = {'sources': [{'kind': 'pdf', 'name': 'كتابي',
+        'message_template': '{book_name}\nمن صفحة {start_page} إلى صفحة {end_page}', 'entries': [entry]}]}
+    assert flatten_plan(SeriesPlan.model_validate(definition))[0].message == 'كتابي\nمن صفحة 5 إلى صفحة 500'
+
+
+def test_arabic_pdf_import_preserves_pages_through_save_clone_and_delivery(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, 'register_job', no_schedule)
+    monkeypatch.setattr(jobs, 'UPLOAD_DIR', tmp_path)
+    texts = []
+    def worker(request):
+        if request.method == 'POST':
+            if 'application/json' in request.headers.get('content-type', ''):
+                texts.append(json.loads(request.content)['text'])
+            return httpx.Response(202, json={'data': {'id': str(uuid4()), 'status': 'pending'}})
+        return httpx.Response(200, json={'data': {'id': request.url.path.rsplit('/', 1)[-1], 'status': 'sent'}})
+
+    async def scenario(client, sessions, context):
+        response = await client.post('/jobs/series-pdf', data={'start_page': '5', 'end_page': '8', 'pages_per_send': '2'},
+            files={'file': ('Book.pdf', pdf_bytes(), 'application/pdf')},
+            headers={**HEADERS, 'Cookie': 'csrf_token=safe; lang=ar'})
+        assert response.status_code == 201
+        entries = response.json()['entries']
+        assert [(entry['start_page'], entry['end_page']) for entry in entries] == [(5, 6), (7, 8)]
+        assert entries[0]['message'] == 'من صفحة 5 إلى صفحة 6'
+        entries[0]['message'] = 'Edited content still retains its page range'
+        definition = {'sources': [{'kind': 'pdf', 'name': 'كتابي', 'entries': entries,
+            'message_template': '{book_name}\nمن صفحة {start_page} إلى صفحة {end_page}'}]}
+        assert (await create_series(client, definition, group_ids=RECIPIENT)).status_code == 303
+        async with sessions() as db:
+            job_id = (await db.execute(select(Job.id))).scalar_one()
+        await client.post(f'/jobs/{job_id}/clone', headers=HEADERS)
+        async with sessions() as db:
+            clone = (await db.execute(select(Job).where(Job.id != job_id))).scalar_one()
+            saved = json.loads(clone.series_plan)['sources'][0]['entries']
+            assert [(entry['start_page'], entry['end_page']) for entry in saved] == [(5, 6), (7, 8)]
+        for _ in range(2):
+            await scheduler.send_job(job_id)
+            await native_jobs.poll_deliveries()
+        assert texts == ['كتابي\nمن صفحة 5 إلى صفحة 6', 'كتابي\nمن صفحة 7 إلى صفحة 8']
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
+
+
 def mixed_lines(strategy='parallel', inside='sequential'):
     return {'strategy':strategy,'lanes':[
         {'id':'videos','name':'Video lessons','strategy':inside},
@@ -174,7 +288,9 @@ def test_native_series_claims_each_occurrence_once_and_finishes(tmp_path, monkey
         assert any(b'filename="One.pdf"' in request.content for request in submitted)
         assert any(b'filename="Two.pdf"' in request.content for request in submitted)
         progress = (await client.get(f'/jobs/{job_id}/progress')).json()
-        assert progress['total'] == 2 and progress['counts']['pending'] == 2
+        assert progress['total'] == 4
+        assert progress['counts'] == {'sent': 2, 'pending': 2, 'failed': 0, 'unknown': 0}
+        assert [row['send_number'] for row in progress['recipients']] == [1, 1, 2, 2]
         await native_jobs.poll_deliveries()
         await scheduler.send_job(job_id)
         async with sessions() as db:
@@ -182,6 +298,8 @@ def test_native_series_claims_each_occurrence_once_and_finishes(tmp_path, monkey
             assert job.status == 'completed' and job.series_cursor == 2 and not job.series_active_run
             assert [entry.status for entry in (await db.execute(select(SeriesEntry).order_by(SeriesEntry.position))).scalars()] == ['sent','sent']
         assert len(submitted) == 8
+        progress = (await client.get(f'/jobs/{job_id}/progress')).json()
+        assert progress['total'] == 4 and progress['counts']['sent'] == 4
         assert scheduler.scheduler.get_job(str(job_id)) is None
         assert (await client.get(f'/jobs/{job_id}/edit')).status_code == 303
     asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
@@ -305,7 +423,7 @@ def test_invalid_plans_do_not_create_schedules(tmp_path, monkeypatch):
 
 
 def test_playlist_url_validation_and_batch_order(monkeypatch):
-    for invalid in ['http://127.0.0.1/playlist?list=x','https://youtube.com.evil.com/playlist?list=x','https://user:pass@youtube.com/playlist?list=x','https://soundcloud.com/user/track']:
+    for invalid in ['http://127.0.0.1/playlist?list=x','https://youtube.com.evil.com/playlist?list=x','https://user:pass@youtube.com/playlist?list=x','https://soundcloud.com/user/likes', 'https://youtube.com/watch?v=short', 'https://youtu.be/abcdefghijk/extra', 'https://soundcloud.com.evil.com/user/track']:
         with pytest.raises(ValueError): series_imports.playlist_url(invalid)
     captured=[]
     def extract(url,source):
@@ -317,6 +435,53 @@ def test_playlist_url_validation_and_batch_order(monkeypatch):
         assert result['entries'][0]['message'].endswith('https://example.com/1')
         assert result['entries'][2]['message'] == 'Item 4\nhttps://example.com/4'
         assert captured[-1][1] == source
+
+
+@pytest.mark.parametrize('url,canonical,source', [
+    ('https://www.youtube.com/watch?v=abcdefghijk&t=20', 'https://www.youtube.com/watch?v=abcdefghijk', 'youtube'),
+    ('https://youtu.be/abcdefghijk?si=share', 'https://www.youtube.com/watch?v=abcdefghijk', 'youtube'),
+    ('https://m.youtube.com/shorts/abcdefghijk', 'https://www.youtube.com/watch?v=abcdefghijk', 'youtube'),
+    ('https://www.youtube.com/live/abcdefghijk', 'https://www.youtube.com/watch?v=abcdefghijk', 'youtube'),
+    ('https://www.youtube.com/embed/abcdefghijk', 'https://www.youtube.com/watch?v=abcdefghijk', 'youtube'),
+    ('https://soundcloud.com/artist/track-name/?si=share', 'https://soundcloud.com/artist/track-name', 'soundcloud'),
+])
+def test_individual_media_imports_as_one_titled_send(monkeypatch, url, canonical, source):
+    class MetadataClient:
+        def __init__(self, options):
+            assert options['skip_download'] is True
+            assert source in options['allowed_extractors']
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def add_info_extractor(self, extractor): pass
+        def extract_info(self, requested, download):
+            assert requested == canonical and download is False
+            return {'id': 'abcdefghijk' if source == 'youtube' else '123',
+                    'title': 'One lesson', 'webpage_url': canonical}
+    monkeypatch.setattr(series_imports, 'YoutubeDL', MetadataClient)
+    result = asyncio.run(series_imports.import_playlist(url, 2))
+    assert result['entries'] == [{'message': 'One lesson\n' + canonical, 'attachments': []}]
+    assert result['item_count'] == 1 and result['skipped'] == 0 and result['source_url'] == canonical
+
+
+def test_single_link_route_and_unavailable_media(tmp_path, monkeypatch):
+    class MetadataClient:
+        def __init__(self, options): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def add_info_extractor(self, extractor): pass
+        def extract_info(self, url, download):
+            return {'id': 'abcdefghijk', 'title': 'Lesson', 'availability': state[0]}
+    state = ['public']
+    monkeypatch.setattr(series_imports, 'YoutubeDL', MetadataClient)
+
+    async def scenario(client, sessions, context):
+        payload = {'url': 'https://youtu.be/abcdefghijk', 'items_per_send': 1}
+        response = await client.post('/jobs/series-playlist', json=payload, headers=HEADERS)
+        assert response.status_code == 200 and response.json()['item_count'] == 1
+        state[0] = 'private'
+        response = await client.post('/jobs/series-playlist', json=payload, headers=HEADERS)
+        assert response.status_code == 400 and 'No public' in response.text
+    asyncio.run(exercise(tmp_path, monkeypatch, lambda request: httpx.Response(500), scenario))
 
 
 def test_interrupted_series_recovers_without_replaying_and_ends_with_issues(tmp_path, monkeypatch):
@@ -373,6 +538,72 @@ def test_pause_resume_and_skip_preserve_series_position(tmp_path,monkeypatch):
         await native_jobs.poll_deliveries();assert calls==['One','Two']
         async with sessions() as db: assert (await db.get(Job,job_id)).status=='completed'
     asyncio.run(exercise(tmp_path,monkeypatch,worker,scenario))
+
+
+@pytest.mark.parametrize('trigger', ['cron', 'trigger'])
+def test_send_now_advances_plan_without_removing_schedule_or_consuming_skips(tmp_path, monkeypatch, trigger):
+    monkeypatch.setattr(jobs, 'register_job', no_schedule)
+    calls, removed = [], []
+
+    async def remove(job_id):
+        removed.append(job_id)
+    monkeypatch.setattr(jobs, 'remove_job', remove)
+
+    def worker(request):
+        if request.method == 'POST':
+            calls.append(json.loads(request.content)['text'])
+            return httpx.Response(202, json={'data': {'id': str(uuid4()), 'status': 'pending'}})
+        return httpx.Response(200, json={'data': {'id': request.url.path.rsplit('/', 1)[-1], 'status': 'sent'}})
+
+    async def scenario(client, sessions, context):
+        await create_series(client, plan(['One', 'Two']), group_ids=RECIPIENT, trigger_type=trigger)
+        async with sessions() as db:
+            job = (await db.execute(select(Job))).scalar_one()
+            job_id, schedule = job.id, job.trigger_value
+            job.status = 'active' if trigger == 'cron' else 'trigger'
+            job.skip_count = 2
+            await db.commit()
+        for blocked in ['paused', 'cancelled', 'completed']:
+            async with sessions() as db:
+                job = await db.get(Job, job_id)
+                job.status = blocked
+                await db.commit()
+            await client.post(f'/jobs/{job_id}/send-now', headers=HEADERS)
+            assert calls == []
+        async with sessions() as db:
+            job = await db.get(Job, job_id)
+            job.status = 'active' if trigger == 'cron' else 'trigger'
+            await db.commit()
+        detail = await client.get(f'/jobs/{job_id}')
+        assert detail.status_code == 200 and 'data-series-send-now' in detail.text
+        listing = await client.get('/jobs')
+        assert listing.status_code == 200 and f'action="/jobs/{job_id}/send-now"' in listing.text
+        response = await client.post(f'/jobs/{job_id}/send-now', headers=HEADERS)
+        assert response.status_code == 303 and calls == ['One']
+        assert removed == []
+        detail = await client.get(f'/jobs/{job_id}')
+        send_button = detail.text.split('data-series-send-now>', 1)[1].split('</form>', 1)[0]
+        assert 'disabled' in send_button
+        # A second click cannot start another batch in flight.
+        await client.post(f'/jobs/{job_id}/send-now', headers=HEADERS)
+        assert calls == ['One']
+        async with sessions() as db:
+            job = await db.get(Job, job_id)
+            assert job.series_cursor == 1 and job.skip_count == 2
+            assert job.trigger_value == schedule and job.trigger_type == trigger
+        await native_jobs.poll_deliveries()
+        if trigger == 'cron':
+            await scheduler.send_job(job_id)
+            assert calls == ['One']
+        await client.post(f'/jobs/{job_id}/send-now', headers=HEADERS)
+        assert calls == ['One', 'Two']
+        await native_jobs.poll_deliveries()
+        await client.post(f'/jobs/{job_id}/send-now', headers=HEADERS)
+        assert calls == ['One', 'Two']
+        async with sessions() as db:
+            job = await db.get(Job, job_id)
+            assert job.status == 'completed' and job.series_cursor == 2
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
 
 
 def test_whapi_series_uses_same_finite_plan_without_retries(tmp_path,monkeypatch):

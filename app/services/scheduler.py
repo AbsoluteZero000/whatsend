@@ -89,14 +89,14 @@ async def _schedule_retry(job: Job, failed_group_ids: list[str]) -> bool:
     return True
 
 
-async def send_job(job_id: int, retry_only: bool = False):
+async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = False):
     async with async_session() as db:
         result = await db.execute(select(Job).where(Job.id == job_id).options(selectinload(Job.job_groups)))
         job = result.scalar_one_or_none()
         if not job:
             return
 
-        if job.skip_count > 0 and job.trigger_type not in ("trigger", "now") and not retry_only:
+        if job.skip_count > 0 and job.trigger_type not in ("trigger", "now") and not retry_only and not send_now:
             if job.trigger_type == "date":
                 skipped = job.skip_count
                 job.skip_count = 0

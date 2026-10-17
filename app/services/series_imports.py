@@ -1,4 +1,4 @@
-"""Import public playlist links and split PDFs into private series attachments."""
+"""Import public media links and split PDFs into private series attachments."""
 import asyncio
 import re
 from datetime import datetime, timedelta, timezone
@@ -22,16 +22,27 @@ PDF_SPLIT_LOCK = asyncio.Lock()
 def playlist_url(value):
     parts = urlsplit(value.strip())
     if parts.scheme not in {'http', 'https'} or parts.username or parts.password or parts.port:
-        raise ValueError('Enter a public YouTube or SoundCloud playlist URL')
+        raise ValueError('Enter a public YouTube video, SoundCloud track, or playlist URL')
     host = (parts.hostname or '').lower()
     if host in {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'}:
         identifier = parse_qs(parts.query).get('list', [''])[0]
-        if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', identifier):
-            raise ValueError('The YouTube URL must include a playlist ID')
-        return 'https://www.youtube.com/playlist?' + urlencode({'list': identifier}), 'youtube'
-    if host in {'soundcloud.com', 'www.soundcloud.com'} and re.fullmatch(r'/[A-Za-z0-9_-]+/sets/[A-Za-z0-9_-]+/?', parts.path):
-        return 'https://soundcloud.com' + parts.path.rstrip('/'), 'soundcloud'
-    raise ValueError('Enter a public YouTube or SoundCloud playlist URL')
+        if identifier and re.fullmatch(r'[A-Za-z0-9_-]{1,128}', identifier):
+            return 'https://www.youtube.com/playlist?' + urlencode({'list': identifier}), 'youtube'
+        if host == 'youtu.be':
+            video = parts.path.strip('/')
+        elif parts.path == '/watch':
+            video = parse_qs(parts.query).get('v', [''])[0]
+        else:
+            match = re.fullmatch(r'/(?:shorts|live|embed)/([A-Za-z0-9_-]{11})/?', parts.path)
+            video = match.group(1) if match else ''
+        if re.fullmatch(r'[A-Za-z0-9_-]{11}', video):
+            return 'https://www.youtube.com/watch?' + urlencode({'v': video}), 'youtube'
+    if host in {'soundcloud.com', 'www.soundcloud.com'}:
+        is_set = re.fullmatch(r'/[A-Za-z0-9_-]+/sets/[A-Za-z0-9_-]+/?', parts.path)
+        track = re.fullmatch(r'/[A-Za-z0-9_-]+/([A-Za-z0-9_-]+)/?', parts.path)
+        if is_set or (track and track.group(1) not in {'sets', 'tracks', 'albums', 'likes', 'reposts', 'popular-tracks'}):
+            return 'https://soundcloud.com' + parts.path.rstrip('/'), 'soundcloud'
+    raise ValueError('Enter a public YouTube video, SoundCloud track, or playlist URL')
 
 
 class QuietLogger:
@@ -71,12 +82,12 @@ def extract_playlist(url, source):
     with YoutubeDL({'extract_flat': 'in_playlist', 'skip_download': True, 'quiet': True,
                     'logger': QuietLogger(), 'socket_timeout': 10, 'retries': 1, 'extractor_retries': 1,
                     'playlistend': MAX_ENTRIES + 1, 'ignoreerrors': False,
-                    'allowed_extractors': ['youtube:tab', 'soundcloud:set']}) as client:
+                    'allowed_extractors': ['youtube:tab', 'youtube', 'soundcloud:set', 'soundcloud']}) as client:
         if source == 'soundcloud': client.add_info_extractor(SoundcloudLinksIE())
         info = client.extract_info(url, download=False)
-    if not info or info.get('_type') not in {'playlist', 'multi_video'}:
-        raise ValueError('This URL did not return a public playlist')
-    entries = list(info.get('entries') or [])
+    if not info:
+        raise ValueError('This URL did not return a public video, track, or playlist')
+    entries = list(info.get('entries') or []) if info.get('_type') in {'playlist', 'multi_video'} else [info]
     if len(entries) > MAX_ENTRIES:
         raise ValueError('Playlists can contain up to 1000 items')
     items, skipped = [], 0
@@ -99,20 +110,20 @@ def extract_playlist(url, source):
             link = 'https://soundcloud.com' + parsed.path
         items.append({'title': title, 'url': link})
     if not items:
-        raise ValueError('No public items were available in this playlist')
+        raise ValueError('No public videos or tracks were available at this URL')
     return {'title': str(info.get('title') or 'Playlist')[:120], 'items': items, 'skipped': skipped}
 
 
 async def import_playlist(value, batch_size):
     url, source = playlist_url(value)
     if not 1 <= batch_size <= 20:
-        raise ValueError('Choose between 1 and 20 videos in each part')
+        raise ValueError('Choose between 1 and 20 items per send')
     try:
         playlist = await asyncio.wait_for(asyncio.to_thread(extract_playlist, url, source), timeout=60)
     except ValueError:
         raise
     except Exception as exc:
-        raise ValueError('Could not load this playlist. It must be public and accessible. Try again shortly.') from exc
+        raise ValueError('Could not load this video, track, or playlist. It must be public and accessible. Try again shortly.') from exc
     entries = []
     for offset in range(0, len(playlist['items']), batch_size):
         message = '\n\n'.join(item['title'] + '\n' + item['url'] for item in playlist['items'][offset:offset + batch_size])

@@ -87,7 +87,8 @@ async def submit_series(db, job, token, groups):
     entry.status, entry.run_id = 'submitting', run_id
     parts = []
     total = await db.scalar(select(func.count()).select_from(SeriesEntry).where(SeriesEntry.job_id == job.id))
-    text = render_message('\n\n'.join(part for part in [job.message, entry.message] if part), entry.position, total, job.schedule_timezone)
+    footer = json.loads(job.series_plan or '{}').get('footer', '')
+    text = render_message('\n\n'.join(part for part in [job.message, entry.message, footer] if part.strip()), entry.position, total, job.schedule_timezone)
     if text:
         parts.append((text, None, None, 'Message'))
     for attachment in entry.attachments:
