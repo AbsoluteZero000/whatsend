@@ -26,6 +26,18 @@ class WhatsAppProtocolError(ValueError):
     pass
 
 
+CONNECTION_LOST = "WhatsApp connection lost. Reconnect it from Connections before sending again. These messages were not sent."
+
+
+def worker_error_code(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+        error = payload.get('error') if isinstance(payload, dict) else None
+        return error.get('code', '') if isinstance(error, dict) else ''
+    except ValueError:
+        return ''
+
+
 class NativeSender:
     def __init__(self, api_token: str = "", session_id: str = "", base_url: str = "", timeout: int = 30):
         from app.config import settings

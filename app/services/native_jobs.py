@@ -14,7 +14,7 @@ from app.models.log import Log
 from app.models.token import Token
 from app.services.crypto import decrypt_token
 from app.services.native_api import connection_base_url
-from app.services.native_sender import NativeSender
+from app.services.native_sender import CONNECTION_LOST, NativeSender, worker_error_code
 
 PENDING = {"submitting", "queued", "processing"}
 ACTIVE_RUNS = set()
@@ -99,14 +99,12 @@ async def submit_job(db, job, token, groups):
                 attempt.status = "queued"
                 attempt.response = json.dumps(data)
             except httpx.HTTPStatusError as exc:
+                disconnected = exc.response.status_code == 409 and worker_error_code(exc.response) == 'not_connected'
                 definitive = 400 <= exc.response.status_code < 500 and exc.response.status_code not in {408, 409}
                 if exc.response.status_code == 409:
-                    try:
-                        definitive = exc.response.json().get("error", {}).get("code") == "not_connected"
-                    except (ValueError, AttributeError):
-                        pass
+                    definitive = disconnected
                 attempt.status = "failed" if definitive else "unknown"
-                attempt.response = (f"WhatsApp rejected the request ({exc.response.status_code})." if definitive else
+                attempt.response = CONNECTION_LOST if disconnected else (f"WhatsApp rejected the request ({exc.response.status_code})." if definitive else
                                     "WhatsApp acknowledgement is uncertain. Check WhatsApp before sending again; this recipient will not be retried automatically.")
             except (httpx.RequestError, ValueError, OSError):
                 attempt.status = "unknown"

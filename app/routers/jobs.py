@@ -37,7 +37,8 @@ from app.services.csrf import csrf_protect
 from app.services.scheduler import build_trigger, register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
 from app.services.sender import WhatsAppSender, get_sender
-from app.services.native_sender import NativeSender
+from app.services.native_sender import CONNECTION_LOST, NativeSender
+from app.i18n import _
 from app.services.native_api import connection_base_url
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
@@ -355,7 +356,9 @@ async def delete_recipient_list(request: Request, list_id: int, db: AsyncSession
 
 @router.get("/{job_id}/progress")
 async def job_progress(request: Request, job_id: int, db: AsyncSession = Depends(get_db)):
-    user_id = int(require_user(request)["sub"])
+    user = require_user(request)
+    user_id = int(user["sub"])
+    lang = request.cookies.get('lang', user.get('lang', 'en'))
     job = (await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))).scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Job not found")
@@ -388,7 +391,12 @@ async def job_progress(request: Request, job_id: int, db: AsyncSession = Depends
                 if isinstance(error, dict): error = error.get('message', '')
             except ValueError: error = attempt.response
             if isinstance(error, str) and error:
-                errors.append((attempt.part_label + ': ' if attempt.part_label else '') + error)
+                if error in {CONNECTION_LOST, 'WhatsApp rejected this part (409).', 'WhatsApp rejected the request (409).'}:
+                    # Legacy native 409 failures were classified as failed only for not_connected.
+                    note = _(CONNECTION_LOST, lang)
+                    if note not in errors: errors.append(note)
+                else:
+                    errors.append((attempt.part_label + ': ' if attempt.part_label else '') + error)
         recipients.append({'id': parts[0].group_id, 'name': parts[0].group_name or parts[0].group_id,
                            'status': state if job.message_mode == 'series' else parts[0].status, 'error': '\n'.join(errors),
                            'send_number': positions.get(parts[0].series_entry_id)})

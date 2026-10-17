@@ -661,3 +661,43 @@ def test_scheduler_refreshes_edited_plan_after_claiming_occurrence(tmp_path,monk
             await submit_series(stale,job,token,[SimpleNamespace(group_id=RECIPIENT,group_name='Old group')])
         assert calls==[{'recipient':'+201234567891','text':'New prefix\n\nNew content'}]
     asyncio.run(exercise(tmp_path,monkeypatch,worker,scenario))
+
+
+@pytest.mark.parametrize('mode', ['repeat', 'series'])
+def test_lost_connection_has_clear_deduplicated_delivery_message(tmp_path, monkeypatch, mode):
+    from app.services.native_sender import CONNECTION_LOST
+    monkeypatch.setattr(jobs, 'register_job', no_schedule)
+    monkeypatch.setattr(jobs, 'UPLOAD_DIR', tmp_path)
+    calls = []
+
+    def worker(request):
+        calls.append(request)
+        return httpx.Response(409, json={'error': {'code': 'not_connected', 'message': 'sensitive upstream details'}})
+
+    async def scenario(client, sessions, context):
+        if mode == 'series':
+            asset = (await client.post('/jobs/series-files', files={'file': ('Book.pdf', pdf_bytes(1), 'application/pdf')}, headers=HEADERS)).json()
+            response = await create_series(client, plan(['Lesson'], {0: [asset]}), group_ids=RECIPIENT)
+        else:
+            response = await client.post('/jobs/create', data={'token_id': '3', 'group_ids': RECIPIENT,
+                'message': 'Lesson', 'trigger_type': 'now'}, headers=HEADERS)
+        assert response.status_code == 303
+        async with sessions() as db:
+            job_id = (await db.execute(select(Job.id))).scalar_one()
+        await scheduler.send_job(job_id)
+        async with sessions() as db:
+            attempts = (await db.execute(select(DeliveryAttempt))).scalars().all()
+            assert attempts and all(a.status == 'failed' and a.response == CONNECTION_LOST for a in attempts)
+        progress = (await client.get(f'/jobs/{job_id}/progress')).json()
+        assert progress['recipients'][0]['error'] == CONNECTION_LOST
+        arabic = (await client.get(f'/jobs/{job_id}/progress', headers={'Cookie': 'lang=ar'})).json()
+        assert 'انقطع الاتصال بواتساب' in arabic['recipients'][0]['error']
+        # Existing rows also become understandable without changing delivery history.
+        async with sessions() as db:
+            for attempt in (await db.execute(select(DeliveryAttempt))).scalars():
+                attempt.response = 'WhatsApp rejected this part (409).' if mode == 'series' else 'WhatsApp rejected the request (409).'
+            await db.commit()
+        progress = (await client.get(f'/jobs/{job_id}/progress')).json()
+        assert progress['recipients'][0]['error'] == CONNECTION_LOST
+        assert len(calls) == (2 if mode == 'series' else 1)
+    asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))

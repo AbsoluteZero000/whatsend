@@ -1,6 +1,7 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        'WhatsApp connection lost. Reconnect it from Connections before sending again. These messages were not sent.': 'انقطع الاتصال بواتساب. أعد ربطه من صفحة الاتصالات قبل الإرسال مجددًا. لم تُرسل هذه الرسائل.',
         'Message type': 'نوع الرسالة',
         'Same message every time': 'الرسالة نفسها كل مرة',
         'Message series: something new each time': 'سلسلة رسائل: محتوى جديد كل مرة',
