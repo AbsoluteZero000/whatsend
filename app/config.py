@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
+    remember_me_days: int = 30
     whapi_base_url: str = "https://gate.whapi.cloud"
     whatsapp_worker_url: str = "http://127.0.0.1:3001"
     whatsapp_worker_secret: str = ""

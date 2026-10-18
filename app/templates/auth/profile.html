@@ -36,6 +36,15 @@
   </form>
 </div>
 {% if not force_password_change %}
+<div class="form-card setting-card">
+  <div class="setting-row">
+    <div>
+      <strong>{{ _('Signed-in devices') }}</strong>
+      <p>{{ _('Sign out on every phone and computer, including this one. Changing your password also signs out your other devices.') }}</p>
+    </div>
+    <form method="POST" action="/auth/signout-all"><button type="submit" class="btn btn-danger-outline">{{ _('Sign out of all devices') }}</button></form>
+  </div>
+</div>
 <details class="form-card developer-settings" {% if composer_extras %}open{% endif %}>
   <summary>{{ _('Advanced settings') }}</summary>
   <div class="setting-row">

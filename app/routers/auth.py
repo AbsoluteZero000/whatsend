@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select
@@ -19,15 +21,32 @@ class RedirectRequired(Exception):
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(csrf_protect)])
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def session_lifetime_seconds(remember: bool) -> int:
+    return settings.remember_me_days * 86400 if remember else settings.jwt_expire_minutes * 60
+
+
+def set_session_cookie(response: Response, payload: dict, remember: bool = False) -> None:
+    """Issue a session. "remember" is stored in the token so every re-issue keeps the same lifetime."""
+    claims = {key: value for key, value in payload.items() if key != "exp"}
+    claims["remember"] = remember
+    lifetime = session_lifetime_seconds(remember)
     response.set_cookie(
         key="session",
-        value=token,
+        value=create_jwt(claims, expires_minutes=lifetime // 60),
         httponly=True,
         secure=settings.cookie_secure,
-        max_age=86400,
+        # Without "keep me signed in" the cookie is dropped when the browser session ends.
+        max_age=lifetime if remember else None,
         samesite="lax",
     )
+
+
+def session_needs_renewal(payload: dict) -> bool:
+    """Renew active sessions once they are past half their lifetime."""
+    expires_at = payload.get("exp")
+    if not isinstance(expires_at, (int, float)):
+        return False
+    return expires_at - time.time() < session_lifetime_seconds(bool(payload.get("remember"))) / 2
 
 
 def get_current_user(request: Request) -> dict | None:
@@ -58,7 +77,7 @@ def admin_path_allowed(path: str) -> bool:
     return (
         path == "/admin"
         or path.startswith("/admin/")
-        or path in {"/auth/profile", "/auth/signout", "/auth/lang"}
+        or path in {"/auth/profile", "/auth/signout", "/auth/signout-all", "/auth/lang"}
         or path.startswith("/static/")
         or path.startswith("/health/")
     )
@@ -77,6 +96,7 @@ def _session_payload(user: User) -> dict:
         "onboarded": user.onboarded,
         "is_admin": user.is_admin,
         "force_password_change": user.must_change_password,
+        "sv": user.session_version or 0,
     }
 
 
@@ -114,6 +134,7 @@ async def signup(
     username: str = Form(...),
     password: str = Form(...),
     timezone: str = Form("UTC"),
+    remember: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     username = username.strip()
@@ -159,10 +180,9 @@ async def signup(
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt(_session_payload(user))
     destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
     redirect = RedirectResponse(url=destination, status_code=303)
-    _set_session_cookie(redirect, token)
+    set_session_cookie(redirect, _session_payload(user), remember=bool(remember))
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
@@ -179,6 +199,7 @@ async def signin(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    remember: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     username = username.strip()
@@ -186,23 +207,36 @@ async def signin(
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
     if not user or not user.is_active or not verify_password(password, user.password_hash):
-        return request.app.state.render(request, "auth/signin.html", error="Invalid credentials")
+        return request.app.state.render(
+            request, "auth/signin.html", error="Invalid credentials", username=username, remember=bool(remember),
+        )
 
     if user.username in settings.admin_username_set and not user.is_admin:
         user.is_admin = True
         await db.commit()
 
-    token = create_jwt(_session_payload(user))
     clear_rate_limit(request, "signin", username)
     destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
     redirect = RedirectResponse(url=destination, status_code=303)
-    _set_session_cookie(redirect, token)
+    set_session_cookie(redirect, _session_payload(user), remember=bool(remember))
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
 
 @router.post("/signout")
 async def signout():
+    redirect = RedirectResponse(url="/auth/signin", status_code=303)
+    redirect.delete_cookie(key="session")
+    return redirect
+
+
+@router.post("/signout-all")
+async def signout_everywhere(request: Request, db: AsyncSession = Depends(get_db)):
+    user_payload = require_user(request)
+    user = await db.get(User, int(user_payload["sub"]))
+    if user:
+        user.session_version = (user.session_version or 0) + 1
+        await db.commit()
     redirect = RedirectResponse(url="/auth/signin", status_code=303)
     redirect.delete_cookie(key="session")
     return redirect
@@ -252,9 +286,11 @@ async def timezone_update(
 
     lang = user_payload.get("lang", "en")
     onboarded = user_payload.get("onboarded", True)
-    token = create_jwt({**user_payload, "tz": timezone, "lang": lang, "onboarded": onboarded})
     redirect = RedirectResponse(url="/dashboard", status_code=303)
-    _set_session_cookie(redirect, token)
+    set_session_cookie(
+        redirect, {**user_payload, "tz": timezone, "lang": lang, "onboarded": onboarded},
+        remember=bool(user_payload.get("remember")),
+    )
     redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
     return redirect
 
@@ -350,14 +386,15 @@ async def profile_update(
             )
         user.password_hash = hash_password(new_password)
         user.must_change_password = False
+        # A new password signs out every other device; this one gets a fresh session below.
+        user.session_version = (user.session_version or 0) + 1
 
     await db.commit()
     await db.refresh(user)
 
-    token = create_jwt(_session_payload(user))
     destination = _landing_page(user) if force_password_change else "/auth/profile"
     redirect = RedirectResponse(url=destination, status_code=303)
-    _set_session_cookie(redirect, token)
+    set_session_cookie(redirect, _session_payload(user), remember=bool(user_payload.get("remember")))
     return redirect
 
 
@@ -381,17 +418,8 @@ async def lang_toggle(
             user.lang = lang
             await db.commit()
 
-        token = create_jwt({
-            "sub": str(user_id),
-            "username": user_payload["username"],
-            "tz": user_payload.get("tz", "UTC"),
-            "lang": lang,
-            "onboarded": user_payload.get("onboarded", True),
-            "is_admin": user_payload.get("is_admin", False),
-            "force_password_change": user_payload.get("force_password_change", False),
-        })
         redirect = RedirectResponse(url=referer, status_code=303)
-        _set_session_cookie(redirect, token)
+        set_session_cookie(redirect, {**user_payload, "lang": lang}, remember=bool(user_payload.get("remember")))
         redirect.set_cookie(key="lang", value=lang, max_age=86400 * 365, samesite="lax")
     else:
         redirect = RedirectResponse(url=referer, status_code=303)

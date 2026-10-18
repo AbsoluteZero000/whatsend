@@ -1,6 +1,10 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        'Keep me signed in': 'ابقَ مسجلاً للدخول',
+        'Signed-in devices': 'الأجهزة المسجّل دخولها',
+        'Sign out on every phone and computer, including this one. Changing your password also signs out your other devices.': 'سجّل الخروج من كل الهواتف وأجهزة الكمبيوتر، بما فيها هذا الجهاز. تغيير كلمة المرور يسجّل الخروج أيضاً من أجهزتك الأخرى.',
+        'Sign out of all devices': 'تسجيل الخروج من كل الأجهزة',
         'WhatsApp connection lost. Reconnect it from Connections before sending again. These messages were not sent.': 'انقطع الاتصال بواتساب. أعد ربطه من صفحة الاتصالات قبل الإرسال مجددًا. لم تُرسل هذه الرسائل.',
         'Message type': 'نوع الرسالة',
         'Same message every time': 'الرسالة نفسها كل مرة',

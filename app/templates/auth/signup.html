@@ -33,6 +33,7 @@
         {% endfor %}
       </datalist>
       <small id="timezone-help" class="field-help">{{ _('Used to show and schedule messages in your local time.') }}</small>
+      <label class="remember-me"><input type="checkbox" name="remember" value="1" {% if remember %}checked{% endif %}> <span>{{ _('Keep me signed in') }}</span></label>
       <button type="submit">{{ _('Sign up') }}</button>
     </form>
     <p class="alt-link">{{ _('Already have an account?') }} <a href="/auth/signin">{{ _('Sign in') }}</a></p>

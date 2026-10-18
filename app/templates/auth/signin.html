@@ -22,9 +22,10 @@
     {% endif %}
     <form method="POST" action="/auth/signin">
       <label class="auth-label" for="username">{{ _('Username') }}</label>
-      <input id="username" type="text" name="username" placeholder="{{ _('Username') }}" required autocomplete="username">
+      <input id="username" type="text" name="username" value="{{ username|default('') }}" placeholder="{{ _('Username') }}" required autocomplete="username">
       <label class="auth-label" for="password">{{ _('Password') }}</label>
       <input id="password" type="password" name="password" placeholder="{{ _('Password') }}" required autocomplete="current-password">
+      <label class="remember-me"><input type="checkbox" name="remember" value="1" {% if remember %}checked{% endif %}> <span>{{ _('Keep me signed in') }}</span></label>
       <button type="submit">{{ _('Sign in') }}</button>
     </form>
     <p class="alt-link">{{ _("Don't have an account?") }} <a href="/auth/signup">{{ _('Sign up') }}</a></p>

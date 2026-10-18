@@ -208,12 +208,24 @@ async def active_account_guard(request: Request, call_next):
             user_id = None
         if user_id is not None:
             async with async_session() as db:
-                is_active = await db.scalar(select(User.is_active).where(User.id == user_id))
-            if is_active is not True:
+                account = (await db.execute(
+                    select(User.is_active, User.session_version).where(User.id == user_id)
+                )).first()
+            # Deactivated accounts, and sessions ended by a password change or "sign out of all devices".
+            if account is None or account.is_active is not True or payload.get("sv", 0) != (account.session_version or 0):
                 response = RedirectResponse(url="/auth/signin", status_code=303)
                 response.delete_cookie(key="session")
                 return response
-    return await call_next(request)
+    response = await call_next(request)
+    path = request.url.path
+    if (
+        payload
+        and auth.session_needs_renewal(payload)
+        and not path.startswith(("/static/", "/health/"))
+        and not any(cookie.startswith("session=") for cookie in response.headers.getlist("set-cookie"))
+    ):
+        auth.set_session_cookie(response, payload, remember=bool(payload.get("remember")))
+    return response
 
 
 @app.middleware("http")
