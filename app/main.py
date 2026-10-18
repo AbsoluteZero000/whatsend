@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import zoneinfo
 import secrets
@@ -23,6 +23,7 @@ from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 from app.services.csrf import get_or_create_csrf_token
 from app.config import settings
 from app.services.logging import configure_logging
+from app.services.schedule_dates import parse_dates as parse_schedule_dates, remaining_dates as remaining_schedule_dates
 
 configure_logging()
 
@@ -35,7 +36,7 @@ _jinja_env = Environment(
 _static_dir = Path(__file__).resolve().parent / "static"
 _jinja_env.globals["asset_versions"] = {
     path: hashlib.sha256((_static_dir / path).read_bytes()).hexdigest()[:12]
-    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js")
+    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js", "js/dates-picker.js")
 }
 
 
@@ -62,6 +63,24 @@ def parse_dt(value: str, fmt: str = "%Y-%m-%d %H:%M") -> datetime | None:
 
 _jinja_env.globals["tz"] = tz
 _jinja_env.globals["parse_dt"] = parse_dt
+
+
+def dates_text(job, tz_name: str, translate) -> str:
+    """Short summary of a specific-dates schedule, e.g. "Next: 2026-11-03 09:00 · 5/8 dates left"."""
+    total = len(parse_schedule_dates(job))
+    upcoming = remaining_schedule_dates(job)
+    if upcoming:
+        return f"{translate('Next:')} {tz(upcoming[0], tz_name)} · {len(upcoming)}/{total} {translate('dates left')}"
+    return f"{total} {translate('dates')} · {translate('finished')}"
+
+
+def dates_with_state(job) -> list[tuple[datetime, bool]]:
+    now = datetime.now(timezone.utc)
+    return [(date, date <= now) for date in parse_schedule_dates(job)]
+
+
+_jinja_env.globals["dates_text"] = dates_text
+_jinja_env.globals["dates_with_state"] = dates_with_state
 
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -133,6 +152,11 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
         lang = "en"
     lang = request.cookies.get("lang", lang)
     context.setdefault("lang", lang)
+    try:
+        today_local = datetime.now(zoneinfo.ZoneInfo(context["user_tz"])).strftime("%Y-%m-%d")
+    except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+        today_local = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    context.setdefault("today_local", today_local)
     context.setdefault("cron_to_text", lambda *args, **kwargs: cron_to_text(*args, lang=lang, **kwargs))
     context.setdefault("api_keys_enabled", settings.api_keys_enabled)
     context.setdefault("composer_extras", request.cookies.get("composer_extras") == "1")

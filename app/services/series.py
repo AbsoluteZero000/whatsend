@@ -18,6 +18,7 @@ from app.services.native_api import connection_base_url
 from app.services.sender import WhatsAppSender
 from app.services.crypto import decrypt_token
 from app.services.message_variables import render_message
+from app.services.schedule_dates import remaining_dates
 
 PENDING = {"submitting", "queued", "processing"}
 
@@ -52,7 +53,8 @@ async def finish_series_run(db, job, run_id):
     if job.series_active_run or job.status == 'cancelled':
         return
     total = await db.scalar(select(func.count()).select_from(SeriesEntry).where(SeriesEntry.job_id == job.id))
-    if job.series_cursor >= total:
+    if job.series_cursor >= total or (job.trigger_type == 'dates' and not remaining_dates(job)):
+        # Finished every part, or ran out of picked dates.
         job.status = await series_result(db, job)
         from app.services.scheduler import remove_job
         await remove_job(job.id)

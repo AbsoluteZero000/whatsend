@@ -131,6 +131,7 @@
     <select id="trigger_type" name="trigger_type" required {% if edit_mode and job.trigger_type == 'now' %}disabled{% endif %}>
       <option value="now" {% if (edit_mode and job.trigger_type == 'now') or (not edit_mode and initial_trigger_type|default('now') == 'now') %}selected{% endif %}>{{ _('Send Now') }}</option>
       <option value="date" {% if (edit_mode and job.trigger_type == 'date') or (not edit_mode and initial_trigger_type|default('now') == 'date') %}selected{% endif %}>{{ _('Schedule once') }}</option>
+      <option value="dates" {% if (edit_mode and job.trigger_type == 'dates') or (not edit_mode and initial_trigger_type|default('now') == 'dates') %}selected{% endif %}>{{ _('On specific dates') }}</option>
       <option value="cron" {% if (edit_mode and job.trigger_type == 'cron') or (not edit_mode and initial_trigger_type|default('now') == 'cron') %}selected{% endif %}>{{ _('Repeat') }}</option>
       <optgroup label="{{ _('Advanced') }}">
       <option value="trigger" {% if (edit_mode and job.trigger_type == 'trigger') or (not edit_mode and initial_trigger_type|default('now') == 'trigger') %}selected{% endif %}>{{ _('On external trigger') }}</option>
@@ -148,6 +149,22 @@
     {% set craw = cron_raw|default('') %}
     <div id="trigger_value_group">
       <input type="datetime-local" id="trigger_value_date" name="trigger_value_date" style="display:none;" {% if trigger_value_date %}value="{{ trigger_value_date }}"{% endif %} {% if (edit_mode and job.trigger_type == 'date') or (not edit_mode and initial_trigger_type|default('now') == 'date') %}required{% endif %}>
+      <div id="trigger_value_dates" class="dates-picker" hidden
+           data-today="{{ today_local }}" data-lang="{{ lang }}" data-max="100"
+           data-labels="{{ {
+             'previous': _('Previous month'), 'next': _('Next month'),
+             'picked': _('dates picked'), 'onePicked': _('date picked'), 'none': _('No dates picked yet. Tap days on the calendar.'),
+             'clear': _('Clear all'), 'remove': _('Remove'), 'limit': _('You can pick up to 100 dates.'),
+             'inMonth': _('picked this month')
+           } | tojson | forceescape }}">
+        <p class="field-note">{{ _('Tap the days you want to send on. Use the arrows to go to other months.') }}</p>
+        <div class="dates-calendar" aria-live="polite"></div>
+        <label for="dates_time">{{ _('Time') }}</label>
+        <input type="time" id="dates_time" name="dates_time" value="{{ dates_time|default('09:00') }}">
+        <input type="hidden" id="schedule_dates" name="schedule_dates" value="{{ schedule_dates|default('') }}">
+        <div class="dates-selected" role="status"></div>
+        <p id="dates_error" class="form-error" hidden>{{ _('Pick at least one date on the calendar.') }}</p>
+      </div>
       <div id="trigger_value_cron" style="display:none;">
         <label for="cron_freq">{{ _('Frequency') }}</label>
         <select id="cron_freq" name="cron_freq">
@@ -224,6 +241,7 @@
 <script src="/static/js/message-series.js?v={{ asset_versions['js/message-series.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/recipient-lists.js?v={{ asset_versions['js/recipient-lists.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/group-picker.js?v={{ asset_versions['js/group-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
+<script src="/static/js/dates-picker.js?v={{ asset_versions['js/dates-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
   function toggleTriggerValue() {
     var type = document.getElementById('trigger_type').value;
@@ -233,6 +251,7 @@
     document.getElementById('trigger_value_date').style.display = type === 'date' ? 'block' : 'none';
     document.getElementById('trigger_value_date').required = type === 'date';
     document.getElementById('trigger_value_cron').style.display = type === 'cron' ? 'block' : 'none';
+    document.getElementById('trigger_value_dates').hidden = type !== 'dates';
     const submit = document.getElementById('submit_btn');
     if ({{ 'false' if edit_mode else 'true' }}) submit.textContent = type === 'now' ? {{ _('Send now') | tojson }} : {{ _('Schedule message') | tojson }};
   }
@@ -460,6 +479,7 @@
     restore: recipients => {
       _selectedGroups = recipients; renderChips();
       toggleTriggerValue(); toggleCronFields(); updateCronDayPicker();
+      if (window.datesPicker) window.datesPicker.refresh();
       loadTokenGroups(false); savedLists.load();
       messageSeries.restore(document.getElementById('series_definition').value);
     },
@@ -491,6 +511,12 @@
       e.preventDefault();
       document.getElementById('group_error').style.display = 'block';
       document.getElementById('group_chips').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (document.getElementById('trigger_type').value === 'dates' && !document.getElementById('schedule_dates').value) {
+      e.preventDefault();
+      document.getElementById('dates_error').hidden = false;
+      document.getElementById('trigger_value_dates').scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     if (document.getElementById('trigger_type').value === 'cron' && document.getElementById('cron_freq').value === 'custom') {

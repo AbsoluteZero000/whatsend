@@ -15,6 +15,7 @@ from app.models.token import Token
 from app.services.crypto import decrypt_token
 from app.services.native_api import connection_base_url
 from app.services.native_sender import CONNECTION_LOST, NativeSender, worker_error_code
+from app.services.schedule_dates import remaining_dates
 
 PENDING = {"submitting", "queued", "processing"}
 ACTIVE_RUNS = set()
@@ -38,7 +39,7 @@ async def finish_run(db, job, run_id):
         {"recipient": a.group_id, "status": a.status} for a in attempts
     ])))
     if job.status not in {"cancelled", "paused"}:
-        if job.trigger_type == "cron":
+        if job.trigger_type == "cron" or (job.trigger_type == "dates" and remaining_dates(job)):
             job.status = "active"
         elif job.trigger_type == "trigger":
             job.status = "trigger"
@@ -51,7 +52,7 @@ async def submit_job(db, job, token, groups):
         return
     run_id = str(uuid4())
     # Claim one-shot/manual runs before enqueueing; concurrent button presses cannot resubmit.
-    if job.trigger_type != "cron":
+    if job.trigger_type not in {"cron", "dates"}:
         claimed = await db.execute(update(Job).where(
             Job.id == job.id, Job.status.in_(["active", "pending", "trigger", "retry_scheduled"]),
         ).values(status="queued"))

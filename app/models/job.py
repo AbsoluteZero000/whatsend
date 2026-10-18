@@ -32,6 +32,8 @@ class Job(Base):
     trigger_type: Mapped[str] = mapped_column(String(10), nullable=False)
     trigger_value: Mapped[str] = mapped_column(String(100), nullable=False)
     schedule_timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    # "dates" schedules: JSON list of UTC "YYYY-MM-DD HH:MM" send times (see services/schedule_dates.py).
+    schedule_dates: Mapped[str | None] = mapped_column(Text, nullable=True)
     message_mode: Mapped[str] = mapped_column(String(10), default="repeat", server_default="repeat")
     series_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     series_cursor: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

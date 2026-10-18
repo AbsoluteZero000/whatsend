@@ -907,3 +907,34 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .setting-card form { flex: none; }
 @media (max-width: 600px) { .setting-card .setting-row { flex-direction: column; align-items: stretch; } }
 
+/* On specific dates: calendar picker */
+.dates-picker { margin-top: .4rem; }
+.dates-calendar { max-width: 420px; margin: .6rem 0 1rem; padding: .9rem; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card, var(--bg)); }
+.dates-calendar-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .7rem; }
+.dates-month-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.dates-month { font-size: 1rem; color: var(--text); }
+.dates-month-count { font-size: .72rem; color: var(--primary); font-weight: 700; }
+.dates-nav { width: 36px; height: 36px; border: 1px solid var(--border-light); border-radius: 50%; background: transparent; color: var(--text); font-size: 1.25rem; line-height: 1; cursor: pointer; }
+.dates-nav:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.dates-nav:disabled { opacity: .35; cursor: default; }
+.dates-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
+.dates-weekday { text-align: center; font-size: .72rem; font-weight: 700; color: var(--text-muted); padding-bottom: .2rem; }
+.dates-day { aspect-ratio: 1; min-height: 36px; padding: 0; border: 1px solid transparent; border-radius: 10px; background: var(--bg-table-th); color: var(--text); font: inherit; font-size: .88rem; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
+.dates-day:hover:not(:disabled) { border-color: var(--primary); }
+.dates-day.is-today { border-color: var(--primary-border); color: var(--primary); }
+.dates-day[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary, #fff); }
+.dates-day:disabled { background: transparent; color: var(--text-muted); opacity: .45; cursor: default; }
+.dates-day:focus-visible, .dates-nav:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.dates-summary { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .8rem; font-size: .85rem; }
+.dates-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.dates-chip { display: inline-flex; align-items: center; border: 1px solid var(--primary-border); border-radius: 999px; background: var(--primary-soft); overflow: hidden; }
+.dates-chip button { border: 0; background: transparent; color: var(--primary); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.dates-chip-label { padding: .3rem .2rem .3rem .65rem; }
+[dir="rtl"] .dates-chip-label { padding: .3rem .65rem .3rem .2rem; }
+.dates-chip-remove { padding: .3rem .55rem; font-size: .95rem !important; }
+.dates-chip-remove:hover { color: var(--danger) !important; }
+.dates-detail-list { display: flex; flex-wrap: wrap; gap: .35rem; list-style: none; margin: .5rem 0 0; padding: 0; }
+.dates-detail-list li { padding: .2rem .55rem; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: .78rem; font-weight: 600; }
+.dates-detail-list li.is-past { background: var(--bg-table-th); color: var(--text-muted); text-decoration: line-through; }
+@media (max-width: 480px) { .dates-calendar { padding: .6rem; } .dates-grid { gap: .2rem; } .dates-day { min-height: 32px; border-radius: 8px; } }
+

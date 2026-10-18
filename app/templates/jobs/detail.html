@@ -38,7 +38,7 @@
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('When to send') }}</span>
-        <span class="detail-value">{% if job.trigger_type == "now" %}{{ _('Send Now') }}{% elif job.trigger_type == "date" %}{{ _('Schedule once') }}{% elif job.trigger_type == "cron" %}{{ _('Repeat') }}{% else %}{{ _('On external trigger') }}{% endif %}</span>
+        <span class="detail-value">{% if job.trigger_type == "now" %}{{ _('Send Now') }}{% elif job.trigger_type == "date" %}{{ _('Schedule once') }}{% elif job.trigger_type == "dates" %}{{ _('On specific dates') }}{% elif job.trigger_type == "cron" %}{{ _('Repeat') }}{% else %}{{ _('On external trigger') }}{% endif %}</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">{{ _('Trigger Value') }}</span>
@@ -47,6 +47,11 @@
             {{ _('Now') }} ({{ tz(parse_dt(job.trigger_value), user_tz) }})
           {% elif job.trigger_type == "date" %}
             {{ tz(parse_dt(job.trigger_value), user_tz) }}
+          {% elif job.trigger_type == "dates" %}
+            {{ dates_text(job, user_tz, _) }}
+            <ul class="dates-detail-list">
+              {% for date, passed in dates_with_state(job) %}<li class="{{ 'is-past' if passed }}">{{ tz(date, user_tz) }}</li>{% endfor %}
+            </ul>
           {% elif job.trigger_type == "trigger" %}
             {{ _('On external trigger') }}
           {% else %}

@@ -34,12 +34,13 @@ from app.models.token import Token
 from app.routers.auth import require_user
 from app.services.crypto import decrypt_token
 from app.services.csrf import csrf_protect
-from app.services.scheduler import build_trigger, register_job, register_retry, remove_job, send_job
+from app.services.scheduler import build_trigger, is_last_run, register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
 from app.services.sender import WhatsAppSender, get_sender
 from app.services.native_sender import CONNECTION_LOST, NativeSender
 from app.i18n import _
 from app.services.native_api import connection_base_url
+from app.services.schedule_dates import build_dates_value, local_form_values
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
 
@@ -165,6 +166,7 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
         initial_trigger_type=draft.trigger_type, trigger_value_date=form.get("trigger_value_date", ""),
         cron_freq=form.get("cron_freq", "daily"), cron_time=form.get("cron_time", "09:00"),
         cron_dom=form.get("cron_dom", "1"), cron_days=form.getlist("cron_days"), cron_raw=form.get("cron_raw", ""),
+        schedule_dates=form.get("schedule_dates", ""), dates_time=form.get("dates_time", "09:00"),
         image_available=bool(draft.image_path and Path(draft.image_path).exists()),
     )
     response.status_code = error.status_code
@@ -541,13 +543,23 @@ async def create_job_page(request: Request, type: str = "now", db: AsyncSession 
     groups: list[dict] = []
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    initial_trigger_type = type if type in {"now", "date", "cron", "trigger"} else "now"
+    initial_trigger_type = type if type in {"now", "date", "dates", "cron", "trigger"} else "now"
     return request.app.state.render(request, "jobs/form.html", draft_owner=user["sub"], tokens=tokens, groups=groups, now=now, user_tz=user_tz, selected_groups=[], initial_trigger_type=initial_trigger_type, arabic_ordinals=ARABIC_ORDINAL_WORDS)
 
 
+def split_schedule(trigger_type: str, value: str) -> dict:
+    """Picked dates are too long for trigger_value, so "dates" schedules keep them in schedule_dates."""
+    if trigger_type == "dates":
+        return {"trigger_value": "", "schedule_dates": value}
+    return {"trigger_value": value, "schedule_dates": None}
+
+
 def build_trigger_value(trigger_type: str, user_tz: str, **kw) -> str:
-    if trigger_type not in {"now", "trigger", "date", "cron"}:
+    if trigger_type not in {"now", "trigger", "date", "cron", "dates"}:
         raise ValueError("Unsupported trigger type")
+    if trigger_type == "dates":
+        # The picked dates live in Job.schedule_dates; see split_schedule().
+        return build_dates_value(kw.get("schedule_dates", ""), kw.get("dates_time", ""), user_tz)
     if trigger_type == "now":
         return datetime.now(zoneinfo.ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M")
     elif trigger_type == "trigger":
@@ -609,6 +621,8 @@ async def create_job(
     cron_dom: int = Form(default=1),
     cron_days: list[str] = Form(default=[]),
     cron_raw: str = Form(default=""),
+    schedule_dates: str = Form(default=""),
+    dates_time: str = Form(default="09:00"),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -632,8 +646,8 @@ async def create_job(
     try:
         if message_mode not in {'repeat', 'series'}: raise ValueError('Choose a valid message mode')
         if message_mode == 'series':
-            if trigger_type not in {'cron', 'trigger'}:
-                raise ValueError('Message series need a recurring schedule or an external trigger')
+            if trigger_type not in {'cron', 'dates', 'trigger'}:
+                raise ValueError('Message series need a repeating schedule, specific dates, or an external trigger')
             plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, None)
         elif not message:
             raise ValueError('Enter a message')
@@ -649,6 +663,8 @@ async def create_job(
             cron_dom=cron_dom,
             cron_days=cron_days,
             cron_raw=cron_raw,
+            schedule_dates=schedule_dates,
+            dates_time=dates_time,
         )
     except (ValueError, zoneinfo.ZoneInfoNotFoundError) as exc:
         return await job_error_form(request, db, user, HTTPException(400, str(exc)), group_ids, group_names)
@@ -674,7 +690,7 @@ async def create_job(
         image_path=image_path,
         image_filename=Path(image.filename.replace("\\", "/")).name if image_path and image else None,
         trigger_type=trigger_type,
-        trigger_value=trigger_value,
+        **split_schedule(trigger_type, trigger_value),
         schedule_timezone=user_tz,
         status="trigger" if trigger_type == "trigger" else "pending",
     )
@@ -717,7 +733,7 @@ async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(g
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
     if job and job.status == "paused":
-        if job.retry_at and job.trigger_type in {"date", "now"}:
+        if job.retry_at and is_last_run(job):
             job.status = "retry_scheduled"
             await register_retry(job)
         else:
@@ -831,17 +847,21 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         image_filename=job.image_filename,
         trigger_type=job.trigger_type,
         trigger_value=job.trigger_value,
+        schedule_dates=job.schedule_dates,
         schedule_timezone=job.schedule_timezone,
         status="trigger" if job.trigger_type == "trigger" else "pending",
     )
-    # A completed one-time job can still be copied and given a new date.
+    # A finished one-time or specific-dates job can still be copied and given new dates.
     expired_date = False
-    if clone.trigger_type == 'date':
+    if clone.trigger_type in ('date', 'dates'):
         try:
             build_trigger(clone)
+            # Unlike the scheduler, a copy ignores the late-send grace: only dates still ahead count.
+            expired_date = clone.trigger_type == 'dates' and is_last_run(clone)
         except ValueError:
-            clone.status = 'paused'
             expired_date = True
+        if expired_date:
+            clone.status = 'paused'
     db.add(clone)
     await db.flush()
     for jg in job.job_groups:
@@ -864,7 +884,8 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
     await register_job(clone)
     await db.commit()
     if expired_date:
-        return redirect_with_flash(f"/jobs/{clone.id}/edit", success="Job cloned. Choose a new date before resuming.")
+        choose = "Pick new dates" if clone.trigger_type == "dates" else "Choose a new date"
+        return redirect_with_flash(f"/jobs/{clone.id}/edit", success=f"Job cloned. {choose} before resuming.")
     return redirect_with_flash("/jobs", success="Job cloned")
 
 
@@ -972,6 +993,8 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
             form_data["trigger_value_date"] = ""
     elif job.trigger_type == "cron":
         form_data.update(parse_cron_for_form(job.trigger_value, user_tz))
+    elif job.trigger_type == "dates":
+        form_data.update(local_form_values(job, user_tz))
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     image_available = bool(job.image_path and Path(job.image_path).exists())
@@ -1007,6 +1030,8 @@ async def edit_job(
     cron_dom: int = Form(default=1),
     cron_days: list[str] = Form(default=[]),
     cron_raw: str = Form(default=""),
+    schedule_dates: str = Form(default=""),
+    dates_time: str = Form(default="09:00"),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -1043,8 +1068,8 @@ async def edit_job(
     try:
         if message_mode not in {'repeat', 'series'}: raise ValueError('Choose a valid message mode')
         if message_mode == 'series':
-            if trigger_type not in {'cron', 'trigger'}:
-                raise ValueError('Message series need a recurring schedule or an external trigger')
+            if trigger_type not in {'cron', 'dates', 'trigger'}:
+                raise ValueError('Message series need a repeating schedule, specific dates, or an external trigger')
             plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, job)
         elif not message:
             raise ValueError('Enter a message')
@@ -1072,6 +1097,8 @@ async def edit_job(
             cron_dom=cron_dom,
             cron_days=cron_days,
             cron_raw=cron_raw,
+            schedule_dates=schedule_dates,
+            dates_time=dates_time,
         )
     except (ValueError, zoneinfo.ZoneInfoNotFoundError, HTTPException) as exc:
         if new_path:
@@ -1090,7 +1117,8 @@ async def edit_job(
     if new_path:
         job.image_filename = Path(image.filename.replace("\\", "/")).name
     job.trigger_type = trigger_type
-    job.trigger_value = trigger_value
+    for field, value in split_schedule(trigger_type, trigger_value).items():
+        setattr(job, field, value)
     job.schedule_timezone = user_tz
     job.status = "trigger" if trigger_type == "trigger" else "pending"
     job.skip_count = 0

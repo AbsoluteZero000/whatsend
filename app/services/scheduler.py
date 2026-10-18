@@ -16,6 +16,7 @@ from app.models.log import Log
 from app.models.token import Token
 from app.services.crypto import decrypt_token
 from app.services.sender import WhatsAppSender
+from app.services.schedule_dates import DatesTrigger, remaining_dates
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,13 @@ scheduler = AsyncIOScheduler(
 )
 
 
+def is_last_run(job: Job) -> bool:
+    """One-shot schedules, and a dates schedule with no dates left, finish after this run."""
+    if job.trigger_type == "dates":
+        return not remaining_dates(job)
+    return job.trigger_type in {"date", "now"}
+
+
 def build_trigger(job: Job):
     now = datetime.now(timezone.utc)
     if job.trigger_type == "now":
@@ -46,6 +54,11 @@ def build_trigger(job: Job):
         return DateTrigger(run_date=run_date, timezone=timezone.utc)
     if job.trigger_type == "cron":
         return CronTrigger.from_crontab(job.trigger_value, timezone=job.schedule_timezone or "UTC")
+    if job.trigger_type == "dates":
+        upcoming = remaining_dates(job, now, grace_seconds=MISFIRE_GRACE_SECONDS)
+        if not upcoming:
+            raise ValueError("All of the picked dates have passed")
+        return DatesTrigger(upcoming)
     if job.trigger_type == "trigger":
         return None
     raise ValueError("Unsupported trigger type")
@@ -65,7 +78,7 @@ async def _schedule_retry(job: Job, failed_group_ids: list[str]) -> bool:
     if not failed_group_ids or job.retry_count >= MAX_RETRIES:
         job.retry_at = None
         job.retry_group_ids = None
-        if job.trigger_type in {"date", "now"}:
+        if is_last_run(job):
             job.status = "failed"
         existing = scheduler.get_job(f"retry:{job.id}")
         if existing:
@@ -77,7 +90,7 @@ async def _schedule_retry(job: Job, failed_group_ids: list[str]) -> bool:
     retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
     job.retry_at = retry_at.isoformat()
     job.retry_group_ids = json.dumps(failed_group_ids)
-    if job.trigger_type in {"date", "now"}:
+    if is_last_run(job):
         job.status = "retry_scheduled"
     scheduler.add_job(
         send_job,
@@ -105,6 +118,8 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
             else:
                 job.skip_count -= 1
                 log = Log(job_id=job.id, status="skipped", response=f"Skipped ({job.skip_count} remaining)")
+                if job.trigger_type == "dates" and not remaining_dates(job):
+                    job.status = "completed"
             db.add(log)
             await db.commit()
             return
@@ -181,6 +196,8 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
                 job.status = "trigger"
             elif job.trigger_type == "cron":
                 job.status = "active"
+            elif job.trigger_type == "dates":
+                job.status = "completed" if is_last_run(job) else "active"
             else:
                 job.status = "completed"
 
@@ -206,6 +223,12 @@ async def register_job(job: Job):
             await remove_job(job.id)
             return
     if job.status not in ("pending", "active", "retry_scheduled") and not (series and job.status == "queued"):
+        return
+    if job.trigger_type == "dates" and not remaining_dates(job, grace_seconds=MISFIRE_GRACE_SECONDS):
+        # Every picked date has passed (e.g. while the app was paused or offline).
+        if job.status != "retry_scheduled":
+            job.status = await series_result_for_job(job) if series else "completed"
+        await remove_job(job.id)
         return
     trigger = build_trigger(job)
     if trigger:
@@ -249,13 +272,13 @@ async def load_all_jobs():
         result = await db.execute(select(Job).where(Job.status.in_(["pending", "active", "retry_scheduled", "queued"])))
         jobs = result.scalars().all()
         for job in jobs:
-            if job.trigger_type in {"now", "date"} and job.status == "retry_scheduled":
+            if job.status == "retry_scheduled" and is_last_run(job):
                 await register_retry(job)
             else:
                 try:
                     await register_job(job)
                 except ValueError:
                     job.status = "failed"
-            if job.retry_at and job.trigger_type == "cron":
+            if job.retry_at and job.trigger_type in {"cron", "dates"} and job.status != "retry_scheduled":
                 await register_retry(job)
         await db.commit()
