@@ -718,11 +718,18 @@ async def pause_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and (job.status in ("active", "retry_scheduled") or (job.message_mode == "series" and job.status == "queued")):
-        await remove_job(job_id)
-        job.status = "paused"
+    if job and await pause(job):
         await db.commit()
     return redirect_with_flash("/jobs", success="Job paused")
+
+
+async def pause(job: Job) -> bool:
+    """Stop a scheduled job from sending until it is resumed. The caller commits."""
+    if job.status in ("active", "retry_scheduled") or (job.message_mode == "series" and job.status == "queued"):
+        await remove_job(job.id)
+        job.status = "paused"
+        return True
+    return False
 
 
 @router.post("/{job_id}/resume")
@@ -732,17 +739,24 @@ async def resume_job(job_id: int, request: Request, db: AsyncSession = Depends(g
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and job.status == "paused":
-        if job.retry_at and is_last_run(job):
-            job.status = "retry_scheduled"
-            await register_retry(job)
-        else:
-            job.status = "trigger" if job.trigger_type == "trigger" else "pending"
-            await register_job(job)
-            if job.retry_at:
-                await register_retry(job)
+    if job and await resume(job):
         await db.commit()
     return redirect_with_flash("/jobs", success="Job resumed")
+
+
+async def resume(job: Job) -> bool:
+    """Schedule a paused job again. The caller commits."""
+    if job.status != "paused":
+        return False
+    if job.retry_at and is_last_run(job):
+        job.status = "retry_scheduled"
+        await register_retry(job)
+    else:
+        job.status = "trigger" if job.trigger_type == "trigger" else "pending"
+        await register_job(job)
+        if job.retry_at:
+            await register_retry(job)
+    return True
 
 
 @router.post("/{job_id}/skip")
@@ -799,11 +813,18 @@ async def cancel_job(job_id: int, request: Request, db: AsyncSession = Depends(g
 
     result = await db.execute(select(Job).where(Job.id == job_id, Job.user_id == user_id))
     job = result.scalar_one_or_none()
-    if job and (job.status in ("pending", "active", "trigger", "retry_scheduled") or (job.message_mode == "series" and job.status == "queued")):
-        await remove_job(job_id)
-        job.status = "cancelled"
+    if job and await cancel(job):
         await db.commit()
     return redirect_with_flash("/jobs", success="Job cancelled")
+
+
+async def cancel(job: Job) -> bool:
+    """Stop a job for good. The caller commits."""
+    if job.status in ("pending", "active", "trigger", "retry_scheduled") or (job.message_mode == "series" and job.status == "queued"):
+        await remove_job(job.id)
+        job.status = "cancelled"
+        return True
+    return False
 
 
 @router.post("/{job_id}/delete")

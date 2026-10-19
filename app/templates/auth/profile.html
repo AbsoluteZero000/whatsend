@@ -45,6 +45,46 @@
     <form method="POST" action="/auth/signout-all"><button type="submit" class="btn btn-danger-outline">{{ _('Sign out of all devices') }}</button></form>
   </div>
 </div>
+{% if claude_connector_enabled and not is_admin and connected_apps is defined %}
+<div class="form-card setting-card connector-card">
+  <strong>{{ _('Claude') }}</strong>
+  <p>{{ _('Ask Claude to create, pause or cancel messages for you. In Claude, open Settings → Connectors → Add custom connector, and paste this address:') }}</p>
+  <div class="connector-url">
+    <input type="text" id="connector-url" value="{{ connector_url }}" readonly aria-label="{{ _('Connector address') }}">
+    <button type="button" class="btn btn-secondary" id="connector-url-copy" data-copied="{{ _('Copied') }}">{{ _('Copy') }}</button>
+  </div>
+  <p class="field-note">{{ _('Claude asks you to sign in here and approve it. Claude shows you each action before it runs it.') }}</p>
+  <h3 class="connector-heading">{{ _('Connected apps') }}</h3>
+  {% if connected_apps %}
+  <ul class="connected-apps">
+    {% for app in connected_apps %}
+    <li>
+      <div>
+        <strong><bdi>{{ app.client_name }}</bdi></strong>
+        <span>{{ _('Connected on') }} {{ tz(app.created_at, user_tz) }}{% if app.last_used_at %} · {{ _('Last used') }} {{ tz(app.last_used_at, user_tz) }}{% endif %}</span>
+      </div>
+      <form method="POST" action="/oauth/connections/{{ app.id }}/disconnect"><button type="submit" class="btn btn-danger-outline">{{ _('Disconnect') }}</button></form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="field-note">{{ _('No apps are connected.') }}</p>
+  {% endif %}
+  <p class="field-note">{{ _("Signing out of all devices doesn't disconnect apps. Use Disconnect for that.") }}</p>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  const button = document.getElementById('connector-url-copy');
+  const input = document.getElementById('connector-url');
+  button.addEventListener('click', function () {
+    input.select();
+    const done = function () { const label = button.textContent; button.textContent = button.dataset.copied; setTimeout(function () { button.textContent = label; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(input.value).then(done, function () {});
+    else { document.execCommand('copy'); done(); }
+  });
+})();
+</script>
+{% endif %}
 <details class="form-card developer-settings" {% if composer_extras %}open{% endif %}>
   <summary>{{ _('Advanced settings') }}</summary>
   <div class="setting-row">

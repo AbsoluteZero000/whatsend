@@ -938,3 +938,26 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .dates-detail-list li.is-past { background: var(--bg-table-th); color: var(--text-muted); text-decoration: line-through; }
 @media (max-width: 480px) { .dates-calendar { padding: .6rem; } .dates-grid { gap: .2rem; } .dates-day { min-height: 32px; border-radius: 8px; } }
 
+/* Claude connector: consent page and Settings card */
+.auth-note { margin: -.6rem 0 1rem; color: var(--text-secondary); font-size: .9rem; }
+.consent-card h2 { color: var(--text); font-size: 1.15rem; font-weight: 700; margin-bottom: .6rem; line-height: 1.4; }
+.consent-account { color: var(--text-secondary); font-size: .9rem; margin-bottom: 1rem; }
+.consent-lead { font-weight: 600; margin-bottom: .4rem; }
+.consent-list { margin: 0 0 1rem; padding-inline-start: 1.2rem; display: grid; gap: .35rem; font-size: .92rem; }
+.consent-note { color: var(--text-secondary); font-size: .88rem; margin-bottom: .8rem; }
+.consent-warning { padding: .65rem .8rem; border-radius: var(--radius-sm); background: var(--primary-soft); border: 1px solid var(--primary-border); font-size: .86rem; margin-bottom: 1.2rem; overflow-wrap: anywhere; }
+.consent-actions { display: flex; gap: .6rem; }
+.consent-actions button { flex: 1; }
+.auth-card .consent-actions button.btn-secondary { background: transparent; color: var(--text-nav); border: 1.5px solid var(--border-light); }
+.auth-card .consent-actions button.btn-secondary:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.connector-card > p { margin-top: .35rem; }
+.connector-url { display: flex; gap: .5rem; margin: .7rem 0 .3rem; }
+.connector-url input { flex: 1; min-width: 0; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; direction: ltr; }
+.connector-url .btn { flex: none; }
+.connector-heading { font-size: .95rem; margin: 1.1rem 0 .4rem; }
+.connected-apps { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.connected-apps li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .6rem .75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.connected-apps li span { display: block; color: var(--text-secondary); font-size: .8rem; margin-top: .15rem; }
+.connected-apps form { flex: none; }
+@media (max-width: 600px) { .connected-apps li { flex-direction: column; align-items: stretch; } }
+

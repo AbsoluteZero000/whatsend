@@ -7,7 +7,7 @@ import hashlib
 import httpx
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -17,7 +17,7 @@ from app.database import async_session
 from app.i18n import _ as _translate
 from app.models.job import Job
 from app.models.user import User
-from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, media, tokens, webhooks
+from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, mcp, media, oauth, tokens, webhooks
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 from app.services.csrf import get_or_create_csrf_token
@@ -159,6 +159,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
     context.setdefault("today_local", today_local)
     context.setdefault("cron_to_text", lambda *args, **kwargs: cron_to_text(*args, lang=lang, **kwargs))
     context.setdefault("api_keys_enabled", settings.api_keys_enabled)
+    context.setdefault("claude_connector_enabled", settings.claude_connector_enabled)
     context.setdefault("composer_extras", request.cookies.get("composer_extras") == "1")
     context.setdefault("is_admin", bool(user and user.get("is_admin")))
     csrf_token, csrf_is_new = get_or_create_csrf_token(request)
@@ -222,6 +223,27 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+# Endpoints that Claude and other OAuth/MCP clients may call from a browser. They use bearer tokens, never cookies.
+CORS_PATHS = ("/mcp", "/oauth/token", "/oauth/register", "/oauth/revoke", "/.well-known/oauth-")
+
+
+@app.middleware("http")
+async def connector_cors(request: Request, call_next):
+    if not request.url.path.startswith(CORS_PATHS):
+        return await call_next(request)
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, MCP-Protocol-Version, Mcp-Session-Id, Last-Event-ID",
+        "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    }
+    if request.method == "OPTIONS":
+        return Response(status_code=204, headers=headers)
+    response = await call_next(request)
+    response.headers.update(headers)
+    return response
+
+
 @app.middleware("http")
 async def active_account_guard(request: Request, call_next):
     payload = auth.get_current_user(request)
@@ -276,6 +298,8 @@ app.include_router(jobs.router)
 app.include_router(logs.router)
 app.include_router(media.router)
 app.include_router(webhooks.router)
+app.include_router(oauth.router)
+app.include_router(mcp.router)
 if settings.api_keys_enabled:
     app.include_router(api_keys.router)
     app.include_router(api.router)

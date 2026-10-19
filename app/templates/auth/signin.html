@@ -20,7 +20,11 @@
     {% if error %}
       <p class="error">{{ error }}</p>
     {% endif %}
+    {% if next_url and next_url.startswith('/oauth/authorize') %}
+      <p class="auth-note">{{ _('Sign in to finish connecting Claude to EchoSend.') }}</p>
+    {% endif %}
     <form method="POST" action="/auth/signin">
+      {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
       <label class="auth-label" for="username">{{ _('Username') }}</label>
       <input id="username" type="text" name="username" value="{{ username|default('') }}" placeholder="{{ _('Username') }}" required autocomplete="username">
       <label class="auth-label" for="password">{{ _('Password') }}</label>

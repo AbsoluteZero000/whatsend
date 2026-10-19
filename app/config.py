@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     meta_webhook_verify_token: str = ""
     meta_app_secret: str = ""
     api_keys_enabled: bool = False
+    # Lets Claude (claude.ai connectors) manage a user's messages over MCP after the user approves it.
+    claude_connector_enabled: bool = False
+    # Public origin used in OAuth/MCP discovery, e.g. https://echosend.fly.dev. Empty: taken from the request.
+    public_url: str = ""
     admin_usernames: str = "admin"
     default_admin_password: str = "admin"
 

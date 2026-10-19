@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import TIMEZONE_CHOICES, settings
 from app.database import get_db
 from app.i18n import _
+from app.models.oauth import OAuthGrant
 from app.models.user import User
 from app.services.auth import create_jwt, decode_jwt, hash_password, verify_password
 from app.services.csrf import csrf_protect
+from app.services.oauth import public_base_url
 from app.services.rate_limit import check_rate_limit, clear_rate_limit
 
 
@@ -85,6 +87,15 @@ def admin_path_allowed(path: str) -> bool:
 
 def _landing_page(user: User) -> str:
     return "/admin" if user.is_admin else "/dashboard"
+
+
+def safe_next(value: str | None) -> str | None:
+    """A page on this site to return to after signing in, e.g. the Claude connection page. Never another site."""
+    if not value or len(value) > 2048 or not value.startswith("/") or value.startswith(("//", "/\\")):
+        return None
+    if any(ord(char) < 33 or char == "\\" for char in value):
+        return None
+    return value
 
 
 def _session_payload(user: User) -> dict:
@@ -188,10 +199,10 @@ async def signup(
 
 
 @router.get("/signin")
-async def signin_page(request: Request):
+async def signin_page(request: Request, next: str | None = None):
     if get_current_user(request):
-        return RedirectResponse(url="/dashboard", status_code=303)
-    return request.app.state.render(request, "auth/signin.html")
+        return RedirectResponse(url=safe_next(next) or "/dashboard", status_code=303)
+    return request.app.state.render(request, "auth/signin.html", next_url=safe_next(next))
 
 
 @router.post("/signin")
@@ -200,15 +211,18 @@ async def signin(
     username: str = Form(...),
     password: str = Form(...),
     remember: str | None = Form(None),
+    next: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     username = username.strip()
+    next_url = safe_next(next)
     check_rate_limit(request, "signin", username, limit=10, window_seconds=900)
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
     if not user or not user.is_active or not verify_password(password, user.password_hash):
         return request.app.state.render(
             request, "auth/signin.html", error="Invalid credentials", username=username, remember=bool(remember),
+            next_url=next_url,
         )
 
     if user.username in settings.admin_username_set and not user.is_admin:
@@ -216,7 +230,10 @@ async def signin(
         await db.commit()
 
     clear_rate_limit(request, "signin", username)
-    destination = "/auth/profile?first_login=1" if user.must_change_password else _landing_page(user)
+    if user.must_change_password:
+        destination = "/auth/profile?first_login=1"
+    else:
+        destination = (not user.is_admin and next_url) or _landing_page(user)
     redirect = RedirectResponse(url=destination, status_code=303)
     set_session_cookie(redirect, _session_payload(user), remember=bool(remember))
     redirect.set_cookie(key="lang", value=user.lang, max_age=86400 * 365, samesite="lax")
@@ -301,11 +318,18 @@ async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = int(user_payload["sub"])
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
+    connected_apps = []
+    if settings.claude_connector_enabled:
+        connected_apps = (await db.execute(select(OAuthGrant).where(
+            OAuthGrant.user_id == user_id, OAuthGrant.access_hash.isnot(None),
+        ).order_by(OAuthGrant.created_at.desc()))).scalars().all()
     return request.app.state.render(
         request,
         "auth/profile.html",
         username=user.username if user else "",
         force_password_change=bool(user and user.must_change_password),
+        connected_apps=connected_apps,
+        connector_url=public_base_url(request) + "/mcp",
     )
 
 

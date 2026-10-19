@@ -105,6 +105,21 @@ Each API key is linked to one active token owned by the same user. The target `g
 
 Built-in **WhatsApp QR** connections support personal/group text messages, JPEG/PNG/WebP images, MP4 video, group lookup, delivery status, and dashboard jobs. Choose **Tokens → Connect WhatsApp → Get QR code**, scan it on your phone, and link a WhatSend API key to that connection if you need the external API. No Relay service, provider registration, backend URL, or provider token is needed. Native sends require an `Idempotency-Key` and return **202 queued** until WhatsApp acknowledges them. See [WhatsApp setup and API examples](docs/whatsapp.md).
 
+## Claude connector (optional)
+
+Set `CLAUDE_CONNECTOR_ENABLED=true` to let users connect Claude (claude.ai, the Claude apps, Claude Desktop/Code) to their account. It is off by default. When it is on, **Settings** shows the connector address (`https://your-app.example.com/mcp`) and the apps a user has connected, each with a **Disconnect** button.
+
+In Claude, open **Settings → Connectors → Add custom connector** and paste the address. Claude registers itself, sends the user to EchoSend to sign in and press **Allow**, and can then:
+
+- read the account timezone, WhatsApp connections, groups and saved recipient lists;
+- list messages and read one message's schedule and delivery status;
+- create text messages to send now, once, repeating, or on specific dates;
+- pause, resume and cancel messages.
+
+It cannot delete messages, upload attachments, set up message series, or change settings. Administrator accounts can't connect apps.
+
+How it works: `/mcp` is a stateless MCP server (Streamable HTTP, JSON responses). Sign-in is OAuth 2.1 with dynamic client registration, PKCE (S256), and resource indicators. Discovery lives at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`. Access tokens last one hour and refresh tokens rotate on every use. Only SHA-256 hashes of codes and tokens are stored. Set `PUBLIC_URL` if the app sits behind a proxy that changes its public address.
+
 ## Supported direct Meta integration spike
 
 The repository includes a `MetaCloudSender` and signature-verified webhook scaffold for evaluating Meta's supported WhatsApp Business Platform Cloud API. Keep it disabled until group eligibility and the account-specific event contract have been verified with a Meta test business account. Reverse-engineered WhatsApp Web protocols are intentionally not implemented because they are unsupported, fragile, and prohibited by WhatsApp's terms.
