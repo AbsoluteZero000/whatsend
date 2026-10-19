@@ -1,6 +1,12 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        "Account": "الحساب",
+        "Save password": "حفظ كلمة المرور",
+        "Save username": "حفظ اسم المستخدم",
+        "Password changed": "تم تغيير كلمة المرور",
+        "Username updated": "تم تحديث اسم المستخدم",
+        "At least 10 characters. Your other devices will be signed out.": "10 أحرف على الأقل. سيتم تسجيل خروج أجهزتك الأخرى.",
         'Connected on': 'تم الربط في',
         'Connect an app': 'ربط تطبيق',
         "Can't connect": 'تعذّر الربط',

@@ -1,4 +1,5 @@
 import time
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -312,25 +313,33 @@ async def timezone_update(
     return redirect
 
 
-@router.get("/profile")
-async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
-    user_payload = require_user(request)
-    user_id = int(user_payload["sub"])
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+async def _render_profile(request: Request, db: AsyncSession, user: User, **context):
     connected_apps = []
     if settings.claude_connector_enabled:
         connected_apps = (await db.execute(select(OAuthGrant).where(
-            OAuthGrant.user_id == user_id, OAuthGrant.access_hash.isnot(None),
+            OAuthGrant.user_id == user.id, OAuthGrant.access_hash.isnot(None),
         ).order_by(OAuthGrant.created_at.desc()))).scalars().all()
+    context.setdefault("username", user.username)
+    if context.get("error"):
+        context["error"] = _(context["error"], user.lang)
     return request.app.state.render(
         request,
         "auth/profile.html",
-        username=user.username if user else "",
-        force_password_change=bool(user and user.must_change_password),
+        current_username=user.username,
+        force_password_change=bool(user.must_change_password),
         connected_apps=connected_apps,
         connector_url=public_base_url(request) + "/mcp",
+        **context,
     )
+
+
+@router.get("/profile")
+async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
+    user_payload = require_user(request)
+    user = (await db.execute(select(User).where(User.id == int(user_payload["sub"])))).scalar_one_or_none()
+    if not user:
+        return RedirectResponse(url="/auth/signin", status_code=303)
+    return await _render_profile(request, db, user)
 
 
 @router.post("/profile")
@@ -353,61 +362,38 @@ async def profile_update(
     force_password_change = user.must_change_password
     username = (username or "").strip()
     if username and len(username) < 3:
-        return request.app.state.render(
-            request,
-            "auth/profile.html",
-            username=username,
-            force_password_change=force_password_change,
-            error="Username must be at least 3 characters",
-        )
-    if username and username != user.username:
+        return await _render_profile(request, db, user, username=username, open_section="username",
+                                     error="Username must be at least 3 characters")
+    username_changed = bool(username and username != user.username)
+    if username_changed:
         existing = await db.execute(select(User).where(User.username == username))
         if existing.scalar_one_or_none():
-            return request.app.state.render(
-                request,
-                "auth/profile.html",
-                username=user.username,
-                force_password_change=force_password_change,
-                error=_("Username already taken", user.lang),
-            )
-        user.username = username
+            return await _render_profile(request, db, user, username=username, open_section="username",
+                                         error="Username already taken")
 
     password_fields_present = bool(current_password or new_password or confirm_password)
-    if password_fields_present and not (current_password and new_password and confirm_password):
-        return request.app.state.render(
-            request, "auth/profile.html", username=user.username,
-            force_password_change=force_password_change,
-            error=(
+    if password_fields_present or force_password_change:
+        password_error = None
+        if not (current_password and new_password and confirm_password):
+            password_error = (
                 "Change the default password before continuing"
                 if force_password_change
                 else "Complete all password fields"
-            ),
-        )
+            )
+        elif not verify_password(current_password, user.password_hash):
+            password_error = "Current password is incorrect"
+        elif new_password != confirm_password:
+            password_error = "Passwords do not match"
+        elif len(new_password) < 10:
+            password_error = "Password must be at least 10 characters"
+        elif verify_password(new_password, user.password_hash):
+            password_error = "New password must be different from the current password"
+        if password_error:
+            return await _render_profile(request, db, user, open_section="password", error=password_error)
+
+    if username_changed:
+        user.username = username
     if password_fields_present:
-        if not verify_password(current_password, user.password_hash):
-            return request.app.state.render(
-                request, "auth/profile.html", username=user.username,
-                force_password_change=force_password_change,
-                error=_("Current password is incorrect", user.lang),
-            )
-        if new_password != confirm_password:
-            return request.app.state.render(
-                request, "auth/profile.html", username=user.username,
-                force_password_change=force_password_change,
-                error=_("Passwords do not match", user.lang),
-            )
-        if len(new_password) < 10:
-            return request.app.state.render(
-                request, "auth/profile.html", username=user.username,
-                force_password_change=force_password_change,
-                error=_("Password must be at least 10 characters", user.lang),
-            )
-        if verify_password(new_password, user.password_hash):
-            return request.app.state.render(
-                request, "auth/profile.html", username=user.username,
-                force_password_change=force_password_change,
-                error="New password must be different from the current password",
-            )
         user.password_hash = hash_password(new_password)
         user.must_change_password = False
         # A new password signs out every other device; this one gets a fresh session below.
@@ -416,7 +402,14 @@ async def profile_update(
     await db.commit()
     await db.refresh(user)
 
-    destination = _landing_page(user) if force_password_change else "/auth/profile"
+    if force_password_change:
+        destination = _landing_page(user)
+    elif password_fields_present:
+        destination = "/auth/profile?success=" + quote(_("Password changed", user.lang))
+    elif username_changed:
+        destination = "/auth/profile?success=" + quote(_("Username updated", user.lang))
+    else:
+        destination = "/auth/profile"
     redirect = RedirectResponse(url=destination, status_code=303)
     set_session_cookie(redirect, _session_payload(user), remember=bool(user_payload.get("remember")))
     return redirect

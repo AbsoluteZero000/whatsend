@@ -159,3 +159,32 @@ def test_sessions_issued_before_this_change_stay_valid(tmp_path, monkeypatch):
         assert (await visit(client, legacy)).status_code == 200
 
     run(tmp_path, monkeypatch, scenario)
+
+
+def test_settings_keep_the_change_forms_closed_until_needed(tmp_path, monkeypatch):
+    async def scenario(client, sessions):
+        token = session_token(await sign_in(client, remember=False))
+        page = (await visit(client, token)).text
+        assert page.count('<details class="account-row">') == 2 and "<bdi>member</bdi>" in page
+
+        renamed = await client.request("POST", "/auth/profile", token, data={"username": "member2"})
+        assert renamed.status_code == 303 and renamed.headers["location"] == "/auth/profile?success=Username%20updated"
+        token = session_token(renamed)
+
+        wrong = await client.request("POST", "/auth/profile", token, data={
+            "current_password": "not-my-password", "new_password": "brand-new-pass-2", "confirm_password": "brand-new-pass-2",
+        })
+        assert wrong.status_code == 200
+        assert '<details class="account-row" open>' in wrong.text and "Current password is incorrect" in wrong.text
+        assert "<bdi>member2</bdi>" in wrong.text
+
+        taken = await client.request("POST", "/auth/profile", token, data={"username": "ab"})
+        assert "Username must be at least 3 characters" in taken.text and 'value="ab"' in taken.text
+        assert "<bdi>member2</bdi>" in taken.text  # the row still shows the saved name
+
+        changed = await client.request("POST", "/auth/profile", token, data={
+            "current_password": PASSWORD, "new_password": "brand-new-pass-2", "confirm_password": "brand-new-pass-2",
+        })
+        assert changed.headers["location"] == "/auth/profile?success=Password%20changed"
+
+    run(tmp_path, monkeypatch, scenario)

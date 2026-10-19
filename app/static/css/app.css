@@ -961,3 +961,22 @@ a.metric-card:hover { transform: translateY(-2px); border-color: var(--primary-b
 .connected-apps form { flex: none; }
 @media (max-width: 600px) { .connected-apps li { flex-direction: column; align-items: stretch; } }
 
+
+/* Settings: account rows that open a form only when changing something */
+.settings-card-title { font-size: 1rem; margin: 0 0 .25rem; }
+.account-card { padding-top: 1.1rem; padding-bottom: .4rem; }
+.account-row { border-top: 1px solid var(--border); }
+.account-row:first-of-type { border-top: none; }
+.account-row-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 0; list-style: none; }
+summary.account-row-head { cursor: pointer; }
+summary.account-row-head::-webkit-details-marker { display: none; }
+summary.account-row-head:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+.account-row-text { display: flex; flex-direction: column; min-width: 0; }
+.account-row-text strong { font-size: .9rem; }
+.account-row-text span { color: var(--text-muted); font-size: .85rem; margin-top: .1rem; overflow-wrap: anywhere; }
+.account-row-toggle { flex: none; pointer-events: none; }
+.account-row-toggle .when-open, .account-row[open] .account-row-toggle .when-closed { display: none; }
+.account-row[open] .account-row-toggle .when-open { display: inline; }
+.account-row .account-form { padding: 0 0 1.1rem; }
+.account-row.is-required .account-row-head { padding-bottom: .25rem; }
+summary.account-row-head:hover .account-row-toggle { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
