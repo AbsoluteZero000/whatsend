@@ -86,17 +86,28 @@
     <div class="detail-card-header">{{ _('Shared header (optional)') if job.message_mode == 'series' else _('Message') }}</div>
     <div class="detail-body">
       <div class="detail-message">{{ job.message }}</div>
-      {% set words = word_items(job) %}
-      {% if words and job.message_mode != 'series' %}
+      {% set lists = word_lists(job) %}
+      {% if lists and job.message_mode != 'series' %}
+      {% set longest = lists | map('length') | max %}
+      {% set live = job.status not in ('completed', 'cancelled', 'failed') %}
       <div class="detail-word-list">
         <h3>{{ _('Changing text') }}</h3>
-        <p class="field-note">{{ _('Each send puts the next item where {word} is.') }} {{ _('After the last item it stops.') if job.word_list_end == 'stop' else _('After the last item it starts again from the first.') }}</p>
-        <ol>
-          {% for word in words %}
-          {% set is_next = loop.index0 == job.word_list_next and job.status not in ('completed', 'cancelled', 'failed') %}
-          <li class="{{ 'is-next' if is_next }}{{ ' is-used' if job.word_list_end == 'stop' and loop.index0 < job.word_list_next }}"><bdi>{{ word }}</bdi>{% if is_next %}<span>{{ _('Next') }}</span>{% endif %}</li>
+        <p class="field-note">{{ _('Each send puts the next item of each list where its placeholder is.') }} {{ _('After the last item it stops.') if job.word_list_end == 'stop' else _('After the last item it starts again from the first.') }}</p>
+        <div class="detail-word-lists">
+          {% for items in lists %}
+          {% set next_index = job.word_list_next % (items | length) %}
+          <div>
+            {% if lists | length > 1 %}<h4>{{ _('Changing part {number}').replace('{number}', loop.index|string) }} <code>{{ word_token(loop.index) }}</code></h4>{% endif %}
+            <ol>
+              {% for word in items %}
+              {% set is_next = live and loop.index0 == next_index and not (job.word_list_end == 'stop' and job.word_list_next >= longest) %}
+              {% set is_used = job.word_list_end == 'stop' and (items | length) == longest and loop.index0 < job.word_list_next %}
+              <li class="{{ 'is-next' if is_next }}{{ ' is-used' if is_used }}"><bdi>{{ word }}</bdi>{% if is_next %}<span>{{ _('Next') }}</span>{% endif %}</li>
+              {% endfor %}
+            </ol>
+          </div>
           {% endfor %}
-        </ol>
+        </div>
       </div>
       {% endif %}
       {% if job.message_mode == 'series' and series_footer %}<h3>{{ _('Shared footer (optional)') }}</h3><div class="detail-message">{{ series_footer }}</div>{% endif %}

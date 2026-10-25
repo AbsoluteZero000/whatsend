@@ -72,33 +72,26 @@
     <label for="message" id="message_label" data-repeat="{{ _('Message') }}" data-series="{{ _('Text added to every part (optional)') }}">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
 
-    {% set wl_text = word_list_text|default('') %}
+    {% set wl_raw = word_lists_raw|default('[]') %}
+    {% set wl_has = wl_raw not in ('[]', '[""]') %}
     {% set wl_end = word_list_end|default('repeat') %}
-    <button type="button" class="word-list-add" id="word_list_add" {% if wl_text %}hidden{% endif %}>
+    <button type="button" class="word-list-add" id="word_list_add" {% if wl_has %}hidden{% endif %}>
       <span class="word-list-add-icon" aria-hidden="true">⇄</span>
       <span><strong>{{ _('Add text that changes each time') }}</strong><small>{{ _('A word, sentence, number or range: a different one at each send.') }}</small></span>
     </button>
-    <section class="word-list-panel" id="word_list_panel" aria-labelledby="word_list_title" {% if not wl_text %}hidden{% endif %}>
+    <section class="word-list-panel" id="word_list_panel" aria-labelledby="word_list_title" {% if not wl_has %}hidden{% endif %}>
       <div class="word-list-head">
         <h3 id="word_list_title">{{ _('Changing text') }}</h3>
         <button type="button" class="btn-clear" data-action="remove">{{ _('Remove') }}</button>
       </div>
-      <p class="field-note">{{ _('Each send puts the next item from this list where {word} is in your message.') }}</p>
-      <p class="word-list-missing" role="alert" hidden>{{ _("Your message doesn't have {word} yet.") }} <button type="button" class="btn-clear" data-action="insert">{{ _('Insert {word} into the message') }}</button></p>
-
-      <div class="word-list-label-row">
-        <label for="word_list">{{ _('List (one item per line)') }}</label>
-        <button type="button" class="btn-clear" data-action="numbers" aria-expanded="false" aria-controls="word_list_numbers">{{ _('Fill with numbers') }}</button>
-      </div>
-      <div class="word-list-numbers" id="word_list_numbers" hidden>
-        <label>{{ _('From') }} <input type="number" data-field="from" value="1" step="1"></label>
-        <label>{{ _('To') }} <input type="number" data-field="to" value="30" step="1"></label>
-        <label>{{ _('Numbers in each send') }} <input type="number" data-field="size" value="1" min="1" step="1"></label>
-        <button type="button" class="btn btn-secondary" data-action="fill">{{ _('Fill list') }}</button>
-        <small class="field-note">{{ _('1 makes 1, 2, 3… More than 1 makes ranges like 1-5, 6-10… This replaces the list.') }}</small>
-      </div>
-      <textarea id="word_list" name="word_list" rows="6" maxlength="200000" placeholder="{{ _('Patience') }}&#10;{{ _('Gratitude') }}&#10;{{ _('Pages 1-5') }}">{{ wl_text }}</textarea>
-      <p class="word-list-count field-note" role="status"></p>
+      <p class="field-note">{{ _('Each send puts the next item of each list where its placeholder is in your message.') }}</p>
+      <input type="hidden" id="word_lists" name="word_lists" value="{{ wl_raw }}">
+      <div class="word-list-parts"></div>
+      <button type="button" class="word-list-add-part" data-action="add-part">
+        <strong>+ {{ _('Add another changing part') }}</strong>
+        <small>{{ _('For example, a page range and a verse number in the same message.') }}</small>
+      </button>
+      <p class="field-note" data-role="together" hidden>{{ _('All lists move together, one item per send. A shorter list starts over on its own.') }}</p>
 
       <fieldset class="word-list-end">
         <legend>{{ _('When the list runs out') }}</legend>
@@ -116,6 +109,29 @@
         <p class="field-note" data-role="after"></p>
       </div>
     </section>
+    <template id="word_part_template">
+      <div class="word-list-part">
+        <div class="word-list-part-head">
+          <strong data-role="title"></strong>
+          <code data-role="token"></code>
+          <button type="button" class="btn-clear" data-action="remove-part">{{ _('Remove') }}</button>
+        </div>
+        <p class="word-list-missing" role="alert" hidden><span data-role="missing"></span> <button type="button" class="btn-clear" data-action="insert"></button></p>
+        <div class="word-list-label-row">
+          <label data-role="label">{{ _('List (one item per line)') }}</label>
+          <button type="button" class="btn-clear" data-action="numbers" aria-expanded="false">{{ _('Fill with numbers') }}</button>
+        </div>
+        <div class="word-list-numbers" hidden>
+          <label>{{ _('From') }} <input type="number" data-field="from" value="1" step="1"></label>
+          <label>{{ _('To') }} <input type="number" data-field="to" value="30" step="1"></label>
+          <label>{{ _('Numbers in each send') }} <input type="number" data-field="size" value="1" min="1" step="1"></label>
+          <button type="button" class="btn btn-secondary" data-action="fill">{{ _('Fill list') }}</button>
+          <small class="field-note">{{ _('1 makes 1, 2, 3… More than 1 makes ranges like 1-5, 6-10… This replaces the list.') }}</small>
+        </div>
+        <textarea rows="5" maxlength="200000" placeholder="{{ _('Patience') }}&#10;{{ _('Gratitude') }}&#10;{{ _('Pages 1-5') }}"></textarea>
+        <p class="word-list-count field-note" role="status"></p>
+      </div>
+    </template>
 
     <div class="message-variables" {% if not show_extras %}hidden{% endif %}>
       <span>{{ _('Insert variable') }}</span>
@@ -520,13 +536,18 @@
     }
   });
   const wordList = createWordList({
-    maxItems: 500,
+    maxItems: 500, maxParts: 5,
     labels: {
+      part: {{ _('Changing part {number}') | tojson }},
+      remove: {{ _('Remove') | tojson }}, removeAll: {{ _('Remove all') | tojson }},
+      missing: {{ _("Your message doesn't have {token} yet.") | tojson }}, insert: {{ _('Insert {token} into the message') | tojson }},
+      send: {{ _('Send {number}') | tojson }},
       count: {{ _('{count} items') | tojson }}, empty: {{ _('Add at least one item, one per line.') | tojson }},
       previewEmpty: {{ _('Add items to see what each send will say.') | tojson }},
       oneTime: {{ _('A one-time message only uses the first item.') | tojson }},
       stops: {{ _('It stops after {count} sends.') | tojson }},
-      repeats: {{ _('After the last item, it starts again from "{first}".') | tojson }}
+      repeats: {{ _('After the last item, it starts again from "{first}".') | tojson }},
+      repeatsAll: {{ _('When the longest list ends, every list starts again from its first item.') | tojson }}
     }
   });
   window.composerDraftConfig = {

@@ -141,8 +141,9 @@ def cron_to_text(expr: str, schedule_tz: str = "UTC", display_tz: str | None = N
 
 _jinja_env.globals["cron_to_text"] = cron_to_text
 _jinja_env.globals["can_send_early"] = jobs.can_send_early
-_jinja_env.globals["word_items"] = word_list.items
-_jinja_env.globals["next_word"] = word_list.next_item
+_jinja_env.globals["word_lists"] = word_list.lists
+_jinja_env.globals["next_words"] = word_list.next_items
+_jinja_env.globals["word_token"] = word_list.token
 
 
 def render(request: Request, template_name: str, **context) -> HTMLResponse:

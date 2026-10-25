@@ -1012,7 +1012,7 @@ summary.account-row-head:hover .account-row-toggle { border-color: var(--primary
 .word-list-preview li span { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .word-list-preview mark { padding: 0 .2rem; color: var(--primary); background: var(--primary-soft); border-radius: 4px; font-weight: 750; }
 .word-list-preview .field-note { margin: .45rem 0 0; }
-.job-next-word { display: block; margin-top: .2rem; color: var(--text-muted); font-size: .72rem; }
+.job-next-word { display: block; flex-basis: 100%; margin-top: .2rem; color: var(--text-muted); font-size: .72rem; }
 .job-next-word mark { padding: 0 .2rem; color: var(--primary); background: var(--primary-soft); border-radius: 4px; font-weight: 700; }
 .detail-word-list { margin-top: 1rem; padding-top: .85rem; border-top: 1px solid var(--border); }
 .detail-word-list h3 { margin: 0 0 .25rem; font-size: .9rem; }
@@ -1024,3 +1024,20 @@ summary.account-row-head:hover .account-row-toggle { border-color: var(--primary
 .detail-word-list li span { margin-inline-start: .45rem; padding: .05rem .4rem; color: var(--primary); background: var(--primary-soft); border-radius: 999px; font-size: .68rem; font-weight: 800; }
 .word-list-head .btn-clear { color: var(--danger); font-weight: 700; }
 .word-list-numbers .btn { align-self: flex-end; min-height: 40px; }
+.word-list-parts { display: flex; flex-direction: column; gap: .75rem; }
+.word-list-part { display: flex; flex-direction: column; gap: .55rem; padding: .8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); }
+.word-list-part-head { display: flex; align-items: center; gap: .5rem; }
+.word-list-part-head strong { font-size: .88rem; }
+.word-list-part-head code { padding: .1rem .4rem; color: var(--primary); background: var(--primary-soft); border-radius: 5px; font-size: .78rem; direction: ltr; }
+.word-list-part-head .btn-clear { margin-inline-start: auto; color: var(--danger); font-weight: 700; }
+.word-list-part-head .btn-clear[hidden] { display: none; }
+.word-list-part .word-list-count { margin: -.3rem 0 0; }
+.word-list-add-part { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; padding: .6rem .8rem; text-align: start; color: var(--primary); background: transparent; border: 1.5px dashed var(--border-light); border-radius: var(--radius-sm); cursor: pointer; font: inherit; }
+.word-list-add-part:hover, .word-list-add-part:focus-visible { border-color: var(--primary); background: var(--primary-soft); outline: none; }
+.word-list-add-part[hidden] { display: none; }
+.word-list-add-part strong { font-size: .85rem; }
+.word-list-add-part small { color: var(--text-muted); font-size: .75rem; }
+.word-list-panel > [data-role="together"] { margin: -.2rem 0 0; }
+.detail-word-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem 1.25rem; }
+.detail-word-lists h4 { margin: 0 0 .3rem; font-size: .8rem; }
+.detail-word-lists h4 code { padding: .05rem .35rem; color: var(--primary); background: var(--primary-soft); border-radius: 5px; direction: ltr; }

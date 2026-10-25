@@ -41,7 +41,7 @@ from app.services.native_sender import CONNECTION_LOST, NativeSender
 from app.i18n import _
 from app.services.native_api import connection_base_url
 from app.services.schedule_dates import build_dates_value, local_form_values
-from app.services.word_list import items as word_items, longest_message, validate as validate_word_list
+from app.services.word_list import dump as dump_word_lists, lists as word_lists_of, longest_message, validate as validate_word_list
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
 
@@ -168,12 +168,24 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
         cron_freq=form.get("cron_freq", "daily"), cron_time=form.get("cron_time", "09:00"),
         cron_dom=form.get("cron_dom", "1"), cron_days=form.getlist("cron_days"), cron_raw=form.get("cron_raw", ""),
         schedule_dates=form.get("schedule_dates", ""), dates_time=form.get("dates_time", "09:00"),
-        word_list_text=form.get("word_list", ""), word_list_end=form.get("word_list_end", "repeat"),
+        word_lists_raw=json.dumps(submitted_word_lists(form.get("word_lists", ""), form.get("word_list", "")), ensure_ascii=False),
+        word_list_end=form.get("word_list_end", "repeat"),
         word_list_next=form_int(form.get("word_list_next")),
         image_available=bool(draft.image_path and Path(draft.image_path).exists()),
     )
     response.status_code = error.status_code
     return response
+
+
+def submitted_word_lists(word_lists: str, word_list: str = "") -> list[str]:
+    """The composer sends every changing part's raw list as one JSON array; a single list may come as plain text."""
+    try:
+        value = json.loads(word_lists) if word_lists else None
+    except ValueError:
+        value = None
+    if isinstance(value, list):
+        return [str(raw) for raw in value][:20]
+    return [word_list] if word_list else []
 
 
 def form_int(value, default: int = 0) -> int:
@@ -634,6 +646,7 @@ async def create_job(
     schedule_dates: str = Form(default=""),
     dates_time: str = Form(default="09:00"),
     word_list: str = Form(default=""),
+    word_lists: str = Form(default=""),
     word_list_end: str = Form(default="repeat"),
     word_list_next: int = Form(default=0),
     db: AsyncSession = Depends(get_db),
@@ -664,7 +677,8 @@ async def create_job(
             plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, None)
         elif not message:
             raise ValueError('Enter a message')
-        words, words_end, _ = validate_word_list(message, word_list, word_list_end) if message_mode == 'repeat' else ([], 'repeat', 0)
+        words, words_end, _ = (validate_word_list(message, submitted_word_lists(word_lists, word_list), word_list_end, lang=user.get("lang", "en"))
+                               if message_mode == 'repeat' else ([], 'repeat', 0))
     except (ValueError, HTTPException) as exc:
         error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
         return await job_error_form(request, db, user, error, group_ids, group_names, None)
@@ -701,7 +715,7 @@ async def create_job(
         group_id=group_ids[0] if group_ids else "",
         group_name=group_names[0] if group_names else None,
         message=message,
-        word_list=json.dumps(words, ensure_ascii=False) if words else None,
+        word_list=dump_word_lists(words),
         word_list_end=words_end,
         image_path=image_path,
         image_filename=Path(image.filename.replace("\\", "/")).name if image_path and image else None,
@@ -1059,7 +1073,8 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
                                      job=job, draft_owner=user["sub"], tokens=tokens, groups=groups,
                                      now=now, user_tz=user_tz, edit_mode=True,
                                      image_available=image_available,
-                                     word_list_text="\n".join(word_items(job)), word_list_end=job.word_list_end,
+                                     word_lists_raw=json.dumps(["\n".join(items) for items in word_lists_of(job)], ensure_ascii=False),
+                                     word_list_end=job.word_list_end,
                                      word_list_next=job.word_list_next,
                                      selected_groups=selected_groups, **form_data)
 
@@ -1088,6 +1103,7 @@ async def edit_job(
     schedule_dates: str = Form(default=""),
     dates_time: str = Form(default="09:00"),
     word_list: str = Form(default=""),
+    word_lists: str = Form(default=""),
     word_list_end: str = Form(default="repeat"),
     word_list_next: int = Form(default=0),
     db: AsyncSession = Depends(get_db),
@@ -1131,7 +1147,8 @@ async def edit_job(
             plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, job)
         elif not message:
             raise ValueError('Enter a message')
-        words, words_end, words_next = (validate_word_list(message, word_list, word_list_end, word_list_next)
+        words, words_end, words_next = (validate_word_list(message, submitted_word_lists(word_lists, word_list), word_list_end,
+                                                           word_list_next, lang=user.get("lang", "en"))
                                         if message_mode == 'repeat' else ([], 'repeat', 0))
     except (ValueError, HTTPException) as exc:
         error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
@@ -1173,7 +1190,7 @@ async def edit_job(
     job.group_id = group_ids[0] if group_ids else ""
     job.group_name = group_names[0] if group_names else None
     job.message = message
-    job.word_list = json.dumps(words, ensure_ascii=False) if words else None
+    job.word_list = dump_word_lists(words)
     job.word_list_end, job.word_list_next = words_end, words_next
     job.image_path = image_path
     if new_path:
