@@ -72,6 +72,51 @@
     <label for="message" id="message_label" data-repeat="{{ _('Message') }}" data-series="{{ _('Text added to every part (optional)') }}">{{ _('Message') }}</label>
     <textarea id="message" name="message" required placeholder="{{ _('Type your WhatsApp message here…') }}">{% if job is defined %}{{ job.message }}{% endif %}</textarea>
 
+    {% set wl_text = word_list_text|default('') %}
+    {% set wl_end = word_list_end|default('repeat') %}
+    <button type="button" class="word-list-add" id="word_list_add" {% if wl_text %}hidden{% endif %}>
+      <span class="word-list-add-icon" aria-hidden="true">⇄</span>
+      <span><strong>{{ _('Add text that changes each time') }}</strong><small>{{ _('A word, sentence, number or range: a different one at each send.') }}</small></span>
+    </button>
+    <section class="word-list-panel" id="word_list_panel" aria-labelledby="word_list_title" {% if not wl_text %}hidden{% endif %}>
+      <div class="word-list-head">
+        <h3 id="word_list_title">{{ _('Changing text') }}</h3>
+        <button type="button" class="btn-clear" data-action="remove">{{ _('Remove') }}</button>
+      </div>
+      <p class="field-note">{{ _('Each send puts the next item from this list where {word} is in your message.') }}</p>
+      <p class="word-list-missing" role="alert" hidden>{{ _("Your message doesn't have {word} yet.") }} <button type="button" class="btn-clear" data-action="insert">{{ _('Insert {word} into the message') }}</button></p>
+
+      <div class="word-list-label-row">
+        <label for="word_list">{{ _('List (one item per line)') }}</label>
+        <button type="button" class="btn-clear" data-action="numbers" aria-expanded="false" aria-controls="word_list_numbers">{{ _('Fill with numbers') }}</button>
+      </div>
+      <div class="word-list-numbers" id="word_list_numbers" hidden>
+        <label>{{ _('From') }} <input type="number" data-field="from" value="1" step="1"></label>
+        <label>{{ _('To') }} <input type="number" data-field="to" value="30" step="1"></label>
+        <label>{{ _('Numbers in each send') }} <input type="number" data-field="size" value="1" min="1" step="1"></label>
+        <button type="button" class="btn btn-secondary" data-action="fill">{{ _('Fill list') }}</button>
+        <small class="field-note">{{ _('1 makes 1, 2, 3… More than 1 makes ranges like 1-5, 6-10… This replaces the list.') }}</small>
+      </div>
+      <textarea id="word_list" name="word_list" rows="6" maxlength="200000" placeholder="{{ _('Patience') }}&#10;{{ _('Gratitude') }}&#10;{{ _('Pages 1-5') }}">{{ wl_text }}</textarea>
+      <p class="word-list-count field-note" role="status"></p>
+
+      <fieldset class="word-list-end">
+        <legend>{{ _('When the list runs out') }}</legend>
+        <label><input type="radio" name="word_list_end" value="repeat" {% if wl_end != 'stop' %}checked{% endif %}> {{ _('Start again from the first item') }}</label>
+        <label><input type="radio" name="word_list_end" value="stop" {% if wl_end == 'stop' %}checked{% endif %}> {{ _('Stop sending this message') }}</label>
+      </fieldset>
+      {% if edit_mode %}
+      <label for="word_list_next">{{ _('Next send uses') }}</label>
+      <select id="word_list_next" name="word_list_next" data-initial="{{ word_list_next|default(0) }}"></select>
+      {% endif %}
+
+      <div class="word-list-preview">
+        <strong>{{ _('Preview') }}</strong>
+        <ol></ol>
+        <p class="field-note" data-role="after"></p>
+      </div>
+    </section>
+
     <div class="message-variables" {% if not show_extras %}hidden{% endif %}>
       <span>{{ _('Insert variable') }}</span>
       {% for variable in ['send_number', 'send_ordinal_ar', 'total_sends', 'today', 'time'] %}<button type="button" class="btn-clear" data-message-variable="{{ variable }}">{{ '{' ~ variable ~ '}' }}</button>{% endfor %}
@@ -242,6 +287,7 @@
 <script src="/static/js/recipient-lists.js?v={{ asset_versions['js/recipient-lists.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/group-picker.js?v={{ asset_versions['js/group-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script src="/static/js/dates-picker.js?v={{ asset_versions['js/dates-picker.js'] }}" nonce="{{ csp_nonce }}"></script>
+<script src="/static/js/word-list.js?v={{ asset_versions['js/word-list.js'] }}" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
   function toggleTriggerValue() {
     var type = document.getElementById('trigger_type').value;
@@ -473,6 +519,16 @@
       emptyEntry: {{ _('Every part needs a message or an attachment.') | tojson }}
     }
   });
+  const wordList = createWordList({
+    maxItems: 500,
+    labels: {
+      count: {{ _('{count} items') | tojson }}, empty: {{ _('Add at least one item, one per line.') | tojson }},
+      previewEmpty: {{ _('Add items to see what each send will say.') | tojson }},
+      oneTime: {{ _('A one-time message only uses the first item.') | tojson }},
+      stops: {{ _('It stops after {count} sends.') | tojson }},
+      repeats: {{ _('After the last item, it starts again from "{first}".') | tojson }}
+    }
+  });
   window.composerDraftConfig = {
     owner: {{ draft_owner | default('') | string | tojson }}, validationError: {{ 'true' if form_error else 'false' }},
     selected: () => _selectedGroups,
@@ -482,6 +538,7 @@
       if (window.datesPicker) window.datesPicker.refresh();
       loadTokenGroups(false); savedLists.load();
       messageSeries.restore(document.getElementById('series_definition').value);
+      wordList.refresh();
     },
     labels: {
       saving: {{ _('Saving draft…') | tojson }}, saved: {{ _('Draft saved on this device') | tojson }},
@@ -492,7 +549,7 @@
   };
 
   document.getElementById('message-form').addEventListener('submit', function(e) {
-    if (!messageSeries.validate()) { e.preventDefault(); return; }
+    if (!messageSeries.validate() || !wordList.validate()) { e.preventDefault(); return; }
     const attachment = document.getElementById('image').files[0];
     const uploadError = document.getElementById('upload_error');
     uploadError.style.display = 'none';

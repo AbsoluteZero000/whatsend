@@ -86,6 +86,19 @@
     <div class="detail-card-header">{{ _('Shared header (optional)') if job.message_mode == 'series' else _('Message') }}</div>
     <div class="detail-body">
       <div class="detail-message">{{ job.message }}</div>
+      {% set words = word_items(job) %}
+      {% if words and job.message_mode != 'series' %}
+      <div class="detail-word-list">
+        <h3>{{ _('Changing text') }}</h3>
+        <p class="field-note">{{ _('Each send puts the next item where {word} is.') }} {{ _('After the last item it stops.') if job.word_list_end == 'stop' else _('After the last item it starts again from the first.') }}</p>
+        <ol>
+          {% for word in words %}
+          {% set is_next = loop.index0 == job.word_list_next and job.status not in ('completed', 'cancelled', 'failed') %}
+          <li class="{{ 'is-next' if is_next }}{{ ' is-used' if job.word_list_end == 'stop' and loop.index0 < job.word_list_next }}"><bdi>{{ word }}</bdi>{% if is_next %}<span>{{ _('Next') }}</span>{% endif %}</li>
+          {% endfor %}
+        </ol>
+      </div>
+      {% endif %}
       {% if job.message_mode == 'series' and series_footer %}<h3>{{ _('Shared footer (optional)') }}</h3><div class="detail-message">{{ series_footer }}</div>{% endif %}
       {% if media_available %}
       <div class="detail-image">

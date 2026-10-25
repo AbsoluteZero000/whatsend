@@ -38,6 +38,10 @@ class Job(Base):
     series_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     series_cursor: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     send_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Changing words: JSON list whose next item replaces {word} at each send (see services/word_list.py).
+    word_list: Mapped[str | None] = mapped_column(Text, nullable=True)
+    word_list_next: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    word_list_end: Mapped[str] = mapped_column(String(10), default="repeat", server_default="repeat")
     series_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
     series_active_run: Mapped[str | None] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")

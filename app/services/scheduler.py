@@ -16,6 +16,7 @@ from app.models.log import Log
 from app.models.token import Token
 from app.services.crypto import decrypt_token
 from app.services.sender import WhatsAppSender
+from app.services import word_list
 from app.services.schedule_dates import DatesTrigger, remaining_dates
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,9 @@ scheduler = AsyncIOScheduler(
 
 
 def is_last_run(job: Job) -> bool:
-    """One-shot schedules, and a dates schedule with no dates left, finish after this run."""
+    """One-shot schedules, a dates schedule with no dates left, and a used-up word list finish after this run."""
+    if word_list.finished(job):
+        return True
     if job.trigger_type == "dates":
         return not remaining_dates(job)
     return job.trigger_type in {"date", "now"}
@@ -124,6 +127,16 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
             await db.commit()
             return
 
+        if not retry_only and word_list.finished(job):
+            # Every changing word has been sent and the list is set to stop.
+            if job.status in ("pending", "active", "trigger"):
+                job.status = "completed"
+            existing = scheduler.get_job(str(job.id))
+            if existing:
+                scheduler.remove_job(str(job.id))
+            await db.commit()
+            return
+
         groups = job.job_groups if job.job_groups else [type("G", (object,), {"group_id": job.group_id, "group_name": job.group_name})()]
         groups = [group for group in groups if group.group_id]
         if retry_only:
@@ -147,7 +160,7 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
             return
         from app.services.message_variables import render_message
         if not retry_only: job.send_count = (job.send_count or 0) + 1
-        message = render_message(job.message, job.send_count, None, job.schedule_timezone)
+        message = render_message(word_list.fill(job, job.message, retry=retry_only), job.send_count, None, job.schedule_timezone)
         run_id = str(uuid.uuid4())
         attempt_number = job.retry_count + 1 if retry_only else 1
         results: list[str] = []
@@ -192,7 +205,11 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
             job.retry_count = 0
             job.retry_at = None
             job.retry_group_ids = None
-            if job.trigger_type == "trigger":
+            if word_list.finished(job):
+                job.status = "completed"
+                if scheduler.get_job(str(job.id)):
+                    scheduler.remove_job(str(job.id))
+            elif job.trigger_type == "trigger":
                 job.status = "trigger"
             elif job.trigger_type == "cron":
                 job.status = "active"
@@ -223,6 +240,10 @@ async def register_job(job: Job):
             await remove_job(job.id)
             return
     if job.status not in ("pending", "active", "retry_scheduled") and not (series and job.status == "queued"):
+        return
+    if word_list.finished(job) and job.status != "retry_scheduled":
+        job.status = "completed"
+        await remove_job(job.id)
         return
     if job.trigger_type == "dates" and not remaining_dates(job, grace_seconds=MISFIRE_GRACE_SECONDS):
         # Every picked date has passed (e.g. while the app was paused or offline).

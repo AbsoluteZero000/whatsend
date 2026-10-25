@@ -41,6 +41,7 @@ from app.services.native_sender import CONNECTION_LOST, NativeSender
 from app.i18n import _
 from app.services.native_api import connection_base_url
 from app.services.schedule_dates import build_dates_value, local_form_values
+from app.services.word_list import items as word_items, longest_message, validate as validate_word_list
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(csrf_protect)])
 
@@ -159,7 +160,7 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
                             message_mode=form.get('message_mode', 'repeat'), series_cursor=job.series_cursor if job else 0,
                             series_plan=form.get('series_definition', ''))
     response = request.app.state.render(
-        request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=str(error.detail), arabic_ordinals=ARABIC_ORDINAL_WORDS,
+        request, "jobs/form.html", job=draft, edit_mode=job is not None, form_error=_(str(error.detail), user.get("lang", "en")), arabic_ordinals=ARABIC_ORDINAL_WORDS,
         draft_owner=user["sub"], tokens=result.scalars().all(), groups=[], user_tz=user.get("tz", "UTC"),
         selected_groups=[{"id": gid, "name": (group_names[i] or gid) if i < len(group_names) else gid}
                          for i, gid in enumerate(group_ids)],
@@ -167,10 +168,19 @@ async def job_error_form(request, db, user, error, group_ids, group_names, job=N
         cron_freq=form.get("cron_freq", "daily"), cron_time=form.get("cron_time", "09:00"),
         cron_dom=form.get("cron_dom", "1"), cron_days=form.getlist("cron_days"), cron_raw=form.get("cron_raw", ""),
         schedule_dates=form.get("schedule_dates", ""), dates_time=form.get("dates_time", "09:00"),
+        word_list_text=form.get("word_list", ""), word_list_end=form.get("word_list_end", "repeat"),
+        word_list_next=form_int(form.get("word_list_next")),
         image_available=bool(draft.image_path and Path(draft.image_path).exists()),
     )
     response.status_code = error.status_code
     return response
+
+
+def form_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 async def delete_media_if_unreferenced(db: AsyncSession, image_path: str, excluding_job_id: int) -> None:
@@ -623,6 +633,9 @@ async def create_job(
     cron_raw: str = Form(default=""),
     schedule_dates: str = Form(default=""),
     dates_time: str = Form(default="09:00"),
+    word_list: str = Form(default=""),
+    word_list_end: str = Form(default="repeat"),
+    word_list_next: int = Form(default=0),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -651,6 +664,7 @@ async def create_job(
             plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, None)
         elif not message:
             raise ValueError('Enter a message')
+        words, words_end, _ = validate_word_list(message, word_list, word_list_end) if message_mode == 'repeat' else ([], 'repeat', 0)
     except (ValueError, HTTPException) as exc:
         error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
         return await job_error_form(request, db, user, error, group_ids, group_names, None)
@@ -674,7 +688,7 @@ async def create_job(
     except HTTPException as exc:
         return await job_error_form(request, db, user, exc, group_ids, group_names)
     try:
-        if message_mode == "repeat": validate_job_payload(token, group_ids, message, image_path)
+        if message_mode == "repeat": validate_job_payload(token, group_ids, longest_message(message, words), image_path)
     except HTTPException as exc:
         if image_path:
             Path(image_path).unlink(missing_ok=True)
@@ -687,6 +701,8 @@ async def create_job(
         group_id=group_ids[0] if group_ids else "",
         group_name=group_names[0] if group_names else None,
         message=message,
+        word_list=json.dumps(words, ensure_ascii=False) if words else None,
+        word_list_end=words_end,
         image_path=image_path,
         image_filename=Path(image.filename.replace("\\", "/")).name if image_path and image else None,
         trigger_type=trigger_type,
@@ -875,6 +891,8 @@ async def clone_job(job_id: int, request: Request, db: AsyncSession = Depends(ge
         group_id=job.group_id,
         group_name=job.group_name,
         message=job.message,
+        word_list=job.word_list,
+        word_list_end=job.word_list_end,
         message_mode=job.message_mode,
         series_plan=job.series_plan,
         series_total=len(job.series_entries) if job.message_mode == 'series' else 0,
@@ -1041,6 +1059,8 @@ async def edit_job_page(request: Request, job_id: int, db: AsyncSession = Depend
                                      job=job, draft_owner=user["sub"], tokens=tokens, groups=groups,
                                      now=now, user_tz=user_tz, edit_mode=True,
                                      image_available=image_available,
+                                     word_list_text="\n".join(word_items(job)), word_list_end=job.word_list_end,
+                                     word_list_next=job.word_list_next,
                                      selected_groups=selected_groups, **form_data)
 
 
@@ -1067,6 +1087,9 @@ async def edit_job(
     cron_raw: str = Form(default=""),
     schedule_dates: str = Form(default=""),
     dates_time: str = Form(default="09:00"),
+    word_list: str = Form(default=""),
+    word_list_end: str = Form(default="repeat"),
+    word_list_next: int = Form(default=0),
     db: AsyncSession = Depends(get_db),
 ):
     user = require_user(request)
@@ -1108,6 +1131,8 @@ async def edit_job(
             plan_data = await validate_plan(db, series_definition, user_id, token, group_ids, message, job)
         elif not message:
             raise ValueError('Enter a message')
+        words, words_end, words_next = (validate_word_list(message, word_list, word_list_end, word_list_next)
+                                        if message_mode == 'repeat' else ([], 'repeat', 0))
     except (ValueError, HTTPException) as exc:
         error = exc if isinstance(exc, HTTPException) else HTTPException(400, str(exc))
         return await job_error_form(request, db, user, error, group_ids, group_names, job)
@@ -1123,7 +1148,7 @@ async def edit_job(
             image_path = new_path
 
     try:
-        if message_mode == "repeat": validate_job_payload(token, group_ids, message, image_path)
+        if message_mode == "repeat": validate_job_payload(token, group_ids, longest_message(message, words), image_path)
         trigger_value = build_trigger_value(
             trigger_type, user_tz,
             trigger_value_date=trigger_value_date,
@@ -1148,6 +1173,8 @@ async def edit_job(
     job.group_id = group_ids[0] if group_ids else ""
     job.group_name = group_names[0] if group_names else None
     job.message = message
+    job.word_list = json.dumps(words, ensure_ascii=False) if words else None
+    job.word_list_end, job.word_list_next = words_end, words_next
     job.image_path = image_path
     if new_path:
         job.image_filename = Path(image.filename.replace("\\", "/")).name

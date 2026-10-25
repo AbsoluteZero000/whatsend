@@ -24,6 +24,7 @@ from app.services.csrf import get_or_create_csrf_token
 from app.config import settings
 from app.services.logging import configure_logging
 from app.services.schedule_dates import parse_dates as parse_schedule_dates, remaining_dates as remaining_schedule_dates
+from app.services import word_list
 
 configure_logging()
 
@@ -36,7 +37,7 @@ _jinja_env = Environment(
 _static_dir = Path(__file__).resolve().parent / "static"
 _jinja_env.globals["asset_versions"] = {
     path: hashlib.sha256((_static_dir / path).read_bytes()).hexdigest()[:12]
-    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js", "js/dates-picker.js")
+    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js", "js/dates-picker.js", "js/word-list.js")
 }
 
 
@@ -140,6 +141,8 @@ def cron_to_text(expr: str, schedule_tz: str = "UTC", display_tz: str | None = N
 
 _jinja_env.globals["cron_to_text"] = cron_to_text
 _jinja_env.globals["can_send_early"] = jobs.can_send_early
+_jinja_env.globals["word_items"] = word_list.items
+_jinja_env.globals["next_word"] = word_list.next_item
 
 
 def render(request: Request, template_name: str, **context) -> HTMLResponse:

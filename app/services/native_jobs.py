@@ -15,6 +15,7 @@ from app.models.token import Token
 from app.services.crypto import decrypt_token
 from app.services.native_api import connection_base_url
 from app.services.native_sender import CONNECTION_LOST, NativeSender, worker_error_code
+from app.services import word_list
 from app.services.schedule_dates import remaining_dates
 
 PENDING = {"submitting", "queued", "processing"}
@@ -39,7 +40,11 @@ async def finish_run(db, job, run_id):
         {"recipient": a.group_id, "status": a.status} for a in attempts
     ])))
     if job.status not in {"cancelled", "paused"}:
-        if job.trigger_type == "cron" or (job.trigger_type == "dates" and remaining_dates(job)):
+        if word_list.finished(job):
+            job.status = "completed" if status == "sent" else status
+            from app.services.scheduler import remove_job
+            await remove_job(job.id)
+        elif job.trigger_type == "cron" or (job.trigger_type == "dates" and remaining_dates(job)):
             job.status = "active"
         elif job.trigger_type == "trigger":
             job.status = "trigger"
@@ -60,7 +65,7 @@ async def submit_job(db, job, token, groups):
             return
     from app.services.message_variables import render_message
     job.send_count = (job.send_count or 0) + 1
-    message = render_message(job.message, job.send_count, None, job.schedule_timezone)
+    message = render_message(word_list.fill(job, job.message), job.send_count, None, job.schedule_timezone)
     sender = NativeSender(session_id=token.relay_session_id)
     attempts = []
     for group in {g.group_id: g for g in groups}.values():

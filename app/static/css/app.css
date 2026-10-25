@@ -980,3 +980,47 @@ summary.account-row-head:focus-visible { outline: 2px solid var(--primary); outl
 .account-row .account-form { padding: 0 0 1.1rem; }
 .account-row.is-required .account-row-head { padding-bottom: .25rem; }
 summary.account-row-head:hover .account-row-toggle { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+/* Changing text: a list whose next item replaces {word} at each send */
+.word-list-add { display: flex; align-items: center; gap: .7rem; width: 100%; margin-top: -.25rem; padding: .7rem .85rem; text-align: start; color: var(--text); background: transparent; border: 1.5px dashed var(--border-light); border-radius: var(--radius-sm); cursor: pointer; font: inherit; transition: border-color .15s, background .15s; }
+.word-list-add:hover, .word-list-add:focus-visible { border-color: var(--primary); background: var(--primary-soft); outline: none; }
+.word-list-add-icon { display: grid; place-items: center; flex: none; width: 32px; height: 32px; color: var(--primary); background: var(--primary-soft); border-radius: 8px; font-size: 1rem; font-weight: 800; }
+.word-list-add strong { display: block; font-size: .88rem; }
+.word-list-add small { display: block; margin-top: .1rem; color: var(--text-muted); font-size: .77rem; }
+.word-list-panel { display: flex; flex-direction: column; gap: .6rem; margin-top: -.25rem; padding: 1rem; border: 1px solid var(--border); border-inline-start: 3px solid var(--primary); border-radius: var(--radius-sm); background: var(--bg-input); }
+.word-list-panel[hidden], .word-list-add[hidden] { display: none; }
+.word-list-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.word-list-head h3 { margin: 0; font-size: .95rem; }
+.word-list-panel > .field-note { margin: -.35rem 0 0; }
+.word-list-missing { margin: 0; padding: .5rem .65rem; color: var(--text); background: var(--primary-soft); border-radius: var(--radius-sm); font-size: .82rem; }
+.word-list-missing .btn-clear { color: var(--primary); font-weight: 750; }
+.word-list-label-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.word-list-label-row .btn-clear { color: var(--primary); font-weight: 700; }
+.word-list-numbers { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem; padding: .7rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-card); }
+.word-list-numbers[hidden] { display: none; }
+.word-list-numbers label { display: flex; flex-direction: column; gap: .25rem; font-size: .78rem; }
+.form-card .word-list-numbers input { width: 7.5rem; }
+.word-list-numbers .field-note { flex-basis: 100%; margin: 0; }
+.word-list-count { margin: -.35rem 0 0; }
+.word-list-end { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; }
+.word-list-end legend { padding: 0; margin-bottom: .35rem; font-weight: 700; font-size: .9rem; }
+.form-card .word-list-end label { display: flex; align-items: center; gap: .4rem; font-weight: 500; }
+.form-card .word-list-end input { width: auto; min-height: 0; }
+.word-list-preview { padding-top: .65rem; border-top: 1px solid var(--border); font-size: .85rem; }
+.word-list-preview ol { margin: .45rem 0 0; padding-inline-start: 1.3rem; display: grid; gap: .3rem; }
+.word-list-preview li { color: var(--text-muted); }
+.word-list-preview li span { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.word-list-preview mark { padding: 0 .2rem; color: var(--primary); background: var(--primary-soft); border-radius: 4px; font-weight: 750; }
+.word-list-preview .field-note { margin: .45rem 0 0; }
+.job-next-word { display: block; margin-top: .2rem; color: var(--text-muted); font-size: .72rem; }
+.job-next-word mark { padding: 0 .2rem; color: var(--primary); background: var(--primary-soft); border-radius: 4px; font-weight: 700; }
+.detail-word-list { margin-top: 1rem; padding-top: .85rem; border-top: 1px solid var(--border); }
+.detail-word-list h3 { margin: 0 0 .25rem; font-size: .9rem; }
+.detail-word-list .field-note { margin: 0 0 .5rem; }
+.detail-word-list ol { margin: 0; padding-inline-start: 1.4rem; max-height: 260px; overflow-y: auto; display: grid; gap: .2rem; font-size: .85rem; color: var(--text-secondary); }
+.detail-word-list li { overflow-wrap: anywhere; }
+.detail-word-list li.is-used { color: var(--text-faint); text-decoration: line-through; }
+.detail-word-list li.is-next { color: var(--text); font-weight: 700; }
+.detail-word-list li span { margin-inline-start: .45rem; padding: .05rem .4rem; color: var(--primary); background: var(--primary-soft); border-radius: 999px; font-size: .68rem; font-weight: 800; }
+.word-list-head .btn-clear { color: var(--danger); font-weight: 700; }
+.word-list-numbers .btn { align-self: flex-end; min-height: 40px; }

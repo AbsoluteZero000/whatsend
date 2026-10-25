@@ -75,7 +75,8 @@ def test_complete_migration_chain_on_fresh_database(tmp_path, monkeypatch):
     command.upgrade(configuration, "head")
     engine = create_engine(url.replace("+aiosqlite", ""))
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261019_0012"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261025_0013"
+        assert {"word_list", "word_list_next", "word_list_end"} <= {column["name"] for column in inspect(connection).get_columns("jobs")}
         assert "schedule_dates" in {column["name"] for column in inspect(connection).get_columns("jobs")}
         assert "session_version" in {column["name"] for column in inspect(connection).get_columns("users")}
         assert {"oauth_clients", "oauth_grants"} <= set(inspect(connection).get_table_names())

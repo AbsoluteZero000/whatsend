@@ -49,6 +49,8 @@
           <span class="job-info-label">{{ _('Schedule') }}</span>
           <strong>{% if job.trigger_type == 'now' %}{{ _('Now') }}{% elif job.trigger_type == 'date' %}{{ tz(parse_dt(job.trigger_value), user_tz) }}{% elif job.trigger_type == 'dates' %}{{ dates_text(job, user_tz, _) }}{% elif job.trigger_type == 'trigger' %}{{ _('On external trigger') }}{% else %}{{ cron_to_text(job.trigger_value, job.schedule_timezone, user_tz) }}{% endif %}</strong>
           {% if time_left_map.get(job.id) %}<small>{{ _('Next run in') }} {{ time_left_map[job.id] }}</small>{% endif %}
+          {% set upcoming_word = next_word(job) if job.message_mode != 'series' and job.status in ('pending', 'active', 'trigger', 'paused', 'retry_scheduled') else None %}
+          {% if upcoming_word %}<small class="job-next-word">{{ _('Next text:') }} <mark><bdi>{{ upcoming_word|truncate(40) }}</bdi></mark></small>{% endif %}
           {% if job.skip_count > 0 and job.trigger_type not in ('trigger', 'now') %}<span class="skip-badge">{{ _('skip ×') }}{{ job.skip_count }}</span>{% endif %}
         </div>
         <div class="job-primary-actions">

@@ -21,6 +21,7 @@ And that's where we are today. EchoSend is a full-featured WhatsApp scheduler yo
 - **One-time scheduling** — Pick a date & time with a native datetime picker
 - **Recurring scheduling** — User-friendly UI (Daily, Weekdays, Weekly with multi-day checkboxes, Monthly, Custom cron) — no cron syntax needed
 - **Finite mixed-content plans** — Build colored lines of messages, documents, PDF chunks or custom page ranges, and YouTube/SoundCloud links. Run lines together while each line finishes one book or playlist before starting the next; preview every send in a table and stop automatically when all content finishes
+- **Changing text** — Put `{word}` in a message and give it a list (words, sentences, numbers, or ranges like `1-5`); each send uses the next item, then starts again or stops. A *Fill with numbers* helper builds `1, 2, 3…` or ranges for you
 - **Message variables** — Insert `{send_number}`, `{counter}`, `{total_sends}`, `{today}`, `{date}`, and `{time}` using the schedule’s timezone
 - **Saved recipient lists** — Save selected recipients under a name and reuse them with the same WhatsApp connection
 - **Autosaved drafts** — Restore message fields, selected recipients, schedules, and attachments on the same device; drafts clear after a successful submission
