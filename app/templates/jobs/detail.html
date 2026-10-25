@@ -116,6 +116,11 @@
           <button class="btn btn-primary" {% if job.series_active_run or job.status == 'queued' %}disabled{% endif %}>{{ _('Send Now') }}</button>
         </form>
         {% endif %}
+        {% if can_send_early(job) %}
+        <form method="POST" action="/jobs/{{ job.id }}/send-now" data-confirm="{{ _("Send this message now? It won't be sent again at its scheduled time.") if job.trigger_type == 'date' else _('Send an extra copy now? The schedule stays the same.') }}" data-confirm-action="{{ _('Send now') }}" data-confirm-tone="primary">
+          <button class="btn btn-secondary">{{ _('Send Now') }}</button>
+        </form>
+        {% endif %}
         <form method="POST" action="/jobs/{{ job.id }}/clone">
           <button class="btn btn-secondary">{{ _('Clone') }}</button>
         </form>

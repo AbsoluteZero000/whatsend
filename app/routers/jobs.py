@@ -803,7 +803,21 @@ async def send_now_job(job_id: int, request: Request, db: AsyncSession = Depends
         job.retry_group_ids = None
         await db.commit()
         await send_job(job_id)
+    elif job and can_send_early(job):
+        if job.trigger_type == "date":
+            # A one-time message goes out now instead of at its scheduled time.
+            await remove_job(job_id)
+            await send_job(job_id, send_now=True)
+            return redirect_with_flash(f"/jobs/{job_id}", success=_("Message sent now. It won't be sent again at its scheduled time.", user.get("lang")))
+        # Repeating messages and messages on specific dates send an extra copy and keep their schedule.
+        await send_job(job_id, send_now=True)
+        return redirect_with_flash(f"/jobs/{job_id}", success=_("An extra copy was sent now. The schedule stays the same.", user.get("lang")))
     return redirect_with_flash(f"/jobs/{job_id}", success="Job submitted. Check delivery status in the job details.")
+
+
+def can_send_early(job: Job) -> bool:
+    """A scheduled (not series) message that is waiting for its next send can also be sent right away."""
+    return job.message_mode != "series" and job.trigger_type in ("date", "cron", "dates") and job.status in ("pending", "active")
 
 
 @router.post("/{job_id}/cancel")

@@ -1,6 +1,10 @@
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {},
     "ar": {
+        "Send this message now? It won't be sent again at its scheduled time.": "إرسال هذه الرسالة الآن؟ لن تُرسل مرة أخرى في موعدها المحدد.",
+        "Send an extra copy now? The schedule stays the same.": "إرسال نسخة إضافية الآن؟ سيبقى الجدول كما هو.",
+        "Message sent now. It won't be sent again at its scheduled time.": "تم إرسال الرسالة الآن. لن تُرسل مرة أخرى في موعدها المحدد.",
+        "An extra copy was sent now. The schedule stays the same.": "تم إرسال نسخة إضافية الآن. سيبقى الجدول كما هو.",
         "Account": "الحساب",
         "Save password": "حفظ كلمة المرور",
         "Save username": "حفظ اسم المستخدم",

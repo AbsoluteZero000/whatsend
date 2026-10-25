@@ -138,8 +138,8 @@ def cron_to_text(expr: str, schedule_tz: str = "UTC", display_tz: str | None = N
     except (ValueError, IndexError, AttributeError):
         return expr
 
-
 _jinja_env.globals["cron_to_text"] = cron_to_text
+_jinja_env.globals["can_send_early"] = jobs.can_send_early
 
 
 def render(request: Request, template_name: str, **context) -> HTMLResponse:

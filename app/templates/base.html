@@ -108,6 +108,7 @@ function customConfirm(e, message) {
   confirmForm = e.target;
   confirmOpener = e.submitter || document.activeElement;
   document.getElementById('confirm-ok').textContent = confirmForm.dataset.confirmAction || {{ _('Delete') | tojson }};
+  document.getElementById('confirm-ok').className = 'btn ' + (confirmForm.dataset.confirmTone === 'primary' ? 'btn-primary' : 'btn-danger');
   document.getElementById('confirm-modal').inert = false;
   document.getElementById('confirm-modal').setAttribute('aria-hidden', 'false');
   document.getElementById('confirm-message').textContent = message;

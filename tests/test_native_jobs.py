@@ -267,3 +267,61 @@ def test_multi_recipient_job_submits_and_confirms_every_recipient(tmp_path, monk
         assert len(submitted) == 3
 
     asyncio.run(exercise(tmp_path, monkeypatch, worker, scenario))
+
+
+@pytest.mark.parametrize("trigger", ["date", "cron", "dates"])
+def test_send_now_on_a_scheduled_message(tmp_path, monkeypatch, trigger):
+    """A one-time message goes out now instead of later; repeating and specific-date messages send an extra copy."""
+    calls, removed = [], []
+
+    async def remove(job_id):
+        removed.append(job_id)
+    monkeypatch.setattr(jobs, "remove_job", remove)
+
+    def relay(request):
+        if request.method == "POST":
+            calls.append(json.loads(request.content)["text"])
+            return httpx.Response(202, json={"data": {"id": MESSAGE, "status": "pending"}})
+        return httpx.Response(200, json={"data": {"id": MESSAGE, "status": "sent"}})
+
+    later = datetime.now(timezone.utc) + timedelta(days=3)
+    value = {"date": later.strftime("%Y-%m-%d %H:%M"), "cron": "0 9 * * *",
+             "dates": ""}[trigger]
+    picked = json.dumps([later.strftime("%Y-%m-%d %H:%M"), (later + timedelta(days=7)).strftime("%Y-%m-%d %H:%M")]) if trigger == "dates" else None
+    headers = {"Cookie": "csrf_token=safe", "X-CSRF-Token": "safe"}
+
+    async def scenario(client, sessions, context):
+        async with sessions() as db:
+            job = Job(user_id=7, token_id=3, group_id=RECIPIENT, message="Hello", trigger_type=trigger,
+                      trigger_value=value, schedule_dates=picked, schedule_timezone="UTC", status="paused", skip_count=1)
+            db.add(job)
+            await db.commit()
+            job_id = job.id
+        for blocked in ["paused", "completed", "cancelled", "queued"]:
+            async with sessions() as db:
+                (await db.get(Job, job_id)).status = blocked
+                await db.commit()
+            assert f'action="/jobs/{job_id}/send-now"' not in (await client.get("/jobs?status=all")).text
+            await client.post(f"/jobs/{job_id}/send-now", headers=headers)
+        assert calls == []
+
+        async with sessions() as db:
+            (await db.get(Job, job_id)).status = "active"
+            await db.commit()
+        listing = (await client.get("/jobs")).text
+        menu_item = listing.split(f'action="/jobs/{job_id}/send-now"', 1)[1].split("</form>", 1)[0]
+        assert "Send Now" in menu_item and 'data-confirm-tone="primary"' in menu_item
+        assert ("be sent again at its scheduled time" in menu_item) == (trigger == "date")
+        assert f'action="/jobs/{job_id}/send-now"' in (await client.get(f"/jobs/{job_id}")).text
+
+        response = await client.post(f"/jobs/{job_id}/send-now", headers=headers)
+        assert response.status_code == 303 and response.headers["location"].startswith(f"/jobs/{job_id}?success=")
+        assert calls == ["Hello"]
+        assert removed == ([job_id] if trigger == "date" else [])
+        await native_jobs.poll_deliveries()
+        async with sessions() as db:
+            job = await db.get(Job, job_id)
+            assert job.status == ("completed" if trigger == "date" else "active")
+            assert job.skip_count == 1 and job.trigger_value == value and job.schedule_dates == picked  # skips and the schedule are untouched
+
+    asyncio.run(exercise(tmp_path, monkeypatch, relay, scenario))
