@@ -1,96 +1,11 @@
-import httpx
-import mimetypes
-from pathlib import Path
+"""Compatibility imports and the shared provider sender factory."""
+from app.providers.base import ProviderContext
+from app.providers.registry import get_registry
+from app.providers.whatsapp.sender import WhatsAppSender
 
-
-class WhatsAppSender:
-    def __init__(self, api_token: str, timeout: int = 30, base_url: str = "https://gate.whapi.cloud"):
-        self.token = api_token
-        self.timeout = timeout
-        self.base_url = base_url
-        self.headers = {"accept": "application/json", "authorization": f"Bearer {api_token}"}
-
-    async def send_text(self, chat_id: str, message: str) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/messages/text",
-                headers=self.headers,
-                json={"to": chat_id, "body": message},
-            )
-        response.raise_for_status()
-        return response.json()
-
-    async def send_image(self, chat_id: str, image_path: str, caption: str = "") -> dict:
-        p = Path(image_path)
-        with p.open("rb") as fh:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/messages/image",
-                    headers={"authorization": f"Bearer {self.token}"},
-                    data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
-                )
-        response.raise_for_status()
-        return response.json()
-
-    async def send_video(self, chat_id: str, video_path: str, caption: str = "") -> dict:
-        p = Path(video_path)
-        with p.open("rb") as fh:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/messages/video",
-                    headers={"authorization": f"Bearer {self.token}"},
-                    data={"to": chat_id, "caption": caption},
-                    files={"media": (p.name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
-                )
-        response.raise_for_status()
-        return response.json()
-
-    async def send_document(self, chat_id: str, document_path: str, caption: str = "", filename: str | None = None) -> dict:
-        p = Path(document_path)
-        name = filename or p.name
-        with p.open("rb") as fh:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/messages/document",
-                    headers={"authorization": f"Bearer {self.token}"},
-                    data={"to": chat_id, "caption": caption, "filename": name},
-                    files={"media": (name, fh, mimetypes.guess_type(p.name)[0] or "application/octet-stream")},
-                )
-        response.raise_for_status()
-        return response.json()
-
-    async def get_groups(self) -> list[dict]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/groups",
-                headers=self.headers,
-                params={"count": 100},
-            )
-        response.raise_for_status()
-        data = response.json()
-        return data.get("groups", [])
-
-    async def send(self, chat_id: str, message: str, image_path: str | None = None, filename: str | None = None) -> dict:
-        if not image_path:
-            return await self.send_text(chat_id, message)
-        ext = Path(image_path).suffix.lower()
-        if ext in {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
-            return await self.send_video(chat_id, image_path, caption=message)
-        if ext in {
-            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".txt", ".csv", ".rtf", ".odt", ".ods", ".odp", ".zip",
-        }:
-            return await self.send_document(chat_id, image_path, caption=message, filename=filename)
-        return await self.send_image(chat_id, image_path, caption=message)
+__all__ = ["WhatsAppSender", "get_sender"]
 
 
 def get_sender(provider: str, api_token: str, *, session_id: str | None = None, base_url: str | None = None):
-    if provider == "whatsapp":
-        return WhatsAppSender(api_token=api_token)
-    if provider == "native":
-        from app.services.native_sender import NativeSender
-        if not session_id:
-            raise ValueError("A WhatsApp connection is required")
-        return NativeSender(session_id=session_id)
-    raise ValueError(f"Unsupported provider: {provider}")
+    # base_url is retained for old callers; provider-controlled endpoints only.
+    return get_registry().sender(provider, ProviderContext(api_token, session_id))

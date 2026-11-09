@@ -36,10 +36,10 @@ from app.services.crypto import decrypt_token
 from app.services.csrf import csrf_protect
 from app.services.scheduler import build_trigger, is_last_run, register_job, register_retry, remove_job, send_job
 from app.services.scheduler import scheduler as apscheduler
-from app.services.sender import WhatsAppSender, get_sender
-from app.services.native_sender import CONNECTION_LOST, NativeSender
+from app.services.sender import get_sender
+from app.providers import get_registry
+from app.services.native_sender import CONNECTION_LOST
 from app.i18n import _
-from app.services.native_api import connection_base_url
 from app.services.schedule_dates import build_dates_value, local_form_values
 from app.services.word_list import dump as dump_word_lists, lists as word_lists_of, longest_message, validate as validate_word_list
 
@@ -208,21 +208,16 @@ ALLOWED_SORT_COLS = {"id", "label", "group_name", "trigger_type", "status", "cre
 
 
 def job_sender(token):
-    if token.provider == "whatsapp":
-        return WhatsAppSender(api_token=decrypt_token(token.api_token))
-    return get_sender(token.provider, "", session_id=token.relay_session_id,
-                      base_url=connection_base_url(token))
+    return get_sender(token.provider, decrypt_token(token.api_token) if token.api_token else "",
+                      session_id=token.relay_session_id)
 
 
 def validate_job_payload(token, recipients, message, image_path):
-    if token.provider != "native":
-        return
     try:
+        definition = get_registry().get(token.provider)
+        sender = job_sender(token)
         for recipient in recipients:
-            if image_path:
-                NativeSender.validate_media(recipient, image_path, message)
-            else:
-                NativeSender.validate_text(recipient, message)
+            definition.validate_payload(sender, recipient, message, image_path)
     except (ValueError, OSError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -232,9 +227,10 @@ async def token_groups(request: Request, token_id: int, db: AsyncSession = Depen
     user = require_user(request)
     token = await require_owned_active_token(db, int(user["sub"]), token_id)
     try:
-        groups = await job_sender(token).get_groups()
+        definition = get_registry().get(token.provider)
+        groups = await job_sender(token).get_groups() if definition.supports_groups else []
     except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(502, "Could not load groups. Check that this token's WhatsApp session is connected.") from exc
+        raise HTTPException(502, "Could not load recipients. Check the provider connection.") from exc
     return JSONResponse({"groups": groups})
 
 
@@ -514,26 +510,26 @@ async def list_jobs(
     result = await db.execute(query.options(selectinload(Job.job_groups)))
     jobs = result.scalars().all()
 
-    missing_job_groups: list[JobGroup] = []
+    missing_job_groups: list[tuple[JobGroup, int]] = []
     for j in jobs:
         for jg in j.job_groups:
             if not jg.group_name:
-                missing_job_groups.append(jg)
+                missing_job_groups.append((jg, j.token_id))
     if missing_job_groups:
         result = await db.execute(select(Token).where(Token.user_id == user_id, Token.is_active == True))
         tokens = result.scalars().all()
-        group_map: dict[str, str] = {}
+        group_maps: dict[int, dict[str, str]] = {}
+        needed_tokens = {token_id for _, token_id in missing_job_groups}
         for t in tokens:
             try:
-                sender = job_sender(t)
-                groups = await sender.get_groups()
-                group_map = {g["id"]: g.get("name") or g["id"] for g in groups}
-                if group_map:
-                    break
+                if t.id not in needed_tokens or not get_registry().get(t.provider).supports_groups:
+                    continue
+                groups = await job_sender(t).get_groups()
+                group_maps[t.id] = {g["id"]: g.get("name") or g["id"] for g in groups}
             except Exception:
                 continue
-        for jg in missing_job_groups:
-            name = group_map.get(jg.group_id)
+        for jg, token_id in missing_job_groups:
+            name = group_maps.get(token_id, {}).get(jg.group_id)
             if name:
                 jg.group_name = name
         await db.commit()

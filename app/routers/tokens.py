@@ -17,6 +17,7 @@ from app.services.crypto import encrypt_token, decrypt_token
 from app.services.csrf import csrf_protect
 from app.services.scheduler import remove_job
 from app.services.native_sender import NativeSender
+from app.providers import get_registry
 
 router = APIRouter(prefix="/tokens", tags=["tokens"], dependencies=[Depends(csrf_protect)])
 PAIRING_HEADERS = {"Cache-Control": "no-store, private", "Pragma": "no-cache"}
@@ -97,11 +98,15 @@ async def create_native_connection(request: Request, name: str = Form(default=""
 async def create_token(request: Request, name: str = Form(default=""), api_token: str = Form(...),
                        provider: str = Form(default="whatsapp"), db: AsyncSession = Depends(get_db)):
     user = require_user(request)
-    if provider != "whatsapp":
-        raise HTTPException(400, "Use Connect WhatsApp for QR pairing")
+    try:
+        definition = get_registry().get(provider)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if definition.auth != "token":
+        raise HTTPException(400, "Use the provider's connection flow")
     if not api_token.strip():
         raise HTTPException(400, "API token is required")
-    db.add(Token(user_id=int(user["sub"]), name=name or None, provider="whatsapp", api_token=encrypt_token(api_token.strip())))
+    db.add(Token(user_id=int(user["sub"]), name=name or None, provider=provider, api_token=encrypt_token(api_token.strip())))
     await db.commit()
     return _flash("/tokens", success="Token created")
 
@@ -193,7 +198,7 @@ async def edit_token(
     if provider != token.provider:
         raise HTTPException(400, "Create a new connection to change its provider")
     token.name = name or None
-    if api_token and token.provider == "whatsapp":
+    if api_token and get_registry().get(token.provider).auth == "token":
         if not api_token.strip():
             raise HTTPException(400, "API token cannot be whitespace")
         token.api_token = encrypt_token(api_token.strip())

@@ -15,9 +15,10 @@ from app.models.job import Job
 from app.models.log import Log
 from app.models.token import Token
 from app.services.crypto import decrypt_token
-from app.services.sender import WhatsAppSender
 from app.services import word_list
 from app.services.schedule_dates import DatesTrigger, remaining_dates
+from app.services.sender import get_sender
+from app.providers import get_registry
 
 logger = logging.getLogger(__name__)
 
@@ -175,9 +176,12 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
                 ))
             results.append("Token not found, inactive, or owned by another user")
         else:
-            sender = WhatsAppSender(api_token=decrypt_token(token.api_token))
+            sender = None
             for group in groups:
                 try:
+                    if sender is None:
+                        sender = get_sender(token.provider, decrypt_token(token.api_token))
+                    get_registry().get(token.provider).validate_payload(sender, group.group_id, message, job.image_path)
                     response = await sender.send(group.group_id, message, job.image_path, job.image_filename)
                     results.append(f"{group.group_id}: sent")
                     db.add(DeliveryAttempt(

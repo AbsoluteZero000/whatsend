@@ -6,11 +6,20 @@
   {% if not edit_mode %}<p><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a></p>{% endif %}
   <form method="POST" action="{% if edit_mode %}/tokens/{{ token.id }}/edit{% else %}/tokens/create{% endif %}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="provider" value="{{ token.provider if edit_mode else 'whatsapp' }}">
+    {% if edit_mode %}
+    <input type="hidden" name="provider" value="{{ token.provider }}">
+    {% else %}
+    <label for="provider">{{ _('Provider') }}</label>
+    <select id="provider" name="provider">
+      {% for provider in provider_registry.all() if provider.auth == 'token' %}
+      <option value="{{ provider.id }}" {% if provider.id == 'whatsapp' %}selected{% endif %}>{{ provider.label }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" id="name" name="name" maxlength="120" value="{{ (token.name or '') if edit_mode else '' }}">
-    {% if not edit_mode or token.provider == 'whatsapp' %}
-    <label for="api_token">Whapi.Cloud {{ _('Provider API Token') }}</label>
+    {% if not edit_mode or provider_registry.get(token.provider).auth == 'token' %}
+    <label for="api_token">{{ _('Provider API Token') }}</label>
     <input type="password" id="api_token" name="api_token" {% if not edit_mode %}required{% endif %} placeholder="{{ _('leave blank to keep current') if edit_mode else _('Paste your token here') }}">
     {% else %}
     <p>{{ _('This WhatsApp account connects with a QR code. No API token is needed.') }}</p>

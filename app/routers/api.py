@@ -20,6 +20,7 @@ from app.models.relay_operation import RelayOperation
 from app.services.auth import verify_password
 from app.services.crypto import decrypt_token
 from app.services.sender import get_sender
+from app.providers import get_registry
 from app.services.native_api import connection_base_url, key_fingerprint, operation_response, submit_native
 from app.routers.jobs import save_upload
 from app.services.media_types import NATIVE_MEDIA_MIMES
@@ -41,7 +42,7 @@ class ApiKeyContext:
 
 
 def _upstream_error(exc: Exception, provider: str = "whatsapp") -> str:
-    label = "WhatsApp" if provider == "native" else "Whapi"
+    label = get_registry().get(provider).label
     if isinstance(exc, httpx.HTTPStatusError):
         response = exc.response
         try:
@@ -62,8 +63,11 @@ def _upstream_error(exc: Exception, provider: str = "whatsapp") -> str:
 
 
 async def get_linked_token(context: ApiKeyContext, db: AsyncSession, provider: str | None = None) -> Token:
-    if provider is not None and provider not in {"whatsapp", "native"}:
-        raise HTTPException(status_code=400, detail="provider must be 'whatsapp' or 'native'")
+    if provider is not None:
+        try:
+            get_registry().get(provider)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     user = context.user
     api_key = context.api_key
@@ -97,7 +101,7 @@ def connection_sender(token: Token):
                               base_url=connection_base_url(token))
         return get_sender(provider, decrypt_token(token.api_token))
     except ValueError as exc:
-        raise HTTPException(400, "Invalid provider or WhatsApp session configuration") from exc
+        raise HTTPException(400, "Invalid provider or connection configuration") from exc
 
 
 async def get_api_key_user(
@@ -169,6 +173,10 @@ async def api_send(
         )
 
     try:
+        get_registry().get(provider).validate_payload(sender, group_id, message)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    try:
         resp = await sender.send(group_id, message)
     except Exception as e:
         raise HTTPException(status_code=502, detail=_upstream_error(e, provider))
@@ -188,7 +196,7 @@ async def api_groups(
     sender = connection_sender(token)
 
     try:
-        groups = await sender.get_groups()
+        groups = await sender.get_groups() if get_registry().get(token.provider or "whatsapp").supports_groups else []
     except Exception as e:
         raise HTTPException(status_code=502, detail=_upstream_error(e, token.provider or "whatsapp"))
 

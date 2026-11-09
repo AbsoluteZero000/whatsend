@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy import select, update
 from app.models.job_series import SeriesEntry, SeriesAttachment
 from app.services.message_variables import render_message
-from app.services.native_sender import NativeSender
+from app.providers import get_registry
+from app.services.sender import get_sender
+from app.services.crypto import decrypt_token
 
 
 class AttachmentRef(BaseModel):
@@ -109,8 +111,9 @@ def flatten_plan(plan):
 
 
 async def validate_plan(db, raw, user_id, token, recipients, common_message, job=None):
-    if token.provider not in {'native', 'whatsapp'}:
-        raise ValueError('Message series need a WhatsApp QR or Whapi connection')
+    definition = get_registry().get(token.provider)
+    sender = get_sender(token.provider, decrypt_token(token.api_token) if token.api_token else "",
+                        session_id=token.relay_session_id)
     if len(raw.encode('utf-8')) > 800000:
         raise ValueError('This series is too large. Use fewer parts or shorter messages.')
     try:
@@ -144,11 +147,11 @@ async def validate_plan(db, raw, user_id, token, recipients, common_message, job
             from pathlib import Path
             if not Path(asset.path).is_file():
                 raise ValueError('An attachment is missing. Upload it again.')
-            if token.provider == 'native':
-                for recipient in recipients:
-                    NativeSender.validate_media(recipient, asset.path, '')
-        if token.provider == 'native' and text:
-            for recipient in recipients: NativeSender.validate_text(recipient, text)
+            for recipient in recipients:
+                definition.validate_payload(sender, recipient, '', asset.path)
+        if text:
+            for recipient in recipients:
+                definition.validate_payload(sender, recipient, text)
     return plan, entries, by_id
 
 

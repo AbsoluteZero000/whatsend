@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 
+from app.providers import BaseSender
 from app.models.apikey import ApiKey
 from app.models.token import Token
 from app.models.user import User
@@ -39,7 +40,7 @@ class FakeRequest:
             self.headers["Authorization"] = authorization
 
 
-class FakeSender:
+class FakeSender(BaseSender):
     def __init__(self):
         self.calls: list[tuple[str, str]] = []
 
@@ -150,4 +151,4 @@ def test_upstream_error_includes_whapi_response_detail():
     response = httpx.Response(404, json={"message": "Chat not found"}, request=request)
     exc = httpx.HTTPStatusError("not found", request=request, response=response)
 
-    assert api._upstream_error(exc) == "Whapi rejected the request (404): Chat not found"
+    assert api._upstream_error(exc) == "Whapi.Cloud rejected the request (404): Chat not found"

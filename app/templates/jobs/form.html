@@ -17,7 +17,7 @@
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
       {% for token in tokens %}
-      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if job is defined and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('Connection') }} ({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</option>
+      <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if job is defined and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('Connection') }} ({{ provider_registry.label(token.provider) }})</option>
       {% endfor %}
     </select>
     <p id="token_help" role="status"></p>

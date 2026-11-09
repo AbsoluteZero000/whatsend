@@ -70,7 +70,7 @@ def test_send_document_uses_original_filename(tmp_path, monkeypatch, filename):
             captured.update(kwargs)
             return FakeResponse()
 
-    monkeypatch.setattr("app.services.sender.httpx.AsyncClient", FakeClient)
+    monkeypatch.setattr("app.providers.whatsapp.sender.httpx.AsyncClient", FakeClient)
     sender = WhatsAppSender("token")
 
     asyncio.run(sender.send("group@g.us", "Report", str(document), filename))

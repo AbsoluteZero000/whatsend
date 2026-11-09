@@ -22,7 +22,7 @@
     <tbody>
       {% for token in tokens %}
       <tr>
-        <td>{{ token.name or "—" }} <small>({{ 'WhatsApp QR' if token.provider == 'native' else 'Whapi.Cloud' }})</small></td>
+        <td>{{ token.name or "—" }} <small>({{ provider_registry.label(token.provider) }})</small></td>
         <td>{% if token.provider == 'native' %}{{ _('QR connection') }}{% else %}<code>••••••••{{ token.api_token[-8:] }}</code>{% endif %}</td>
         <td>{% if token.is_active %}<span class="badge badge-completed">{{ _('Enabled') }}</span>{% else %}<span class="badge badge-paused">{{ _('Disabled') }}</span>{% endif %}
           {% if token.provider == 'native' and token.is_active %}<span class="connection-state" data-connection-id="{{ token.id }}" role="status">{{ _('Checking connection…') }}</span>{% endif %}

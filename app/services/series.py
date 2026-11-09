@@ -15,7 +15,8 @@ from app.models.delivery_attempt import DeliveryAttempt
 from app.models.log import Log
 from app.services.native_sender import CONNECTION_LOST, NativeSender, worker_error_code
 from app.services.native_api import connection_base_url
-from app.services.sender import WhatsAppSender
+from app.services.sender import get_sender
+from app.providers import get_registry
 from app.services.crypto import decrypt_token
 from app.services.message_variables import render_message
 from app.services.schedule_dates import remaining_dates
@@ -111,17 +112,18 @@ async def submit_series(db, job, token, groups):
     from app.services.native_jobs import ACTIVE_RUNS
     ACTIVE_RUNS.add(run_id)
     try:
-        sender = NativeSender(session_id=token.relay_session_id) if token and token.provider == 'native' else (
-            WhatsAppSender(api_token=decrypt_token(token.api_token)) if token and token.provider == 'whatsapp' else None)
+        try:
+            sender = get_sender(token.provider, decrypt_token(token.api_token) if token.api_token else "",
+                                session_id=token.relay_session_id) if token else None
+        except ValueError:
+            sender = None
         for attempt, text, path, filename in attempts:
             try:
                 if not sender:
                     raise ValueError('Connection unavailable')
                 if path and not Path(path).is_file():
                     raise ValueError('Attachment unavailable')
-                if isinstance(sender, NativeSender):
-                    if path: sender.validate_media(attempt.group_id, path, '')
-                    else: sender.validate_text(attempt.group_id, text)
+                get_registry().get(token.provider).validate_payload(sender, attempt.group_id, text, path)
             except (ValueError, OSError):
                 attempt.status = 'failed'
                 attempt.response = 'The connection or attachment is unavailable. This part was not sent.'

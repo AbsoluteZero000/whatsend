@@ -25,8 +25,12 @@ from app.config import settings
 from app.services.logging import configure_logging
 from app.services.schedule_dates import parse_dates as parse_schedule_dates, remaining_dates as remaining_schedule_dates
 from app.services import word_list
+from app.providers import get_registry
 
 configure_logging()
+
+# Fail during application loading if a provider is malformed or collides.
+provider_registry = get_registry()
 
 template_dir = Path(__file__).resolve().parent / "templates"
 _jinja_env = Environment(
@@ -62,6 +66,7 @@ def parse_dt(value: str, fmt: str = "%Y-%m-%d %H:%M") -> datetime | None:
         return None
 
 
+_jinja_env.globals["provider_registry"] = provider_registry
 _jinja_env.globals["tz"] = tz
 _jinja_env.globals["parse_dt"] = parse_dt
 

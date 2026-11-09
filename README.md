@@ -163,3 +163,8 @@ The app uses a persistent 1GB volume at `/data` for SQLite. `auto_stop_machines 
 This deployment must remain at one application process/machine while it uses SQLite and the in-process scheduler. Before horizontal scaling, move the scheduler to a single elected worker or durable queue and migrate shared state to PostgreSQL. Keep periodic volume snapshots and test database restores.
 
 For application-level SQLite backups, run `python scripts/backup_database.py`. It uses SQLite's consistent backup API and retains the newest 14 copies by default; configure `BACKUP_DIR` and `BACKUP_RETENTION` as needed.
+
+## Adding providers
+
+See [Provider extensibility and contributor guide](docs/providers.md) for the assessment,
+base sender contract, independent provider packages, and current extension limits.

@@ -1,5 +1,9 @@
 # whatsend Architecture
 
+> For the current provider boundary and remaining WhatsApp coupling, see
+> [Provider extensibility and contributor guide](providers.md). The historical
+> walkthrough below describes the original Whapi flow.
+
 > **Current implementation note (2026-08-14):** Schema changes are managed by Alembic. Recurring cron expressions are stored in `jobs.schedule_timezone`, delivery retries are persisted on the job, and `delivery_attempts` records recipient-level outcomes. Media is signature-validated and served through an authenticated route. UI POST requests use CSRF protection. API-key pages and bearer API routes are registered only when `API_KEYS_ENABLED=true` (off by default). The deployment remains intentionally single-instance while using SQLite and an in-process scheduler.
 
 ## Overview
