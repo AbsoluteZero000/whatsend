@@ -293,6 +293,8 @@ async def load_all_jobs():
     from app.services.series_imports import cleanup_imports
     scheduler.add_job(cleanup_imports, "interval", hours=1, id="series:cleanup-imports", replace_existing=True)
     scheduler.add_job(poll_deliveries, "interval", seconds=10, id="whatsapp:delivery-status", replace_existing=True)
+    from app.services.instagram_tokens import renew_instagram_tokens
+    scheduler.add_job(renew_instagram_tokens, "interval", hours=24, id="instagram:renew-logins", replace_existing=True)
     async with async_session() as db:
         result = await db.execute(select(Job).where(Job.status.in_(["pending", "active", "retry_scheduled", "queued"])))
         jobs = result.scalars().all()

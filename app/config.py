@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     meta_graph_api_version: str = "v23.0"
     meta_webhook_verify_token: str = ""
     meta_app_secret: str = ""
+    # Meta app used by "Connect Facebook" to post to Facebook Pages.
+    meta_app_id: str = ""
+    # Instagram Login ("Connect Instagram"): the Instagram app ID and secret shown under the Meta app's
+    # Instagram product, which differ from META_APP_ID/META_APP_SECRET.
+    instagram_app_id: str = ""
+    instagram_app_secret: str = ""
+    instagram_graph_base_url: str = "https://graph.instagram.com"
     api_keys_enabled: bool = False
     # Lets Claude (claude.ai connectors) manage a user's messages over MCP after the user approves it.
     claude_connector_enabled: bool = False

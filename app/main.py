@@ -17,7 +17,7 @@ from app.database import async_session
 from app.i18n import _ as _translate
 from app.models.job import Job
 from app.models.user import User
-from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, mcp, media, oauth, tokens, webhooks
+from app.routers import about, admin, api, api_keys, auth, dashboard, jobs, logs, mcp, instagram_connect, media, meta_connect, oauth, tokens, webhooks
 from app.routers.auth import RedirectRequired, get_current_user
 from app.services.scheduler import load_all_jobs, scheduler as apscheduler
 from app.services.csrf import get_or_create_csrf_token
@@ -67,6 +67,8 @@ def parse_dt(value: str, fmt: str = "%Y-%m-%d %H:%M") -> datetime | None:
 
 
 _jinja_env.globals["provider_registry"] = provider_registry
+_jinja_env.globals["meta_connect_enabled"] = meta_connect.meta_connect_enabled
+_jinja_env.globals["instagram_connect_enabled"] = instagram_connect.instagram_connect_enabled
 _jinja_env.globals["tz"] = tz
 _jinja_env.globals["parse_dt"] = parse_dt
 
@@ -302,6 +304,8 @@ app.include_router(about.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(admin.router)
+app.include_router(meta_connect.router)
+app.include_router(instagram_connect.router)
 app.include_router(tokens.router)
 app.include_router(jobs.router)
 app.include_router(logs.router)

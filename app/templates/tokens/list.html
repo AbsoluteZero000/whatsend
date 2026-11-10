@@ -2,8 +2,10 @@
 {% block title %}{{ _('Connections') }} — EchoSend{% endblock %}
 {% block content %}
 <div class="section-header header-row">
-  <div><h1>{{ _('Connections') }}</h1><p class="page-subtitle">{{ _('WhatsApp connections used to send your messages.') }}</p></div>
+  <div><h1>{{ _('Connections') }}</h1><p class="page-subtitle">{{ _('Accounts used to send your messages and posts.') }}</p></div>
   <div class="actions"><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a>
+    {% if meta_connect_enabled() %}<a href="/tokens/meta/connect" class="btn btn-secondary">{{ _('Connect Facebook') }}</a>{% endif %}
+    {% if instagram_connect_enabled() %}<a href="/tokens/instagram/connect" class="btn btn-secondary">{{ _('Connect Instagram') }}</a>{% endif %}
   </div>
 </div>
 <details class="advanced-options"><summary>{{ _('Advanced') }}</summary><a href="/tokens/create" class="btn btn-secondary">{{ _('Add provider token') }}</a></details>
@@ -23,7 +25,7 @@
       {% for token in tokens %}
       <tr>
         <td>{{ token.name or "—" }} <small>({{ provider_registry.label(token.provider) }})</small></td>
-        <td>{% if token.provider == 'native' %}{{ _('QR connection') }}{% else %}<code>••••••••{{ token.api_token[-8:] }}</code>{% endif %}</td>
+        <td>{% if token.provider == 'native' %}{{ _('QR connection') }}{% elif token.provider == 'facebook' %}{{ _('Facebook login') }}{% elif token.provider == 'instagram' %}{{ _('Instagram login') }}{% else %}<code>••••••••{{ token.api_token[-8:] }}</code>{% endif %}</td>
         <td>{% if token.is_active %}<span class="badge badge-completed">{{ _('Enabled') }}</span>{% else %}<span class="badge badge-paused">{{ _('Disabled') }}</span>{% endif %}
           {% if token.provider == 'native' and token.is_active %}<span class="connection-state" data-connection-id="{{ token.id }}" role="status">{{ _('Checking connection…') }}</span>{% endif %}
         </td>

@@ -21,6 +21,12 @@
     {% if not edit_mode or provider_registry.get(token.provider).auth == 'token' %}
     <label for="api_token">{{ _('Provider API Token') }}</label>
     <input type="password" id="api_token" name="api_token" {% if not edit_mode %}required{% endif %} placeholder="{{ _('leave blank to keep current') if edit_mode else _('Paste your token here') }}">
+    {% elif token.provider == 'facebook' %}
+    <p>{{ _('This account is connected through Facebook. If posting stops working, connect Facebook again to refresh it.') }}</p>
+    <a href="/tokens/meta/connect" class="btn btn-secondary">{{ _('Connect Facebook again') }}</a>
+    {% elif token.provider == 'instagram' %}
+    <p>{{ _('This account is connected through Instagram and its login renews automatically. If posting stops working, connect Instagram again.') }}</p>
+    <a href="/tokens/instagram/connect" class="btn btn-secondary">{{ _('Connect Instagram again') }}</a>
     {% else %}
     <p>{{ _('This WhatsApp account connects with a QR code. No API token is needed.') }}</p>
     <a href="/tokens/{{ token.id }}/pair" class="btn btn-secondary">{{ _('Pair WhatsApp') }}</a>

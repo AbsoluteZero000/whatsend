@@ -79,7 +79,9 @@ provider = Provider(
 ```
 
 This example is deliberately incomplete and is not shipped as an enabled provider.
-Only Whapi (`whatsapp`) and built-in WhatsApp (`native`) are installed.
+Installed providers: Whapi (`whatsapp`), built-in WhatsApp (`native`), and the
+posting providers `facebook` (Facebook Page) and `instagram` (Instagram professional
+account), described below.
 
 For token authentication, the provider appears automatically on `/tokens/create`.
 Credentials are encrypted by the app and decrypted before creating the sender.
@@ -138,10 +140,34 @@ proves discovery of two independent packages and exercises a test-only adapter
 through encrypted token creation, API text sends, repeated jobs and message series,
 while rejecting any attempt to contact the WhatsApp worker.
 
+## Posting providers: Facebook and Instagram
+
+`facebook` and `instagram` publish posts rather than messages, through the same
+`BaseSender` contract. Each connection posts as exactly one account, so its only
+recipient is that Page or Instagram account ID; `get_groups()` returns it and
+`validate_payload` rejects anything else. A send publishes one post: text, photo or
+video on Facebook; a JPEG photo or a Reel on Instagram, with the message as caption.
+
+- Both use `auth="managed"` and are connected independently:
+  `app/routers/meta_connect.py` (Facebook Login, `/tokens/meta/...`) adds Pages, and
+  `app/routers/instagram_connect.py` (Instagram Login, `/tokens/instagram/...`) adds
+  Creator or Business accounts through graph.instagram.com, with no Facebook Page.
+  Shared sign-in helpers live in `app/services/social_connections.py`.
+- Credentials are stored as encrypted JSON in `Token.api_token`: the access token,
+  the account ID and, for Instagram, the expiry (`{"t", "id", "exp"}`). Reconnecting
+  refreshes existing connections by account ID. No schema migration was needed.
+- Facebook Page tokens don't expire. Instagram tokens last 60 days;
+  `app/services/instagram_tokens.py` renews them from a daily scheduler job.
+- Shared Graph API code lives in `app/providers/_meta/`. The underscore keeps
+  discovery from loading it as a provider. Tokens go in the `Authorization`
+  header, never in URLs, and `appsecret_proof` is sent when `META_APP_SECRET` is set.
+- Instagram fetches media by URL. `app/services/public_media.py` signs links
+  (served by `/media/public/...`) that expire after an hour; it requires `PUBLIC_URL`.
+- Posts are not idempotent: a retry after an ambiguous timeout can publish twice.
+
 ## Remaining extension work
 
-This is an outbound messaging foundation, not implementations of Facebook or
-Instagram. The following require explicit core extensions when a provider needs them:
+The following require explicit core extensions when a provider needs them:
 
 - OAuth redirects, refresh tokens, account/page selection, scopes and revocation.
   The shared form currently accepts one encrypted token string, not a structured
