@@ -378,6 +378,25 @@ def test_connect_buttons_need_app_credentials(monkeypatch, module, setting, path
     assert hint in response.headers["location"]
 
 
+@pytest.mark.parametrize("config_id, expected", [
+    ("", {"scope": "pages_show_list,pages_read_engagement,pages_manage_posts,business_management"}),
+    ("1113", {"config_id": "1113"}),
+])
+def test_facebook_login_uses_the_business_login_configuration_when_set(monkeypatch, config_id, expected):
+    from urllib.parse import parse_qs, urlparse
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(settings, "meta_app_id", "app")
+    monkeypatch.setattr(settings, "meta_app_secret", "secret")
+    monkeypatch.setattr(settings, "meta_login_config_id", config_id)
+    app = FastAPI()
+    app.include_router(meta_connect.router)
+    monkeypatch.setattr(meta_connect, "require_user", lambda request: {"sub": "7"})
+    location = TestClient(app).get("/tokens/meta/connect", follow_redirects=False).headers["location"]
+    query = {key: values[0] for key, values in parse_qs(urlparse(location).query).items()}
+    assert {key: query.get(key) for key in expected} == expected
+    assert not ({"scope", "config_id"} - set(expected)) & set(query)
+
+
 def test_scheduled_facebook_post_runs_through_the_normal_job_flow(tmp_path, monkeypatch):
     monkeypatch.setattr(jobs, "register_job", no_schedule)
     posts = []

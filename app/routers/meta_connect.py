@@ -33,10 +33,13 @@ async def start_meta_connect(request: Request):
     require_user(request)
     if not meta_connect_enabled():
         return back_to_connections(PREFIX, error="Facebook isn't set up on this server yet. Set META_APP_ID and META_APP_SECRET.")
-    return start_login(DIALOG_URL.format(version=settings.meta_graph_api_version), {
-        "client_id": settings.meta_app_id, "redirect_uri": callback_url(request, PREFIX),
-        "response_type": "code", "scope": ",".join(SCOPES),
-    }, PREFIX)
+    params = {"client_id": settings.meta_app_id, "redirect_uri": callback_url(request, PREFIX), "response_type": "code"}
+    if settings.meta_login_config_id:
+        # Facebook Login for Business: the configuration in the Meta app lists the permissions.
+        params["config_id"] = settings.meta_login_config_id
+    else:
+        params["scope"] = ",".join(SCOPES)
+    return start_login(DIALOG_URL.format(version=settings.meta_graph_api_version), params, PREFIX)
 
 
 async def fetch_pages(code: str, redirect_uri: str) -> list[dict]:

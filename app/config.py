@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     meta_app_secret: str = ""
     # Meta app used by "Connect Facebook" to post to Facebook Pages.
     meta_app_id: str = ""
+    # Facebook Login for Business configuration ID (Business-type apps); it replaces the scope list.
+    meta_login_config_id: str = ""
     # Instagram Login ("Connect Instagram"): the Instagram app ID and secret shown under the Meta app's
     # Instagram product, which differ from META_APP_ID/META_APP_SECRET.
     instagram_app_id: str = ""

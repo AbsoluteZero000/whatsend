@@ -133,9 +133,9 @@ When you write a message, pick a Page or Instagram connection: the text becomes 
 Setup (one Meta developer app covers both):
 
 1. At [developers.facebook.com](https://developers.facebook.com/apps), create an app (type **Business**; no registered business or verification is needed for your own accounts).
-2. **Facebook:** add the **Facebook Login for Business** product and add `https://<your-site>/tokens/meta/callback` as a valid OAuth redirect URI. Use the app ID and secret from App settings → Basic as `META_APP_ID` and `META_APP_SECRET`.
+2. **Facebook:** add the **Facebook Login for Business** product and add `https://<your-site>/tokens/meta/callback` as a valid OAuth redirect URI. Under Facebook Login for Business → Configurations, create a configuration (General, **User access token**) with the permissions `pages_show_list`, `pages_read_engagement`, `pages_manage_posts` and `business_management`, and use its ID as `META_LOGIN_CONFIG_ID`. Use the app ID and secret from App settings → Basic as `META_APP_ID` and `META_APP_SECRET`.
 3. **Instagram:** add the **Instagram** product, choose **API setup with Instagram login**, and add `https://<your-site>/tokens/instagram/callback` as the redirect URL under business login settings. That page shows a separate **Instagram app ID** and **Instagram app secret**: use them as `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`.
-4. Set `PUBLIC_URL` as well, for example on Fly: `fly secrets set META_APP_ID=... META_APP_SECRET=... INSTAGRAM_APP_ID=... INSTAGRAM_APP_SECRET=... PUBLIC_URL=https://echosend.fly.dev -a echosend`. Each button appears only when its credentials are set.
+4. Set `PUBLIC_URL` as well, for example on Fly: `fly secrets set META_APP_ID=... META_APP_SECRET=... META_LOGIN_CONFIG_ID=... INSTAGRAM_APP_ID=... INSTAGRAM_APP_SECRET=... PUBLIC_URL=https://echosend.fly.dev -a echosend`. Each button appears only when its credentials are set.
 5. While the app is in Development mode, only accounts with a role on the app can connect (add your Instagram account as an Instagram tester under App roles). To let anyone connect, request Advanced Access through Meta App Review: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts` and `business_management` for Facebook; `instagram_business_basic` and `instagram_business_content_publish` for Instagram.
 
 Limits:
