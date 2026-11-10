@@ -56,11 +56,19 @@ def raise_for_graph_error(response: httpx.Response, service: str = "Facebook") -
     raise GraphError(f"{service} API error{f' {code}' if code else ''}: {message}", code)
 
 
-def dump_credentials(access_token: str, account_id: str, expires_at: int | None = None) -> str:
-    """Stored encrypted in Token.api_token: the token, the account it posts as, and when it expires."""
+# Instagram logins made through Facebook Login for Business ("Unified login") call graph.facebook.com.
+FACEBOOK_API = "facebook"
+
+
+def dump_credentials(access_token: str, account_id: str, expires_at: int | None = None,
+                     api: str | None = None) -> str:
+    """Stored encrypted in Token.api_token: the token, the account it posts as, when it expires and,
+    for Instagram, which Graph API it belongs to (absent: graph.instagram.com)."""
     data = {"t": access_token, "id": str(account_id)}
     if expires_at:
         data["exp"] = int(expires_at)
+    if api:
+        data["api"] = api
     return json.dumps(data, separators=(",", ":"))
 
 

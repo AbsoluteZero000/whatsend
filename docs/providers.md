@@ -153,13 +153,17 @@ video on Facebook; a JPEG photo or a Reel on Instagram, with the message as capt
 
 - Both use `auth="managed"` and are connected independently:
   `app/routers/meta_connect.py` (Facebook Login, `/tokens/meta/...`) adds Pages, and
-  `app/routers/instagram_connect.py` (Instagram Login, `/tokens/instagram/...`) adds
-  Creator or Business accounts through graph.instagram.com, with no Facebook Page.
+  `app/routers/instagram_connect.py` (`/tokens/instagram/...`) adds Creator or Business
+  accounts with no Facebook Page, through Unified login (Facebook Login for Business with
+  an Instagram configuration, `INSTAGRAM_LOGIN_CONFIG_ID`; calls graph.facebook.com and
+  lists accounts from `me/assigned_instagram_accounts`) or, for older Meta apps,
+  Instagram Login (`INSTAGRAM_APP_ID`; calls graph.instagram.com).
   Shared sign-in helpers live in `app/services/social_connections.py`.
 - Credentials are stored as encrypted JSON in `Token.api_token`: the access token,
-  the account ID and, for Instagram, the expiry (`{"t", "id", "exp"}`). Reconnecting
+  the account ID and, for Instagram, the expiry and which API the login belongs to
+  (`{"t", "id", "exp", "api"}`; `"api": "facebook"` marks Unified login). Reconnecting
   refreshes existing connections by account ID. No schema migration was needed.
-- Facebook Page tokens don't expire. Instagram tokens last 60 days;
+- Facebook Page tokens and Unified login tokens don't expire. Instagram Login tokens last 60 days;
   `app/services/instagram_tokens.py` renews them from a daily scheduler job.
 - Shared Graph API code lives in `app/providers/_meta/`. The underscore keeps
   discovery from loading it as a provider. Tokens go in the `Authorization`

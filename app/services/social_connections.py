@@ -43,7 +43,8 @@ def back_to_connections(prefix: str, **message: str) -> RedirectResponse:
 async def save_accounts(db: AsyncSession, user_id: int, provider: str, accounts: list[dict]) -> None:
     """Add new connections and refresh the login of ones this person already connected.
 
-    Each account is {"id", "name", "token"} plus an optional "expires_at" (Unix time).
+    Each account is {"id", "name", "token"} plus an optional "expires_at" (Unix time) and "api"
+    (which Graph API the login belongs to, see dump_credentials).
     """
     existing = {}
     rows = (await db.execute(select(Token).where(Token.user_id == user_id, Token.provider == provider))).scalars().all()
@@ -53,7 +54,8 @@ async def save_accounts(db: AsyncSession, user_id: int, provider: str, accounts:
         except Exception:
             continue
     for account in accounts:
-        credentials = encrypt_token(dump_credentials(account["token"], account["id"], account.get("expires_at")))
+        credentials = encrypt_token(dump_credentials(account["token"], account["id"], account.get("expires_at"),
+                                                         account.get("api")))
         token = existing.get(account["id"])
         if token:
             token.api_token = credentials

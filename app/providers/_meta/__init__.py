@@ -3,7 +3,7 @@
 The leading underscore keeps provider discovery from treating this as a provider.
 """
 from app.providers._meta.graph import (
-    GraphClient, GraphError, dump_credentials, graph_url, load_credentials, parse_credentials,
+    FACEBOOK_API, GraphClient, GraphError, dump_credentials, graph_url, load_credentials, parse_credentials,
 )
 
-__all__ = ["GraphClient", "GraphError", "dump_credentials", "graph_url", "load_credentials", "parse_credentials"]
+__all__ = ["FACEBOOK_API", "GraphClient", "GraphError", "dump_credentials", "graph_url", "load_credentials", "parse_credentials"]

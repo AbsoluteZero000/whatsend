@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Instagram Login ("Connect Instagram"): the Instagram app ID and secret shown under the Meta app's
     # Instagram product, which differ from META_APP_ID/META_APP_SECRET.
     instagram_app_id: str = ""
+    # Unified login: a Facebook Login for Business configuration with Instagram assets, used with
+    # META_APP_ID/META_APP_SECRET. Newer Meta apps only offer this; it takes precedence when set.
+    instagram_login_config_id: str = ""
     instagram_app_secret: str = ""
     instagram_graph_base_url: str = "https://graph.instagram.com"
     api_keys_enabled: bool = False

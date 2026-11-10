@@ -126,7 +126,7 @@ How it works: `/mcp` is a stateless MCP server (Streamable HTTP, JSON responses)
 EchoSend can schedule posts to Facebook Pages and Instagram accounts, using the same scheduling, repeats, retries and history as WhatsApp messages. The two connect separately on the Connections page:
 
 - **Connect Facebook** signs in with Facebook. Facebook asks which Pages to share, and EchoSend adds one connection per shared Page. Personal Facebook profiles can't be posted to; Meta removed that for all apps in 2018.
-- **Connect Instagram** signs in with Instagram itself (Instagram Login), so no Facebook Page or Facebook account is needed. The account must be a Creator or Business account; switching a personal account to Creator is free (Instagram Settings → Account type and tools).
+- **Connect Instagram** adds Instagram accounts without needing a Facebook Page. The account must be a Creator or Business account; switching a personal account to Creator is free (Instagram Settings → Account type and tools).
 
 When you write a message, pick a Page or Instagram connection: the text becomes the post (or caption) and the attachment becomes its photo or video.
 
@@ -134,15 +134,16 @@ Setup (one Meta developer app covers both):
 
 1. At [developers.facebook.com](https://developers.facebook.com/apps), create an app (type **Business**; no registered business or verification is needed for your own accounts).
 2. **Facebook:** add the **Facebook Login for Business** product and add `https://<your-site>/tokens/meta/callback` as a valid OAuth redirect URI. Under Facebook Login for Business → Configurations, create a configuration (General, **User access token**) with the permissions `pages_show_list`, `pages_read_engagement`, `pages_manage_posts` and `business_management`, and use its ID as `META_LOGIN_CONFIG_ID`. Use the app ID and secret from App settings → Basic as `META_APP_ID` and `META_APP_SECRET`.
-3. **Instagram:** add the **Instagram** product, choose **API setup with Instagram login**, and add `https://<your-site>/tokens/instagram/callback` as the redirect URL under business login settings. That page shows a separate **Instagram app ID** and **Instagram app secret**: use them as `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`.
-4. Set `PUBLIC_URL` as well, for example on Fly: `fly secrets set META_APP_ID=... META_APP_SECRET=... META_LOGIN_CONFIG_ID=... INSTAGRAM_APP_ID=... INSTAGRAM_APP_SECRET=... PUBLIC_URL=https://echosend.fly.dev -a echosend`. Each button appears only when its credentials are set.
+3. **Instagram:** add the **Instagram** product. Newer Meta apps only offer **API setup with Unified login**, which needs the app linked to a free Meta Business portfolio (the page offers to create one). There, create the suggested configuration, register `https://<your-site>/tokens/instagram/callback` as a redirect URL, and use the configuration ID as `INSTAGRAM_LOGIN_CONFIG_ID` (it signs in with `META_APP_ID` and `META_APP_SECRET`). Unified login tokens don't expire, and one sign-in can add several Instagram accounts.
+   Older apps may instead offer **API setup with Instagram login**: add the same redirect URL under business login settings and use the separate **Instagram app ID** and **Instagram app secret** shown there as `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`. If `INSTAGRAM_LOGIN_CONFIG_ID` is set, it is used instead.
+4. Set `PUBLIC_URL` as well, for example on Fly: `fly secrets set META_APP_ID=... META_APP_SECRET=... META_LOGIN_CONFIG_ID=... INSTAGRAM_LOGIN_CONFIG_ID=... PUBLIC_URL=https://echosend.fly.dev -a echosend`. Each button appears only when its credentials are set.
 5. While the app is in Development mode, only accounts with a role on the app can connect (add your Instagram account as an Instagram tester under App roles). To let anyone connect, request Advanced Access through Meta App Review: `pages_show_list`, `pages_read_engagement`, `pages_manage_posts` and `business_management` for Facebook; `instagram_business_basic` and `instagram_business_content_publish` for Instagram.
 
 Limits:
 
 - **Facebook:** text, one photo (JPEG, PNG or GIF, up to 10MB) or one video per post.
 - **Instagram:** every post needs one JPEG photo (up to 8MB) or an MP4/MOV video, which is posted as a Reel. Captions can be up to 2,200 characters and 30 hashtags. Instagram downloads the file from a signed link that expires after an hour, so `PUBLIC_URL` must be reachable from the internet.
-- Facebook Page logins don't expire. They stop working if you remove the app in Facebook settings, lose your role on the Page, or change your Facebook password. Instagram logins last 60 days; EchoSend renews them automatically once a day when fewer than 20 days are left. In either case, if posting fails with a login error, connect again: that refreshes the existing connections.
+- Facebook Page logins don't expire. They stop working if you remove the app in Facebook settings, lose your role on the Page, or change your Facebook password. Instagram logins made with Unified login don't expire. Those made with Instagram Login last 60 days; EchoSend renews them automatically once a day when fewer than 20 days are left. In either case, if posting fails with a login error, connect again: that refreshes the existing connections.
 - If Meta accepts a post but the response is lost (for example, a timeout), the automatic retry can post it twice.
 
 ## Supported direct Meta integration spike

@@ -1,7 +1,8 @@
 """Publishes feed photos and Reels to an Instagram professional (Creator or Business) account.
 
-Uses the Instagram API with Instagram Login (graph.instagram.com), so no Facebook Page
-or Facebook account is involved. Instagram downloads the media itself, so each post
+Logins made with Instagram Login call graph.instagram.com; logins made with Unified login
+(Facebook Login for Business with an Instagram configuration) call graph.facebook.com. Neither
+needs a Facebook Page. Instagram downloads the media itself, so each post
 hands it a signed, short-lived link to the uploaded file (see app/services/public_media.py).
 """
 import asyncio
@@ -9,7 +10,7 @@ import time
 from pathlib import Path
 
 from app.config import settings
-from app.providers._meta import GraphClient, GraphError, parse_credentials
+from app.providers._meta import FACEBOOK_API, GraphClient, GraphError, load_credentials
 from app.providers.base import BaseSender
 from app.services.public_media import public_media_url
 
@@ -23,9 +24,14 @@ MAX_HASHTAGS = 30
 class InstagramSender(BaseSender):
     def __init__(self, credentials: str, *, poll_interval: float = 3, photo_timeout: float = 120,
                  video_timeout: float = 600):
-        token, self.account_id = parse_credentials(credentials, "Instagram")
-        self.graph = GraphClient(token, base_url=settings.instagram_graph_base_url, app_secret="",
-                                 service="Instagram")
+        data = load_credentials(credentials, "Instagram")
+        token, self.account_id = str(data["t"]), str(data["id"])
+        self.unified = data.get("api") == FACEBOOK_API
+        if self.unified:
+            self.graph = GraphClient(token, service="Instagram")
+        else:
+            self.graph = GraphClient(token, base_url=settings.instagram_graph_base_url, app_secret="",
+                                     service="Instagram")
         self.poll_interval = poll_interval
         self.photo_timeout = photo_timeout
         self.video_timeout = video_timeout
@@ -50,7 +56,11 @@ class InstagramSender(BaseSender):
                              "to this site's address, for example https://echosend.fly.dev")
 
     async def get_groups(self):
-        account = await self.graph.request("GET", "me", params={"fields": "user_id,username"})
+        if self.unified:  # With a business token, /me is the business's system user, not the account.
+            account = await self.graph.request("GET", self.account_id, params={"fields": "id,username"})
+            account = {"user_id": account.get("id"), "username": account.get("username")}
+        else:
+            account = await self.graph.request("GET", "me", params={"fields": "user_id,username"})
         account_id = str(account.get("user_id") or self.account_id)
         username = account.get("username")
         return [{"id": account_id, "name": f"@{username}" if username else account_id}]

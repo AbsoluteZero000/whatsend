@@ -39,6 +39,7 @@ def meta_settings(monkeypatch):
     monkeypatch.setattr(settings, "instagram_app_id", "ig-app-id")
     monkeypatch.setattr(settings, "instagram_app_secret", "ig-app-secret")
     monkeypatch.setattr(settings, "instagram_graph_base_url", "https://graph.instagram.com")
+    monkeypatch.setattr(settings, "instagram_login_config_id", "")
 
 
 def mock_graph(monkeypatch, handler, *, token_in_url_allowed=False):
@@ -314,6 +315,86 @@ def test_connect_instagram_needs_no_facebook_page(tmp_path, monkeypatch):
     tokens = asyncio.run(scenario())
     assert [(token.provider, token.name) for token in tokens] == [("instagram", "@me.creator")]
     assert json.loads(decrypt_token(tokens[0].api_token)) == {"t": SECRET, "id": INSTAGRAM, "exp": 1_000_000 + 5_184_000}
+
+
+def test_connect_instagram_with_unified_login_adds_every_shared_account(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "instagram_login_config_id", "ig-config")
+    other = "1790"
+
+    def graph(request):
+        assert request.url.host == "graph.facebook.com", "Unified login uses the Facebook Graph API"
+        if request.url.path == "/v23.0/oauth/access_token":
+            assert dict(request.url.params) == {
+                "client_id": "app-id", "client_secret": "app-secret", "code": "fb-code",
+                "redirect_uri": "https://echosend.test/tokens/instagram/callback"}
+            return httpx.Response(200, json={"access_token": SECRET, "token_type": "bearer"})
+        assert request.url.path == "/v23.0/me/assigned_instagram_accounts"
+        assert request.headers["authorization"] == f"Bearer {SECRET}"
+        assert request.url.params["fields"] == "id,username" and request.url.params["appsecret_proof"]
+        return httpx.Response(200, json={"data": [{"id": INSTAGRAM, "username": "me.creator"}, {"id": other}]})
+
+    async def scenario():
+        engine, sessions = await owner_database(tmp_path)
+        async with login_app(instagram_connect.router, instagram_connect, monkeypatch, sessions) as client:
+            start = await client.get("/tokens/instagram/connect")
+            dialog = urlsplit(start.headers["location"])
+            query = {key: values[0] for key, values in parse_qs(dialog.query).items()}
+            assert dialog.netloc == "www.facebook.com" and dialog.path == "/v23.0/dialog/oauth"
+            assert query["client_id"] == "app-id" and query["config_id"] == "ig-config"
+            assert query["override_default_response_type"] == "true" and "scope" not in query
+            mock_graph(monkeypatch, graph, token_in_url_allowed=False)
+            client.cookies.set("social_oauth_state", query["state"], path="/tokens/instagram")
+            done = await client.get("/tokens/instagram/callback", params={"code": "fb-code", "state": query["state"]})
+            assert "Connected+Instagram+accounts+%40me.creator%2C+1790" in done.headers["location"]
+        async with sessions() as db:
+            tokens = (await db.execute(select(Token))).scalars().all()
+        await engine.dispose()
+        return tokens
+
+    tokens = asyncio.run(scenario())
+    assert sorted((token.provider, token.name) for token in tokens) == [("instagram", "1790"), ("instagram", "@me.creator")]
+    saved = {token.name: json.loads(decrypt_token(token.api_token)) for token in tokens}
+    assert saved["@me.creator"] == {"t": SECRET, "id": INSTAGRAM, "api": "facebook"}
+
+
+def test_unified_login_with_no_shared_account_explains_what_to_do(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "instagram_login_config_id", "ig-config")
+    mock_graph(monkeypatch, lambda request: httpx.Response(200, json=(
+        {"access_token": SECRET} if request.url.path.endswith("oauth/access_token") else {"data": []})))
+
+    async def scenario():
+        engine, sessions = await owner_database(tmp_path)
+        async with login_app(instagram_connect.router, instagram_connect, monkeypatch, sessions) as client:
+            client.cookies.set("social_oauth_state", "s", path="/tokens/instagram")
+            done = await client.get("/tokens/instagram/callback", params={"code": "fb-code", "state": "s"})
+        await engine.dispose()
+        return done.headers["location"]
+
+    assert "No+Instagram+account+was+shared" in asyncio.run(scenario())
+
+
+def test_unified_login_posts_through_the_facebook_graph_api(tmp_path, monkeypatch):
+    photo = tmp_path / "photo.jpg"
+    photo.write_bytes(bytes([0xFF, 0xD8, 0xFF]) + b"0" * 20)
+
+    def graph(request):
+        if request.url.path.endswith("/media"):
+            return httpx.Response(200, json={"id": "container-1"})
+        if request.url.path.endswith("/container-1"):
+            return httpx.Response(200, json={"status_code": "FINISHED"})
+        if request.method == "GET":
+            return httpx.Response(200, json={"id": INSTAGRAM, "username": "me.creator"})
+        return httpx.Response(200, json={"id": "ig-media-1"})
+
+    calls = mock_graph(monkeypatch, graph)
+    sender = InstagramSender(dump_credentials(SECRET, INSTAGRAM, api="facebook"), poll_interval=0)
+    assert asyncio.run(sender.get_groups()) == [{"id": INSTAGRAM, "name": "@me.creator"}]
+    assert calls[0].url.path == f"/v23.0/{INSTAGRAM}"
+    result = asyncio.run(sender.send(INSTAGRAM, "Caption", str(photo)))
+    assert result == {"id": "ig-media-1", "container_id": "container-1"}
+    assert {call.url.host for call in calls} == {"graph.facebook.com"}
+    assert all(call.url.params.get("appsecret_proof") for call in calls)
+    assert calls[-1].url.path == f"/v23.0/{INSTAGRAM}/media_publish"
 
 
 def test_instagram_sign_in_failures_suggest_a_professional_account(tmp_path, monkeypatch):
