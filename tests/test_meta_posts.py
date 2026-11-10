@@ -236,13 +236,27 @@ def test_connect_facebook_adds_only_the_shared_pages_once(tmp_path, monkeypatch)
                 return httpx.Response(200, json={"access_token": "short-user"})
             assert params["fb_exchange_token"] == "short-user"
             return httpx.Response(200, json={"access_token": "long-user"})
-        assert request.url.path == "/v23.0/me/accounts"
+        if request.url.path == "/v23.0/debug_token":
+            # The login granted a business-owned Page that me/accounts leaves out, and one with no role.
+            assert request.headers["authorization"] == "Bearer app-id|app-secret"
+            assert request.url.params["input_token"] == "long-user"
+            return httpx.Response(200, json={"data": {"granular_scopes": [
+                {"scope": "pages_show_list", "target_ids": [PAGE, "3003", "4004"]},
+                {"scope": "pages_manage_posts", "target_ids": [PAGE, "3003"]},
+                {"scope": "business_management"},
+            ]}})
         assert request.headers["authorization"] == "Bearer long-user"
+        assert request.url.params["appsecret_proof"]
         assert "instagram" not in request.url.params["fields"]
-        return httpx.Response(200, json={"data": [
-            {"id": PAGE, "name": "My Shop", "access_token": SECRET},
-            {"id": "2002", "name": "Side Page", "access_token": SECRET},
-        ]})
+        if request.url.path == "/v23.0/3003":
+            return httpx.Response(200, json={"id": "3003", "name": "Business Page", "access_token": SECRET})
+        if request.url.path == "/v23.0/4004":
+            return httpx.Response(200, json={"id": "4004", "name": "Followed Page"})
+        assert request.url.path == "/v23.0/me/accounts"
+        if request.url.params.get("after") == "page-2":
+            return httpx.Response(200, json={"data": [{"id": "2002", "name": "Side Page", "access_token": SECRET}]})
+        return httpx.Response(200, json={"data": [{"id": PAGE, "name": "My Shop", "access_token": SECRET}],
+                                         "paging": {"cursors": {"after": "page-2"}, "next": "https://next"}})
 
     async def scenario():
         engine, sessions = await owner_database(tmp_path)
@@ -263,14 +277,15 @@ def test_connect_facebook_adds_only_the_shared_pages_once(tmp_path, monkeypatch)
             for _ in range(2):
                 client.cookies.set("social_oauth_state", state, path="/tokens/meta")
                 done = await client.get("/tokens/meta/callback", params={"code": "login-code", "state": state})
-                assert done.status_code == 303 and "success=Connected+2+Facebook+Pages." in done.headers["location"]
+                assert done.status_code == 303 and "success=Connected+3+Facebook+Pages." in done.headers["location"]
         async with sessions() as db:
             tokens = (await db.execute(select(Token).order_by(Token.id))).scalars().all()
         await engine.dispose()
         return tokens
 
     tokens = asyncio.run(scenario())
-    assert [(token.provider, token.name) for token in tokens] == [("facebook", "My Shop"), ("facebook", "Side Page")]
+    assert [(token.provider, token.name) for token in tokens] == [
+        ("facebook", "My Shop"), ("facebook", "Side Page"), ("facebook", "Business Page")]
     assert all(SECRET not in token.api_token for token in tokens)
     assert json.loads(decrypt_token(tokens[0].api_token)) == {"t": SECRET, "id": PAGE}
 
