@@ -16,7 +16,7 @@
     <label for="token_id">{{ _('Connection') }}</label>
     <select id="token_id" name="token_id" required>
       <option value="">{{ _('-- Select --') }}</option>
-      {% for token in tokens %}
+      {% for token in tokens if provider_registry.get(token.provider).kind == 'messaging' %}
       <option value="{{ token.id }}" data-provider="{{ token.provider }}" {% if job is defined and job.token_id == token.id %}selected{% endif %}>{{ token.name or _('Connection') }} ({{ provider_registry.label(token.provider) }})</option>
       {% endfor %}
     </select>

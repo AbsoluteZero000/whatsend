@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     whapi_base_url: str = "https://gate.whapi.cloud"
     whatsapp_worker_url: str = "http://127.0.0.1:3001"
     whatsapp_worker_secret: str = ""
+    # Private, operator-controlled signal-cli-rest-api service. Never supplied by a connection form.
+    signal_api_url: str = ""
+    signal_api_token: str = ""
+    # Comma-separated HTTPS URL prefixes verified in the TikTok developer portal.
+    tiktok_photo_url_prefixes: str = ""
     cookie_secure: bool = False
     token_encryption_key: str = ""
     meta_graph_base_url: str = "https://graph.facebook.com"

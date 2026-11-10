@@ -9,4 +9,6 @@ from app.models.delivery_attempt import DeliveryAttempt
 from app.models.relay_operation import RelayOperation
 from app.models.oauth import OAuthClient, OAuthGrant
 
-__all__ = ["User", "Token", "Job", "Log", "ApiKey", "DeliveryAttempt", "RelayOperation", "RecipientList", "SeriesEntry", "SeriesAttachment", "OAuthClient", "OAuthGrant"]
+__all__ = ["User", "Token", "Job", "Log", "ApiKey", "DeliveryAttempt", "RelayOperation", "RecipientList", "SeriesEntry", "SeriesAttachment", "OAuthClient", "OAuthGrant", "TikTokPost"]
+
+from app.providers.tiktok.models import TikTokPost

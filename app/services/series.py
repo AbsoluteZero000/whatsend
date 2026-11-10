@@ -17,6 +17,7 @@ from app.services.native_sender import CONNECTION_LOST, NativeSender, worker_err
 from app.services.native_api import connection_base_url
 from app.services.sender import get_sender
 from app.providers import get_registry
+from app.providers.base import ProviderError
 from app.services.crypto import decrypt_token
 from app.services.message_variables import render_message
 from app.services.schedule_dates import remaining_dates
@@ -138,6 +139,9 @@ async def submit_series(db, job, token, groups):
                     data = await sender.send(attempt.group_id, text, path, filename)
                     attempt.status = 'sent'
                 attempt.response = json.dumps(data, default=str)
+            except ProviderError as exc:
+                attempt.status = 'unknown' if exc.unknown else 'failed'
+                attempt.response = str(exc)
             except httpx.HTTPStatusError as exc:
                 disconnected = isinstance(sender, NativeSender) and exc.response.status_code == 409 and worker_error_code(exc.response) == 'not_connected'
                 definitive = 400 <= exc.response.status_code < 500 and exc.response.status_code not in {408, 409, 429}

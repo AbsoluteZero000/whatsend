@@ -16,6 +16,8 @@ class ProviderRegistry:
             raise ValueError("Provider IDs must be 1–20 lowercase letters, digits or underscores")
         if provider.id in self._providers:
             raise ValueError(f"Duplicate provider: {provider.id}")
+        if provider.kind not in {"messaging", "publishing"}:
+            raise ValueError(f"Invalid provider kind: {provider.id}")
         if provider.auth not in {"token", "managed"}:
             raise ValueError(f"Invalid authentication mode: {provider.id}")
         if provider.delivery not in {"direct", "whatsapp_worker"}:
@@ -41,6 +43,8 @@ class ProviderRegistry:
 
     def sender(self, provider_id: str, context: ProviderContext):
         definition = self.get(provider_id)
+        if definition.kind != "messaging":
+            raise ValueError(f"Use the {definition.label} publishing page to create posts")
         sender = definition.create_sender(context)
         if definition.delivery == "direct" and not isinstance(sender, BaseSender):
             raise TypeError(f"{provider_id} must create a BaseSender")

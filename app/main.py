@@ -41,7 +41,7 @@ _jinja_env = Environment(
 _static_dir = Path(__file__).resolve().parent / "static"
 _jinja_env.globals["asset_versions"] = {
     path: hashlib.sha256((_static_dir / path).read_bytes()).hexdigest()[:12]
-    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js", "js/dates-picker.js", "js/word-list.js")
+    for path in ("css/app.css", "js/group-picker.js", "js/recipient-lists.js", "js/composer-drafts.js", "js/delivery-progress.js", "js/message-series.js", "js/timezone-picker.js", "js/dates-picker.js", "js/word-list.js", "js/provider-credentials.js", "js/tiktok-publishing.js")
 }
 
 
@@ -186,7 +186,7 @@ def render(request: Request, template_name: str, **context) -> HTMLResponse:
     response = HTMLResponse(html)
     response.headers["Content-Security-Policy"] = (
         f"default-src 'self'; script-src 'self' 'nonce-{csp_nonce}' https://unpkg.com; "
-        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; "
         "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     )
     if csrf_is_new:
@@ -311,6 +311,8 @@ app.include_router(jobs.router)
 app.include_router(logs.router)
 app.include_router(media.router)
 app.include_router(webhooks.router)
+from app.providers.lifecycle import register_routes as register_provider_routes
+register_provider_routes(app)
 app.include_router(oauth.router)
 app.include_router(mcp.router)
 if settings.api_keys_enabled:

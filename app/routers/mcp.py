@@ -21,7 +21,7 @@ PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
 SERVER_INFO = {"name": "echosend", "title": "EchoSend", "version": "1.0.0"}
 INSTRUCTIONS = (
-    "EchoSend schedules WhatsApp messages that are sent from the user's own WhatsApp. "
+    "EchoSend schedules messages through the user's connected WhatsApp, Telegram and Signal accounts. "
     "Start with get_account_overview: all dates and times are in the account timezone it returns. "
     "Use list_recipients to find group names before creating a message, and confirm the text, recipients and time "
     "with the user before calling create_message, because messages go to real people."

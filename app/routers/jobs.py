@@ -436,6 +436,8 @@ async def require_owned_active_token(db: AsyncSession, user_id: int, token_id: i
     token = result.scalar_one_or_none()
     if not token:
         raise HTTPException(status_code=400, detail="Select an active token that belongs to your account")
+    if get_registry().get(token.provider).kind != "messaging":
+        raise HTTPException(400, "Use this provider's publishing page to create posts")
     if token.provider == "native" and not token.relay_session_id:
         raise HTTPException(400, "Finish setting up your WhatsApp session before creating a job")
     return token

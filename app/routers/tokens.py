@@ -106,6 +106,11 @@ async def create_token(request: Request, name: str = Form(default=""), api_token
         raise HTTPException(400, "Use the provider's connection flow")
     if not api_token.strip():
         raise HTTPException(400, "API token is required")
+    if definition.validate_credentials:
+        try:
+            definition.validate_credentials(api_token.strip())
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     db.add(Token(user_id=int(user["sub"]), name=name or None, provider=provider, api_token=encrypt_token(api_token.strip())))
     await db.commit()
     return _flash("/tokens", success="Token created")
@@ -201,6 +206,12 @@ async def edit_token(
     if api_token and get_registry().get(token.provider).auth == "token":
         if not api_token.strip():
             raise HTTPException(400, "API token cannot be whitespace")
+        definition = get_registry().get(token.provider)
+        if definition.validate_credentials:
+            try:
+                definition.validate_credentials(api_token.strip())
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
         token.api_token = encrypt_token(api_token.strip())
     await db.commit()
     return _flash("/tokens", success="Token updated")
@@ -229,6 +240,8 @@ async def delete_token(token_id: int, request: Request, db: AsyncSession = Depen
                 await native_connection(token).delete()
             except (httpx.HTTPError, ValueError) as exc:
                 raise pairing_error(exc) from exc
+        from app.providers.lifecycle import delete_connection
+        await delete_connection(db, token)
         jobs_result = await db.execute(select(Job).where(Job.token_id == token.id, Job.user_id == user_id))
         linked_jobs = jobs_result.scalars().all()
         media_paths = {job.image_path for job in linked_jobs if job.image_path}

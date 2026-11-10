@@ -192,3 +192,7 @@ For application-level SQLite backups, run `python scripts/backup_database.py`. I
 
 See [Provider extensibility and contributor guide](docs/providers.md) for the assessment,
 base sender contract, independent provider packages, and current extension limits.
+
+Telegram and Signal messaging, plus TikTok video/photo publishing, are available.
+See [Provider setup](docs/provider-setup.md) for account requirements, Signal service
+configuration, TikTok authorization, and the publishing migration.

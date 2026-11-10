@@ -4,6 +4,13 @@ from dataclasses import dataclass
 from typing import Callable, Literal
 
 
+class ProviderError(ValueError):
+    """Sanitized provider failure; uncertain sends must never be retried blindly."""
+    def __init__(self, message: str, *, unknown: bool = False):
+        super().__init__(message)
+        self.unknown = unknown
+
+
 class UnsupportedCapability(ValueError):
     """The provider cannot handle the requested message type."""
 
@@ -11,8 +18,9 @@ class UnsupportedCapability(ValueError):
 class BaseSender(ABC):
     """Direct delivery adapter; a successful send means delivery was accepted.
 
-    Raising an exception uses the scheduler's existing retry policy. Providers
-    must account for duplicate delivery after ambiguous network failures.
+    Ordinary exceptions use the scheduler's existing retry policy. Raise a
+    sanitized ProviderError for definitive or uncertain outcomes that must not
+    be retried automatically.
     """
 
     @abstractmethod
@@ -23,6 +31,10 @@ class BaseSender(ABC):
     async def get_groups(self) -> list[dict]:
         """Optional recipient discovery: dictionaries with id and name keys."""
         return []
+
+    def is_recipient_id(self, value: str) -> bool:
+        """Optional recognition for assistant tools; names still use discovery."""
+        return False
 
     def validate_payload(self, recipient: str, message: str, image_path: str | None = None) -> None:
         """Override for provider limits; validation must not send messages."""
@@ -46,6 +58,10 @@ class Provider:
     auth: Literal["token", "managed"] = "token"
     # The worker path has persistence semantics specific to built-in WhatsApp.
     delivery: Literal["direct", "whatsapp_worker"] = "direct"
+    kind: Literal["messaging", "publishing"] = "messaging"
+    credential_label: str = "Provider API Token"
+    credential_help: str = ""
+    validate_credentials: Callable[[str], None] | None = None
 
     def validate_payload(self, sender, recipient: str, message: str, image_path: str | None = None) -> None:
         if image_path and not self.supports_media:

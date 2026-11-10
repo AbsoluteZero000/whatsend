@@ -19,6 +19,7 @@ from app.services import word_list
 from app.services.schedule_dates import DatesTrigger, remaining_dates
 from app.services.sender import get_sender
 from app.providers import get_registry
+from app.providers.base import ProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,8 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
         attempt_number = job.retry_count + 1 if retry_only else 1
         results: list[str] = []
         failed_group_ids: list[str] = []
+        terminal_failures: list[str] = []
+        unknown_groups: list[str] = []
 
         if not token:
             for group in groups:
@@ -188,6 +191,13 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
                         job_id=job.id, run_id=run_id, group_id=group.group_id, group_name=group.group_name,
                         attempt_number=attempt_number, status="sent", response=json.dumps(response, default=str)[:4000],
                     ))
+                except ProviderError as exc:
+                    (unknown_groups if exc.unknown else terminal_failures).append(group.group_id)
+                    results.append(f"{group.group_id}: {exc}")
+                    db.add(DeliveryAttempt(
+                        job_id=job.id, run_id=run_id, group_id=group.group_id, group_name=group.group_name,
+                        attempt_number=attempt_number, status="unknown" if exc.unknown else "failed", response=str(exc),
+                    ))
                 except Exception as exc:
                     failed_group_ids.append(group.group_id)
                     results.append(f"{group.group_id}: {exc}")
@@ -197,7 +207,7 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
                     ))
             token.last_used_at = datetime.now(timezone.utc)
 
-        status = "failed" if failed_group_ids else "sent"
+        status = "unknown" if unknown_groups else "failed" if failed_group_ids or terminal_failures else "sent"
         db.add(Log(job_id=job.id, status=status, response=json.dumps(results, indent=2, default=str)))
 
         if failed_group_ids:
@@ -220,7 +230,7 @@ async def send_job(job_id: int, retry_only: bool = False, *, send_now: bool = Fa
             elif job.trigger_type == "dates":
                 job.status = "completed" if is_last_run(job) else "active"
             else:
-                job.status = "completed"
+                job.status = "completed" if status == "sent" else status
 
         await db.commit()
         logger.info(
@@ -289,6 +299,8 @@ async def remove_job(job_id: int):
 
 
 async def load_all_jobs():
+    from app.providers.lifecycle import register_jobs as register_provider_jobs
+    register_provider_jobs(scheduler)
     from app.services.native_jobs import poll_deliveries
     from app.services.series_imports import cleanup_imports
     scheduler.add_job(cleanup_imports, "interval", hours=1, id="series:cleanup-imports", replace_existing=True)

@@ -79,9 +79,11 @@ provider = Provider(
 ```
 
 This example is deliberately incomplete and is not shipped as an enabled provider.
-Installed providers: Whapi (`whatsapp`), built-in WhatsApp (`native`), and the
-posting providers `facebook` (Facebook Page) and `instagram` (Instagram professional
-account), described below.
+Installed providers are Whapi (`whatsapp`), built-in WhatsApp (`native`),
+Facebook Page (`facebook`), Instagram (`instagram`), Telegram (`telegram`),
+Signal (`signal`) and TikTok publishing (`tiktok`). See the Facebook/Instagram
+section below and [Provider setup](provider-setup.md) for account requirements.
+
 
 For token authentication, the provider appears automatically on `/tokens/create`.
 Credentials are encrypted by the app and decrypted before creating the sender.
@@ -99,7 +101,8 @@ checks supported formats, sizes and captions. Preserve `filename` when sending f
 
 ## Delivery semantics
 
-Direct adapters derive from `BaseSender`. A successful `send` returns upstream
+Direct adapters derive from `BaseSender`. New adapters use `ProviderError` to
+record definitive/unknown failures without automatic retries. A successful `send` returns upstream
 acceptance, recorded as `sent` under the existing direct-delivery convention; it
 is not proof that a person received or read the message. Standard jobs retry
 failed recipients using the existing persisted exponential retry policy. A timeout
@@ -165,18 +168,37 @@ video on Facebook; a JPEG photo or a Reel on Instagram, with the message as capt
   (served by `/media/public/...`) that expire after an hour; it requires `PUBLIC_URL`.
 - Posts are not idempotent: a retry after an ambiguous timeout can publish twice.
 
+## Publishing providers
+
+`Provider.kind` defaults to `messaging`. A `publishing` provider uses a separate,
+explicit content/consent workflow and cannot be constructed through `get_sender`.
+Its package owns `routes.py` (a FastAPI router), `jobs.py` (`register_jobs` and
+`delete_connection` lifecycle hooks), persistence models and provider API clients.
+The application registers these routes and scheduler hooks automatically. Model
+registration and schema migrations still require core coordination. TikTok is the
+first implementation; it persists its own publishing IDs instead of using the
+WhatsApp relay tables. This is separate from a universal queued messaging contract.
+
+Provider definitions can also supply a credential label, setup help and a local
+credential validation hook. `BaseSender.is_recipient_id` lets the assistant
+connector recognize provider-native IDs while keeping name lookup in discovery.
+`ProviderError` carries sanitized definitive or unknown outcomes that never trigger
+a blind retry in the messaging scheduler.
+
 ## Remaining extension work
 
 The following require explicit core extensions when a provider needs them:
 
+
 - OAuth redirects, refresh tokens, account/page selection, scopes and revocation.
   The shared form currently accepts one encrypted token string, not a structured
-  OAuth credential store. `auth="managed"` hides a provider from that form; only
-  native WhatsApp currently has a complete managed connection lifecycle.
+  OAuth credential store. `auth="managed"` hides a provider from that form;
+  WhatsApp, Facebook and Instagram have their own connection lifecycles.
 - Provider-owned callbacks and webhooks, signature checks and inbound message models.
   The existing Meta spike remains separate and unregistered, as before.
 - Queued delivery and provider-specific retry/error classification (see above).
-- Posts, carousels, stories, templates and other content beyond text plus one file.
+- Publishing features beyond TikTok's single video or verified-source photo posts,
+  such as stories, templates, or other providers' content types.
 - Provider-specific composer controls. Some help text and pairing flows remain
   WhatsApp-specific. Upload signature/type rules and the series 4096-byte text
   ceiling remain application-wide; an adapter can impose stricter limits.

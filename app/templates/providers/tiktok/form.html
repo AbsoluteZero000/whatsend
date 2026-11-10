@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Publish to TikTok — EchoSend{% endblock %}
+{% block content %}
+<div class="section-header"><h1>Publish to TikTok</h1><p>Posting as <strong>{{ creator.creator_nickname }}</strong> (@{{ creator.creator_username }}).</p><a href="/providers/tiktok">View your TikTok posts</a></div>
+<div class="form-card">
+  <p>Choose a video or photos, review the content and its audience, then publish now or select a time. Processing and moderation may delay publication.</p>
+  <form method="post" enctype="multipart/form-data" id="tiktok-publish-form" action="/providers/tiktok/{{ token.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="submission_key" value="{{ submission_key }}">
+    <input type="hidden" name="creator_username" value="{{ creator.creator_username }}">
+    <label for="content_kind">Post type</label>
+    <select id="content_kind" name="content_kind"><option value="video">Video</option>{% if photos_enabled %}<option value="photo">Photos</option>{% endif %}</select>
+    <div id="tiktok-video-fields">
+      <label for="video">MP4 video (up to 50 MB and {{ creator.max_video_post_duration_sec }} seconds)</label>
+      <input id="video" name="video" type="file" accept="video/mp4,.mp4" required>
+      <video id="tiktok-video-preview" controls hidden style="max-width:100%;max-height:360px"></video>
+    </div>
+    <div id="tiktok-photo-fields" hidden>
+      <label for="photos">Photo URLs (one per line, up to 35)</label>
+      <textarea id="photos" name="photos" rows="4" placeholder="https://your-verified-source.example/photos/photo.jpg" disabled></textarea>
+      <p>Use your own JPEG or WebP images from the source your administrator verified with TikTok. The first image is the cover.</p>
+      <label for="photo_title">Photo title (optional, up to 90 characters)</label><input id="photo_title" name="photo_title" maxlength="90" disabled>
+    </div>
+    <label for="caption">Caption / description</label><textarea id="caption" name="caption" rows="5" maxlength="2200"></textarea>
+    <label for="privacy_level">Who can see this post?</label>
+    <select id="privacy_level" name="privacy_level" required><option value="" selected disabled>Choose visibility</option>{% for level in creator.privacy_level_options %}<option value="{{ level }}">{{ {'PUBLIC_TO_EVERYONE':'Everyone', 'MUTUAL_FOLLOW_FRIENDS':'Friends', 'FOLLOWER_OF_CREATOR':'Followers', 'SELF_ONLY':'Only me'}[level] }}</option>{% endfor %}</select>
+    <fieldset><legend>Interactions</legend>
+      <label><input type="checkbox" name="allow_comment" {% if creator.comment_disabled %}disabled{% endif %}> Allow comments{% if creator.comment_disabled %} (disabled in TikTok settings){% endif %}</label>
+      <div id="tiktok-video-interactions">
+        <label><input type="checkbox" name="allow_duet" {% if creator.duet_disabled %}disabled{% endif %}> Allow Duet{% if creator.duet_disabled %} (disabled in TikTok settings){% endif %}</label>
+        <label><input type="checkbox" name="allow_stitch" {% if creator.stitch_disabled %}disabled{% endif %}> Allow Stitch{% if creator.stitch_disabled %} (disabled in TikTok settings){% endif %}</label>
+      </div>
+    </fieldset>
+    <label><input type="checkbox" name="commercial" id="commercial"> This content promotes a brand, product or service</label>
+    <div id="tiktok-commercial-fields" hidden>
+      <label><input type="checkbox" name="own_brand" id="own_brand"> Your brand — labeled Promotional content</label>
+      <label><input type="checkbox" name="branded" id="branded"> Branded content — labeled Paid partnership (cannot be private)</label>
+    </div>
+    <p id="tiktok-disclosure" role="status"></p>
+    <label><input type="checkbox" name="is_aigc"> This content was AI-generated</label>
+    <label for="scheduled_at">Publish time (optional, {{ user_tz }})</label><input type="datetime-local" id="scheduled_at" name="scheduled_at">
+    <p>Leave the time empty to submit on the next publishing check. Each submission creates one post; recurring message jobs do not publish TikTok posts.</p>
+    <label><input type="checkbox" name="consent" required> I reviewed this content and authorize uploading and publishing it to @{{ creator.creator_username }} at the selected time. By posting, I agree to TikTok's <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.</label>
+    <p>For commercial content, you also agree to TikTok's <a href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noopener noreferrer">Branded Content Policy</a>. Submitted content may take a few minutes to appear on your profile.</p>
+    <button type="submit" id="tiktok-publish-button" class="btn btn-primary">Publish / schedule post</button>
+    <a href="/tokens" class="btn btn-secondary">Back to connections</a>
+  </form>
+</div>
+<script src="/static/js/tiktok-publishing.js?v={{ asset_versions['js/tiktok-publishing.js'] }}" defer></script>
+{% endblock %}

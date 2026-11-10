@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.providers import get_registry
 from app.models.delivery_attempt import DeliveryAttempt
 from app.models.job import Job, JobGroup
 from app.models.recipient_list import RecipientList
@@ -76,7 +77,7 @@ class NoArguments(Arguments):
 
 
 class ListRecipients(Arguments):
-    connection_id: int | None = Field(None, description="Which WhatsApp connection to use. Only needed when the account has more than one.")
+    connection_id: int | None = Field(None, description="Which messaging connection to use. Only needed when the account has more than one.")
     search: str = Field("", max_length=100, description="Only return groups and lists whose name contains this text.")
 
 
@@ -92,9 +93,9 @@ class MessageId(Arguments):
 
 
 class CreateMessage(Arguments):
-    message: str = Field(min_length=1, max_length=4096, description="The text to send. WhatsApp formatting such as *bold* and _italic_ works.")
+    message: str = Field(min_length=1, max_length=4096, description="The text to send. Formatting support depends on the selected provider.")
     recipients: list[str] = Field(default_factory=list, max_length=MAX_RECIPIENTS, description=(
-        "Who to send to. Each item is a WhatsApp group name exactly as list_recipients shows it, a group ID ending in @g.us, "
+        "Who to send to. Use recipient names exactly as list_recipients shows them, provider group/chat IDs, Telegram @channel usernames, "
         "or a phone number with its country code, e.g. +201001234567."))
     recipient_list_ids: list[int] = Field(default_factory=list, max_length=20, description="Saved recipient list IDs from list_recipients. Everyone on them is added.")
     when: Literal["now", "once", "repeating", "specific_dates"] = Field(description=(
@@ -110,7 +111,7 @@ class CreateMessage(Arguments):
     cron: str | None = Field(None, max_length=100, description='For repeat "cron": a 5-field cron expression in the account timezone (days of week 0 = Monday).')
     dates: list[str] = Field(default_factory=list, max_length=100, description='For "specific_dates": local days as "YYYY-MM-DD", up to 100.')
     label: str | None = Field(None, max_length=120, description="A short name to find this message later. Optional.")
-    connection_id: int | None = Field(None, description="Which WhatsApp connection sends it. Only needed when the account has more than one.")
+    connection_id: int | None = Field(None, description="Which messaging connection sends it. Only needed when the account has more than one.")
 
 
 # ---------- helpers ----------
@@ -123,14 +124,15 @@ def connection_info(token: Token) -> dict:
     return {
         "id": token.id,
         "name": token.name or f"Connection {token.id}",
-        "type": "WhatsApp (QR code)" if token.provider == "native" else "Whapi.Cloud",
+        "type": "WhatsApp (QR code)" if token.provider == "native" else get_registry().label(token.provider),
         "ready": connection_ready(token),
     }
 
 
 async def active_connections(ctx: Context) -> list[Token]:
-    return (await ctx.db.execute(select(Token).where(
+    tokens = (await ctx.db.execute(select(Token).where(
         Token.user_id == ctx.user.id, Token.is_active.is_(True)).order_by(Token.id))).scalars().all()
+    return [token for token in tokens if get_registry().get(token.provider).kind == 'messaging']
 
 
 async def pick_connection(ctx: Context, connection_id: int | None) -> Token:
@@ -141,10 +143,10 @@ async def pick_connection(ctx: Context, connection_id: int | None) -> Token:
             raise ToolError(exc.detail) from exc
     ready = [token for token in await active_connections(ctx) if connection_ready(token)]
     if not ready:
-        raise ToolError("This account has no WhatsApp connection yet. Connect WhatsApp in EchoSend under Connections first.")
+        raise ToolError("This account has no messaging connection yet. Add one in EchoSend under Connections first.")
     if len(ready) > 1:
         choices = ", ".join(f'{token.id} ("{token.name or token.id}")' for token in ready)
-        raise ToolError(f"This account has more than one WhatsApp connection. Pass connection_id, one of: {choices}.")
+        raise ToolError(f"This account has more than one messaging connection. Pass connection_id, one of: {choices}.")
     return ready[0]
 
 
@@ -169,13 +171,20 @@ async def resolve_recipients(ctx: Context, token: Token, values: list[str], list
             resolved.setdefault(recipient["id"], recipient.get("name") or recipient["id"])
 
     groups: list[dict] | None = None
+    sender = None
     for raw in values:
         value = raw.strip()
         if not value:
             continue
         if PHONE_LIKE.fullmatch(value):
             value = re.sub(r"[ ()\-]", "", value)
-        if RECIPIENT_ID.fullmatch(value) or (token.provider != "native" and "@" in value):
+        if sender is None:
+            try:
+                sender = job_routes.job_sender(token)
+            except ValueError as exc:
+                raise ToolError(str(exc)) from exc
+        recognized = getattr(sender, 'is_recipient_id', lambda value: False)(value)
+        if recognized or RECIPIENT_ID.fullmatch(value) or (token.provider != "native" and "@" in value):
             name = value
             if value.endswith("@g.us"):
                 try:

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}TikTok posts — EchoSend{% endblock %}
+{% block content %}
+<div class="section-header"><h1>TikTok posts</h1><p><a href="/tokens">Select a TikTok connection to publish another post</a> · <a href="/providers/tiktok">Refresh status</a></p></div>
+<div class="table-wrap"><table><thead><tr><th>Post</th><th>Account</th><th>Scheduled time</th><th>Status</th><th>Details</th><th>Actions</th></tr></thead><tbody>
+{% for post in posts %}<tr>
+<td>#{{ post.id }} — {{ post.original_filename or 'Photo post' }}</td><td>@{{ post.creator_username }}</td><td>{{ tz(post.scheduled_at, user_tz) }}</td>
+<td>{{ 'Published' if post.status == 'sent' else post.status|capitalize }}</td><td>{{ post.detail or '' }}{% if post.publish_id %}<br><small>Publishing ID: {{ post.publish_id }}</small>{% endif %}</td>
+<td>{% if post.status == 'pending' %}<form action="/providers/tiktok/posts/{{ post.id }}/cancel" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="btn btn-secondary">Cancel</button></form>{% endif %}{% if post.media_path %}<a href="/providers/tiktok/posts/{{ post.id }}/media">Review video</a>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="6">No TikTok posts yet.</td></tr>{% endfor %}
+</tbody></table></div>
+<p>Only Published means TikTok confirmed completion. Processing and Unknown posts are never automatically submitted again. Check TikTok before creating a replacement for an uncertain post.</p>
+{% endblock %}

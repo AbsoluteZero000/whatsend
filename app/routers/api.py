@@ -88,6 +88,8 @@ async def get_linked_token(context: ApiKeyContext, db: AsyncSession, provider: s
             status_code=400,
             detail=f"No active {provider} token found for this API key. Select an active token and generate a new API key.",
         )
+    if get_registry().get(token.provider or "whatsapp").kind != "messaging":
+        raise HTTPException(400, "Use this provider's publishing page to create posts")
     if provider is not None and provider != (token.provider or "whatsapp"):
         raise HTTPException(400, "Requested provider does not match the API key's linked token")
     return token
@@ -219,9 +221,29 @@ async def api_send_media(
     db: AsyncSession = Depends(get_db),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ):
-    token = await get_linked_token(context, db, "native")
+    token = await get_linked_token(context, db)
     sender = connection_sender(token)
     filename = Path(file.filename or "").name
+    if token.provider != "native":
+        if not get_registry().get(token.provider).supports_media:
+            raise HTTPException(400, "This provider does not support attachments")
+        path = await save_upload(file)
+        if not path:
+            raise HTTPException(400, "A media file is required")
+        try:
+            try:
+                get_registry().get(token.provider).validate_payload(sender, group_id, caption, path)
+            except (ValueError, OSError) as exc:
+                raise HTTPException(400, str(exc)) from exc
+            try:
+                result = await sender.send(group_id, caption, path, filename)
+            except Exception as exc:
+                raise HTTPException(502, _upstream_error(exc, token.provider)) from exc
+            token.last_used_at = datetime.now(timezone.utc)
+            await db.commit()
+            return {"success": True, "group_id": group_id, "data": result}
+        finally:
+            Path(path).unlink(missing_ok=True)
     if Path(filename).suffix.lower() not in NATIVE_MEDIA_MIMES:
         raise HTTPException(400, "Unsupported WhatsApp attachment type")
     if len(filename.encode()) > 255 or len(caption.encode()) > 1024:

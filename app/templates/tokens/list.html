@@ -3,7 +3,7 @@
 {% block content %}
 <div class="section-header header-row">
   <div><h1>{{ _('Connections') }}</h1><p class="page-subtitle">{{ _('Accounts used to send your messages and posts.') }}</p></div>
-  <div class="actions"><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a>
+  <div class="actions"><a href="/tokens/create" class="btn btn-secondary">{{ _('Add provider') }}</a><a href="/tokens/connect" class="btn btn-primary">{{ _('Connect WhatsApp') }}</a>
     {% if meta_connect_enabled() %}<a href="/tokens/meta/connect" class="btn btn-secondary">{{ _('Connect Facebook') }}</a>{% endif %}
     {% if instagram_connect_enabled() %}<a href="/tokens/instagram/connect" class="btn btn-secondary">{{ _('Connect Instagram') }}</a>{% endif %}
   </div>
@@ -34,6 +34,7 @@
         <td>
           <div class="actions">
             {% if token.provider == 'native' and token.is_active and token.relay_session_id %}<a href="/tokens/{{ token.id }}/pair" class="btn btn-sm btn-primary">{{ _('Pair WhatsApp') }}</a>{% endif %}
+            {% if provider_registry.get(token.provider).kind == 'publishing' %}<a href="/providers/{{ token.provider }}/{{ token.id }}" class="btn btn-sm btn-primary">{{ _('Publish posts') }}</a>{% endif %}
             <a href="/tokens/{{ token.id }}/edit" class="btn btn-sm btn-secondary">{{ _('Edit') }}</a>
             <form method="POST" action="/tokens/{{ token.id }}/toggle" style="display:inline">
               <button class="btn btn-sm {{ 'btn-primary' if not token.is_active else 'btn-secondary' }}">

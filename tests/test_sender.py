@@ -14,7 +14,7 @@ def test_get_sender_returns_whatsapp_sender():
 
 def test_get_sender_rejects_unknown_provider():
     with pytest.raises(ValueError, match="Unsupported provider"):
-        get_sender("signal", "token")
+        get_sender("missing_provider", "token")
 
 
 def test_native_sender_only_uses_the_private_worker(monkeypatch):

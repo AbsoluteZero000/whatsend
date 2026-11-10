@@ -196,6 +196,8 @@ async def exercise(tmp_path, monkeypatch, handler, scenario):
     app.include_router(api.router)
     app.include_router(tokens.router)
     app.include_router(jobs.router)
+    from app.providers.lifecycle import register_routes
+    register_routes(app)
     from app.main import render
     app.state.render = render
     monkeypatch.setattr(tokens, "require_user", lambda request: {"sub": str(context.user.id)})
@@ -203,6 +205,9 @@ async def exercise(tmp_path, monkeypatch, handler, scenario):
     from app.services import scheduler as scheduling, native_jobs
     monkeypatch.setattr(scheduling, "async_session", sessions)
     monkeypatch.setattr(native_jobs, "async_session", sessions)
+    from app.providers.tiktok import jobs as tiktok_jobs, routes as tiktok_routes
+    monkeypatch.setattr(tiktok_jobs, "async_session", sessions)
+    monkeypatch.setattr(tiktok_routes, "require_user", lambda request: {"sub": str(context.user.id)})
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[api.get_api_key_user] = lambda: context
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: CLIENT(transport=httpx.MockTransport(handler), **kwargs))

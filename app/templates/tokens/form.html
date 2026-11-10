@@ -12,14 +12,15 @@
     <label for="provider">{{ _('Provider') }}</label>
     <select id="provider" name="provider">
       {% for provider in provider_registry.all() if provider.auth == 'token' %}
-      <option value="{{ provider.id }}" {% if provider.id == 'whatsapp' %}selected{% endif %}>{{ provider.label }}</option>
+      <option value="{{ provider.id }}" data-label="{{ provider.credential_label }}" data-help="{{ provider.credential_help }}" {% if provider.id == 'whatsapp' %}selected{% endif %}>{{ provider.label }}</option>
       {% endfor %}
     </select>
     {% endif %}
     <label for="name">{{ _('Name (optional)') }}</label>
     <input type="text" id="name" name="name" maxlength="120" value="{{ (token.name or '') if edit_mode else '' }}">
     {% if not edit_mode or provider_registry.get(token.provider).auth == 'token' %}
-    <label for="api_token">{{ _('Provider API Token') }}</label>
+    <label for="api_token" id="credential-label">{{ provider_registry.get(token.provider).credential_label if edit_mode else _('Provider API Token') }}</label>
+    <p id="credential-help" class="page-subtitle">{{ provider_registry.get(token.provider).credential_help if edit_mode else '' }}</p>
     <input type="password" id="api_token" name="api_token" {% if not edit_mode %}required{% endif %} placeholder="{{ _('leave blank to keep current') if edit_mode else _('Paste your token here') }}">
     {% elif token.provider == 'facebook' %}
     <p>{{ _('This account is connected through Facebook. If posting stops working, connect Facebook again to refresh it.') }}</p>
@@ -35,4 +36,5 @@
     <a href="/tokens" class="btn btn-secondary">{{ _('Cancel') }}</a>
   </form>
 </div>
+<script src="/static/js/provider-credentials.js?v={{ asset_versions['js/provider-credentials.js'] }}" defer></script>
 {% endblock %}
