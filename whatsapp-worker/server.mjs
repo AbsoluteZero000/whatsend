@@ -87,7 +87,7 @@ export function workerServer(manager, secret) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const manager = new WhatsAppManager({root: process.env.WHATSAPP_DATA_DIR || '/data/whatsapp', storageKey: process.env.WHATSAPP_STORAGE_KEY});
   const server = workerServer(manager, process.env.WHATSAPP_WORKER_SECRET);
-  server.listen(Number(process.env.WHATSAPP_WORKER_PORT || 3001), '127.0.0.1', () => {
+  server.listen(Number(process.env.WHATSAPP_WORKER_PORT || 3001), process.env.WHATSAPP_WORKER_HOST || '127.0.0.1', () => {
     process.stdout.write('Built-in WhatsApp service ready\n');
     void manager.restore();
   });

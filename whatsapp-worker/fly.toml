@@ -1,0 +1,38 @@
+# The WhatsApp worker for Wesal (ADR-031 in the wesal repo). Private: nothing is
+# published to the internet; Wesal reaches it at http://wesal-worker.internal:3001
+# over Fly's private network. Deploy from this folder with `fly deploy`.
+# Secrets (never in this file): WHATSAPP_WORKER_SECRET, WHATSAPP_STORAGE_KEY.
+app = "wesal-worker"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  WHATSAPP_DATA_DIR = "/data/whatsapp"
+  # Listen on all interfaces, IPv6 included, so the private network can connect.
+  WHATSAPP_WORKER_HOST = "::"
+  WHATSAPP_WORKER_PORT = "3001"
+
+# The linked WhatsApp session, encrypted with WHATSAPP_STORAGE_KEY.
+[[mounts]]
+  source = "wesal_worker_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+# One machine, always on: it holds the live WhatsApp connection.
+[deploy]
+  strategy = "immediate"
+
+# No [http_service] and no [[services]]: nothing is published to the internet.
+# Without services Fly never auto-stops the machine.
+[checks.alive]
+  type = "tcp"
+  port = 3001
+  interval = "15s"
+  timeout = "5s"
+  grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
