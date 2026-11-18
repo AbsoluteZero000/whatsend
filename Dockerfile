@@ -23,3 +23,4 @@ ENV DATABASE_URL=sqlite+aiosqlite:////data/whatsend.db
 ENV UPLOAD_DIR=/data/uploads
 
 CMD ["python", "run.py"]
+
